@@ -324,6 +324,7 @@
     <div class="main-container">
         <div class="canvas-container" id="canvasContainer">
             <div class="loading" id="loading">Loading...</div>
+            <div class="error-message" id="errorMessage" style="display: none; color: #dc3545; padding: 20px; text-align: center;"></div>
             <canvas id="canvas"></canvas>
         </div>
 
@@ -595,8 +596,11 @@
         async function loadImage() {
             try {
                 showStatus('Loading image...');
+
+                // Reset UI state
+                document.getElementById('errorMessage').style.display = 'none';
                 document.getElementById('loading').style.display = 'block';
-                canvas.style.display = 'none';
+                document.getElementById('canvas').style.display = 'none';
 
                 // Get current image path
                 const currentImage = imageList[currentImageIndex];
@@ -990,6 +994,9 @@
 
         async function saveLabels(showMessage = true) {
             try {
+                // Prevent saving if no image is loaded
+                if (!imageData) return;
+
                 if (showMessage) showStatus('Saving labels...');
 
                 // Convert annotations to YOLO format
@@ -1037,8 +1044,15 @@
         }
 
         function showError(message) {
-            const container = document.getElementById('canvasContainer');
-            container.innerHTML = `<div class="error">Error: ${message}</div>`;
+            // Hide loading and canvas
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('canvas').style.display = 'none';
+            
+            // Show error message
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = `Error: ${message}`;
+            errorEl.style.display = 'block';
+            
             document.getElementById('statusBar').textContent = `Error: ${message}`;
             document.getElementById('statusBar').style.color = '#dc3545';
         }

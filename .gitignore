@@ -9,3 +9,5 @@ duplicate/
 .pm2/
 npm-debug.log
 *.log
+.claude/
+instances.json/instances.json
