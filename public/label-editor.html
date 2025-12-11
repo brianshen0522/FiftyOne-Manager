@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -309,6 +310,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <h1>YOLO Label Editor</h1>
@@ -324,7 +326,8 @@
     <div class="main-container">
         <div class="canvas-container" id="canvasContainer">
             <div class="loading" id="loading">Loading...</div>
-            <div class="error-message" id="errorMessage" style="display: none; color: #dc3545; padding: 20px; text-align: center;"></div>
+            <div class="error-message" id="errorMessage"
+                style="display: none; color: #dc3545; padding: 20px; text-align: center;"></div>
             <canvas id="canvas"></canvas>
         </div>
 
@@ -495,6 +498,17 @@
                 };
 
                 previewContainer.appendChild(previewItem);
+
+                // Auto-scroll to active item
+                if (i === currentImageIndex) {
+                    setTimeout(() => {
+                        previewItem.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest',
+                            inline: 'center'
+                        });
+                    }, 0);
+                }
             }
         }
 
@@ -1047,12 +1061,12 @@
             // Hide loading and canvas
             document.getElementById('loading').style.display = 'none';
             document.getElementById('canvas').style.display = 'none';
-            
+
             // Show error message
             const errorEl = document.getElementById('errorMessage');
             errorEl.textContent = `Error: ${message}`;
             errorEl.style.display = 'block';
-            
+
             document.getElementById('statusBar').textContent = `Error: ${message}`;
             document.getElementById('statusBar').style.color = '#dc3545';
         }
@@ -1061,4 +1075,5 @@
         init();
     </script>
 </body>
+
 </html>
