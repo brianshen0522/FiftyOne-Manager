@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.dev
+instances.json
+__pycache__/
+*.pyc
+datasets/
+duplicate/
+.pm2/
+npm-debug.log
+*.log

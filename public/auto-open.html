@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opening Label Editor...</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #28a745;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 30px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #28a745;
+        }
+        p {
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+        .manual-link {
+            display: none;
+            margin-top: 30px;
+        }
+        .manual-link a {
+            color: #007bff;
+            text-decoration: none;
+            padding: 12px 24px;
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            display: inline-block;
+            font-weight: 500;
+        }
+        .manual-link a:hover {
+            background: #007bff;
+            color: white;
+        }
+        .countdown {
+            font-size: 48px;
+            color: #28a745;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h1>Opening Label Editor...</h1>
+        <div class="countdown" id="countdown">3</div>
+        <p id="status">Redirecting in <span id="seconds">3</span> seconds...</p>
+        <div class="manual-link" id="manualLink">
+            <p>If the editor doesn't open automatically:</p>
+            <a id="editorLink" href="#" target="_blank">Click Here to Open Label Editor</a>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // Get the target URL from query parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetUrl = urlParams.get('url');
+
+            if (!targetUrl) {
+                document.getElementById('status').textContent = 'Error: No URL specified';
+                document.querySelector('.spinner').style.display = 'none';
+                return;
+            }
+
+            // Set the manual link
+            const manualLink = document.getElementById('editorLink');
+            manualLink.href = targetUrl;
+
+            // Countdown from 3 to 1
+            let count = 3;
+            const countdownEl = document.getElementById('countdown');
+            const secondsEl = document.getElementById('seconds');
+
+            const countdownInterval = setInterval(() => {
+                count--;
+                countdownEl.textContent = count;
+                secondsEl.textContent = count;
+
+                if (count === 0) {
+                    clearInterval(countdownInterval);
+                    openEditor();
+                }
+            }, 1000);
+
+            function openEditor() {
+                try {
+                    // Try to open in a new tab
+                    const newWindow = window.open(targetUrl, '_blank');
+
+                    // Check if popup was blocked
+                    setTimeout(() => {
+                        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                            // Popup was blocked
+                            document.getElementById('status').textContent = 'Popup blocked! Please click the link below:';
+                            document.querySelector('.spinner').style.display = 'none';
+                            document.querySelector('.countdown').style.display = 'none';
+                            document.getElementById('manualLink').style.display = 'block';
+                        } else {
+                            // Success!
+                            document.getElementById('status').textContent = '✓ Label editor opened! You can close this tab.';
+                            document.querySelector('.spinner').style.display = 'none';
+                            document.querySelector('.countdown').style.display = 'none';
+
+                            // Close this tab after 2 seconds
+                            setTimeout(() => {
+                                window.close();
+                            }, 2000);
+                        }
+                    }, 500);
+
+                } catch (error) {
+                    // Error opening window
+                    document.getElementById('status').textContent = 'Error: ' + error.message;
+                    document.querySelector('.spinner').style.display = 'none';
+                    document.querySelector('.countdown').style.display = 'none';
+                    document.getElementById('manualLink').style.display = 'block';
+                }
+            }
+
+        })();
+    </script>
+</body>
+</html>

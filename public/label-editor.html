@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO Label Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #2a2a2a;
+            padding: 15px 20px;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0a0a0a;
+            position: relative;
+            overflow: auto;
+        }
+
+        #canvas {
+            border: 1px solid #3a3a3a;
+            cursor: crosshair;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #2a2a2a;
+            border-left: 1px solid #3a3a3a;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        .sidebar-section h2 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #aaa;
+        }
+
+        .class-selector {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .class-btn {
+            padding: 10px;
+            border: 2px solid #444;
+            background: #333;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .class-btn:hover {
+            background: #444;
+        }
+
+        .class-btn.active {
+            border-color: #007bff;
+            background: #007bff;
+        }
+
+        .annotations-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .annotation-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #333;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .annotation-item:hover {
+            background: #444;
+        }
+
+        .annotation-item.selected {
+            background: #007bff;
+        }
+
+        .annotation-info {
+            flex: 1;
+        }
+
+        .annotation-class {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .annotation-coords {
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .annotation-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .instructions {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.6;
+        }
+
+        .instructions ul {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 6px;
+        }
+
+        .preview-bar {
+            background: #2a2a2a;
+            border-top: 1px solid #3a3a3a;
+            padding: 10px 20px;
+            display: none;
+        }
+
+        .preview-bar.show {
+            display: block;
+        }
+
+        .image-preview {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 5px 0;
+        }
+
+        .preview-item {
+            width: 100px;
+            height: 100px;
+            border: 3px solid #444;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .preview-item:hover {
+            border-color: #007bff;
+            transform: scale(1.05);
+        }
+
+        .preview-item.active {
+            border-color: #28a745;
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+        }
+
+        .preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .preview-item .preview-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            font-size: 10px;
+            padding: 2px 4px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .status-bar {
+            background: #2a2a2a;
+            padding: 10px 20px;
+            border-top: 1px solid #3a3a3a;
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .info-field {
+            margin-bottom: 10px;
+        }
+
+        .info-label {
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+        }
+
+        .error {
+            color: #dc3545;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>YOLO Label Editor</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="previousImage()" id="prevBtn">← Previous</button>
+            <span id="imageCounter" style="margin: 0 15px; color: #aaa;"></span>
+            <button class="btn btn-secondary" onclick="nextImage()" id="nextBtn">Next →</button>
+            <button class="btn btn-secondary" onclick="loadImage()">Reload</button>
+            <button class="btn btn-primary" onclick="saveLabels()">Save Labels</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="canvas-container" id="canvasContainer">
+            <div class="loading" id="loading">Loading...</div>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <h2>Image Info</h2>
+                <div class="info-field">
+                    <div class="info-label">Filename</div>
+                    <div class="info-value" id="filename">-</div>
+                </div>
+                <div class="info-field">
+                    <div class="info-label">Image Size</div>
+                    <div class="info-value" id="imageSize">-</div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h2>Select Class <span style="font-size: 12px; color: #aaa;">(Click to change selected)</span></h2>
+                <div class="class-selector" id="classSelector"></div>
+            </div>
+
+            <div class="sidebar-section">
+                <h2>Annotations (<span id="annotationCount">0</span>)</h2>
+                <div class="annotations-list" id="annotationsList"></div>
+            </div>
+
+            <div class="sidebar-section">
+                <h2>Instructions</h2>
+                <div class="instructions">
+                    <ul>
+                        <li>Select a class above</li>
+                        <li>Click and drag to create box</li>
+                        <li>Click box to select/edit</li>
+                        <li>Delete key to remove</li>
+                        <li>Drag corners to resize</li>
+                        <li><strong>← → or A D keys</strong> to switch images</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="preview-bar" id="previewBar">
+        <div style="color: #aaa; font-size: 12px; margin-bottom: 5px;">
+            Images (<span id="imagePreviewCount">0</span>)
+        </div>
+        <div class="image-preview" id="imagePreview"></div>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        Ready
+    </div>
+
+    <script>
+        // Configuration
+        const CLASSES = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
+        const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#E74C3C'];
+
+        // State
+        let image = null;
+        let imageData = null;
+        let labelData = null;
+        let annotations = [];
+        let selectedClass = 0;
+        let selectedAnnotation = null;
+        let isDrawing = false;
+        let drawStart = null;
+        let currentBox = null;
+        let isDragging = false;
+        let dragHandle = null;
+
+        // Multi-image support
+        let imageList = [];
+        let currentImageIndex = 0;
+        let basePath = '';
+        let imageThumbnails = {}; // Store thumbnails for preview
+
+        // Canvas
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Support both old (full paths) and new (base + relative) format
+        const imagePath = urlParams.get('image');
+        const labelPath = urlParams.get('label');
+        basePath = urlParams.get('base') || '';
+        const relativeImage = urlParams.get('img');
+        const relativeLabel = urlParams.get('lbl');
+
+        // Support multiple images (comma-separated)
+        const imageListParam = urlParams.get('images');
+        if (imageListParam) {
+            imageList = imageListParam.split(',').map(img => img.trim());
+        } else if (relativeImage) {
+            imageList = [relativeImage];
+        } else if (imagePath) {
+            imageList = [imagePath];
+        }
+
+        // Initialize
+        async function init() {
+            if (imageList.length === 0) {
+                showError('Missing image path parameters');
+                return;
+            }
+
+            setupClassSelector();
+            setupEventListeners();
+            updateNavigationButtons();
+            setupImagePreview();
+            await loadImage();
+        }
+
+        function setupImagePreview() {
+            if (imageList.length > 1) {
+                document.getElementById('previewBar').classList.add('show');
+                document.getElementById('imagePreviewCount').textContent = imageList.length;
+            }
+        }
+
+        async function updateImagePreview() {
+            if (imageList.length <= 1) return;
+
+            const previewContainer = document.getElementById('imagePreview');
+            previewContainer.innerHTML = '';
+
+            for (let i = 0; i < imageList.length; i++) {
+                const previewItem = document.createElement('div');
+                previewItem.className = 'preview-item';
+                if (i === currentImageIndex) {
+                    previewItem.classList.add('active');
+                }
+
+                // Create image element
+                const img = document.createElement('img');
+
+                // Check if we have thumbnail cached
+                if (imageThumbnails[i]) {
+                    img.src = imageThumbnails[i];
+                } else {
+                    img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" fill="%23aaa" font-size="12">Loading...</text></svg>';
+
+                    // Load thumbnail asynchronously
+                    loadThumbnail(i).then(dataUrl => {
+                        imageThumbnails[i] = dataUrl;
+                        img.src = dataUrl;
+                    });
+                }
+
+                const label = document.createElement('div');
+                label.className = 'preview-label';
+                const filename = imageList[i].split('/').pop();
+                label.textContent = filename.substring(0, 12);
+
+                previewItem.appendChild(img);
+                previewItem.appendChild(label);
+
+                previewItem.onclick = async () => {
+                    if (currentImageIndex !== i) {
+                        await saveLabels(false);
+                        currentImageIndex = i;
+                        await loadImage();
+                        updateNavigationButtons();
+                        updateImagePreview();
+                    }
+                };
+
+                previewContainer.appendChild(previewItem);
+            }
+        }
+
+        async function loadThumbnail(index) {
+            try {
+                const imagePath = imageList[index];
+                let url;
+
+                if (basePath && imagePath.startsWith('images/')) {
+                    url = `/api/label-editor/load?basePath=${encodeURIComponent(basePath)}&relativeImage=${encodeURIComponent(imagePath)}&relativeLabel=dummy.txt`;
+                } else {
+                    url = `/api/label-editor/load?image=${encodeURIComponent(imagePath)}&label=dummy.txt`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+                return data.imageDataUrl;
+            } catch (error) {
+                console.error('Failed to load thumbnail:', error);
+                return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/></svg>';
+            }
+        }
+
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const counter = document.getElementById('imageCounter');
+
+            if (imageList.length > 1) {
+                counter.textContent = `${currentImageIndex + 1} / ${imageList.length}`;
+                prevBtn.disabled = currentImageIndex === 0;
+                nextBtn.disabled = currentImageIndex === imageList.length - 1;
+            } else {
+                counter.style.display = 'none';
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+            }
+        }
+
+        async function previousImage() {
+            if (currentImageIndex > 0) {
+                await saveLabels(false); // Save current before switching
+                currentImageIndex--;
+                await loadImage();
+                updateNavigationButtons();
+                updateImagePreview();
+            }
+        }
+
+        async function nextImage() {
+            if (currentImageIndex < imageList.length - 1) {
+                await saveLabels(false); // Save current before switching
+                currentImageIndex++;
+                await loadImage();
+                updateNavigationButtons();
+                updateImagePreview();
+            }
+        }
+
+        function setupClassSelector() {
+            const selector = document.getElementById('classSelector');
+            CLASSES.forEach((cls, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'class-btn';
+                btn.textContent = cls;
+                btn.style.borderColor = COLORS[idx];
+                btn.onclick = () => selectClass(idx);
+                if (idx === 0) btn.classList.add('active');
+                selector.appendChild(btn);
+            });
+        }
+
+        function updateClassSelector() {
+            // Highlight the class of the selected annotation
+            document.querySelectorAll('.class-btn').forEach((btn, idx) => {
+                if (selectedAnnotation !== null) {
+                    btn.classList.toggle('active', idx === annotations[selectedAnnotation].class);
+                } else {
+                    btn.classList.toggle('active', idx === selectedClass);
+                }
+            });
+        }
+
+        function selectClass(classIdx) {
+            // If an annotation is selected, change its class
+            if (selectedAnnotation !== null) {
+                annotations[selectedAnnotation].class = classIdx;
+                updateUI();
+                draw();
+            }
+
+            // Update selected class for new annotations
+            selectedClass = classIdx;
+            document.querySelectorAll('.class-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', idx === classIdx);
+            });
+        }
+
+        async function loadImage() {
+            try {
+                showStatus('Loading image...');
+                document.getElementById('loading').style.display = 'block';
+                canvas.style.display = 'none';
+
+                // Get current image path
+                const currentImage = imageList[currentImageIndex];
+
+                // Build URL based on format (base+relative or full path)
+                let url;
+                if (basePath && currentImage.startsWith('images/')) {
+                    // New format: base path + relative path
+                    const currentLabel = currentImage.replace('images/', 'labels/').replace(/\.(jpg|jpeg|png)$/i, '.txt');
+                    url = `/api/label-editor/load?basePath=${encodeURIComponent(basePath)}&relativeImage=${encodeURIComponent(currentImage)}&relativeLabel=${encodeURIComponent(currentLabel)}`;
+                } else {
+                    // Old format: full paths
+                    const currentLabel = currentImage.replace('/images/', '/labels/').replace(/\.(jpg|jpeg|png)$/i, '.txt');
+                    url = `/api/label-editor/load?image=${encodeURIComponent(currentImage)}&label=${encodeURIComponent(currentLabel)}`;
+                }
+
+                // Fetch image and label data
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load image');
+                }
+
+                imageData = data;
+                labelData = data.labelContent;
+                annotations = parseLabelData(labelData);
+
+                // Load image
+                image = new Image();
+                image.onload = () => {
+                    setupCanvas();
+                    document.getElementById('loading').style.display = 'none';
+                    canvas.style.display = 'block';
+                    showStatus('Ready');
+                    updateUI();
+                };
+                image.src = data.imageDataUrl;
+
+                document.getElementById('filename').textContent = data.filename;
+
+                // Update image preview
+                updateImagePreview();
+
+                // Cache thumbnail
+                if (!imageThumbnails[currentImageIndex]) {
+                    imageThumbnails[currentImageIndex] = data.imageDataUrl;
+                }
+
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function parseLabelData(content) {
+            if (!content || content.trim() === '') return [];
+
+            const lines = content.trim().split('\n');
+            return lines.map(line => {
+                const parts = line.trim().split(/\s+/);
+                if (parts.length < 5) return null;
+
+                return {
+                    class: parseInt(parts[0]),
+                    x: parseFloat(parts[1]),
+                    y: parseFloat(parts[2]),
+                    w: parseFloat(parts[3]),
+                    h: parseFloat(parts[4])
+                };
+            }).filter(a => a !== null);
+        }
+
+        function setupCanvas() {
+            canvas.width = image.width;
+            canvas.height = image.height;
+            document.getElementById('imageSize').textContent = `${image.width} x ${image.height}`;
+            draw();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0);
+
+            // Draw annotations
+            annotations.forEach((ann, idx) => {
+                const isSelected = selectedAnnotation === idx;
+                const color = COLORS[ann.class] || '#ffffff';
+
+                const x = (ann.x - ann.w / 2) * canvas.width;
+                const y = (ann.y - ann.h / 2) * canvas.height;
+                const w = ann.w * canvas.width;
+                const h = ann.h * canvas.height;
+
+                // Draw box
+                ctx.strokeStyle = color;
+                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.strokeRect(x, y, w, h);
+
+                // Draw label
+                ctx.fillStyle = color;
+                ctx.font = '14px monospace';
+                const label = CLASSES[ann.class] || `class_${ann.class}`;
+                const textWidth = ctx.measureText(label).width;
+                ctx.fillRect(x, y - 20, textWidth + 8, 20);
+                ctx.fillStyle = '#000';
+                ctx.fillText(label, x + 4, y - 6);
+
+                // Draw handles if selected
+                if (isSelected) {
+                    const handleSize = 8;
+                    ctx.fillStyle = color;
+                    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
+                        ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+                    });
+                }
+            });
+
+            // Draw current box being drawn
+            if (isDrawing && drawStart && currentBox) {
+                ctx.strokeStyle = COLORS[selectedClass];
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.strokeRect(currentBox.x, currentBox.y, currentBox.w, currentBox.h);
+                ctx.setLineDash([]);
+            }
+        }
+
+        function setupEventListeners() {
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            document.addEventListener('keydown', handleKeyDown);
+        }
+
+        function handleMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Check if clicking on a handle
+            if (selectedAnnotation !== null) {
+                const ann = annotations[selectedAnnotation];
+                const handle = getHandleAt(ann, x, y);
+                if (handle) {
+                    isDragging = true;
+                    dragHandle = handle;
+                    return;
+                }
+            }
+
+            // Check if clicking on an annotation
+            const clickedIdx = getAnnotationAt(x, y);
+            if (clickedIdx !== null) {
+                selectedAnnotation = clickedIdx;
+                updateUI();
+                updateClassSelector();
+                draw();
+                return;
+            }
+
+            // Start drawing new annotation
+            selectedAnnotation = null;
+            isDrawing = true;
+            drawStart = { x, y };
+            currentBox = { x, y, w: 0, h: 0 };
+            updateClassSelector();
+        }
+
+        function handleMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (isDragging && selectedAnnotation !== null) {
+                const ann = annotations[selectedAnnotation];
+                resizeAnnotation(ann, dragHandle, x, y);
+                draw();
+            } else if (isDrawing) {
+                currentBox.w = x - drawStart.x;
+                currentBox.h = y - drawStart.y;
+                draw();
+            }
+        }
+
+        function handleMouseUp(e) {
+            if (isDragging) {
+                isDragging = false;
+                dragHandle = null;
+                updateUI();
+            } else if (isDrawing) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                const w = Math.abs(x - drawStart.x);
+                const h = Math.abs(y - drawStart.y);
+
+                // Only create if box is big enough
+                if (w > 10 && h > 10) {
+                    const x1 = Math.min(drawStart.x, x);
+                    const y1 = Math.min(drawStart.y, y);
+
+                    const centerX = (x1 + w / 2) / canvas.width;
+                    const centerY = (y1 + h / 2) / canvas.height;
+                    const normW = w / canvas.width;
+                    const normH = h / canvas.height;
+
+                    annotations.push({
+                        class: selectedClass,
+                        x: centerX,
+                        y: centerY,
+                        w: normW,
+                        h: normH
+                    });
+
+                    updateUI();
+                }
+
+                isDrawing = false;
+                drawStart = null;
+                currentBox = null;
+                draw();
+            }
+        }
+
+        function handleKeyDown(e) {
+            // Delete annotation
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedAnnotation !== null) {
+                    e.preventDefault();
+                    deleteAnnotation(selectedAnnotation);
+                }
+            }
+
+            // Navigate between images with arrow keys or A/D keys
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                e.preventDefault();
+                previousImage();
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                nextImage();
+            }
+        }
+
+        function getAnnotationAt(x, y) {
+            for (let i = annotations.length - 1; i >= 0; i--) {
+                const ann = annotations[i];
+                const ax = (ann.x - ann.w / 2) * canvas.width;
+                const ay = (ann.y - ann.h / 2) * canvas.height;
+                const aw = ann.w * canvas.width;
+                const ah = ann.h * canvas.height;
+
+                if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
+                    return i;
+                }
+            }
+            return null;
+        }
+
+        function getHandleAt(ann, x, y) {
+            const ax = (ann.x - ann.w / 2) * canvas.width;
+            const ay = (ann.y - ann.h / 2) * canvas.height;
+            const aw = ann.w * canvas.width;
+            const ah = ann.h * canvas.height;
+
+            const handles = [
+                { name: 'tl', x: ax, y: ay },
+                { name: 'tr', x: ax + aw, y: ay },
+                { name: 'bl', x: ax, y: ay + ah },
+                { name: 'br', x: ax + aw, y: ay + ah }
+            ];
+
+            const handleSize = 16;
+            for (const handle of handles) {
+                if (Math.abs(x - handle.x) < handleSize && Math.abs(y - handle.y) < handleSize) {
+                    return handle.name;
+                }
+            }
+            return null;
+        }
+
+        function resizeAnnotation(ann, handle, mouseX, mouseY) {
+            const centerX = ann.x * canvas.width;
+            const centerY = ann.y * canvas.height;
+            const halfW = ann.w * canvas.width / 2;
+            const halfH = ann.h * canvas.height / 2;
+
+            let x1 = centerX - halfW;
+            let y1 = centerY - halfH;
+            let x2 = centerX + halfW;
+            let y2 = centerY + halfH;
+
+            switch (handle) {
+                case 'tl':
+                    x1 = mouseX;
+                    y1 = mouseY;
+                    break;
+                case 'tr':
+                    x2 = mouseX;
+                    y1 = mouseY;
+                    break;
+                case 'bl':
+                    x1 = mouseX;
+                    y2 = mouseY;
+                    break;
+                case 'br':
+                    x2 = mouseX;
+                    y2 = mouseY;
+                    break;
+            }
+
+            const newCenterX = (x1 + x2) / 2;
+            const newCenterY = (y1 + y2) / 2;
+            const newW = Math.abs(x2 - x1);
+            const newH = Math.abs(y2 - y1);
+
+            ann.x = newCenterX / canvas.width;
+            ann.y = newCenterY / canvas.height;
+            ann.w = newW / canvas.width;
+            ann.h = newH / canvas.height;
+        }
+
+        function deleteAnnotation(idx) {
+            annotations.splice(idx, 1);
+            selectedAnnotation = null;
+            updateUI();
+            draw();
+        }
+
+        function changeAnnotationClass(idx, newClass) {
+            annotations[idx].class = newClass;
+            updateUI();
+            draw();
+        }
+
+        function updateUI() {
+            const list = document.getElementById('annotationsList');
+            list.innerHTML = '';
+
+            annotations.forEach((ann, idx) => {
+                const item = document.createElement('div');
+                item.className = 'annotation-item';
+                if (selectedAnnotation === idx) {
+                    item.classList.add('selected');
+                }
+
+                const info = document.createElement('div');
+                info.className = 'annotation-info';
+
+                const className = document.createElement('div');
+                className.className = 'annotation-class';
+                className.textContent = CLASSES[ann.class] || `class_${ann.class}`;
+                className.style.color = COLORS[ann.class];
+
+                const coords = document.createElement('div');
+                coords.className = 'annotation-coords';
+                coords.textContent = `x:${ann.x.toFixed(3)} y:${ann.y.toFixed(3)} w:${ann.w.toFixed(3)} h:${ann.h.toFixed(3)}`;
+
+                info.appendChild(className);
+                info.appendChild(coords);
+
+                const actions = document.createElement('div');
+                actions.className = 'annotation-actions';
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-small btn-danger';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteAnnotation(idx);
+                };
+
+                actions.appendChild(deleteBtn);
+
+                item.appendChild(info);
+                item.appendChild(actions);
+
+                item.onclick = () => {
+                    selectedAnnotation = idx;
+                    updateUI();
+                    updateClassSelector();
+                    draw();
+                };
+
+                list.appendChild(item);
+            });
+
+            document.getElementById('annotationCount').textContent = annotations.length;
+            updateClassSelector();
+        }
+
+        async function saveLabels(showMessage = true) {
+            try {
+                if (showMessage) showStatus('Saving labels...');
+
+                // Convert annotations to YOLO format
+                const yoloContent = annotations.map(ann => {
+                    return `${ann.class} ${ann.x.toFixed(6)} ${ann.y.toFixed(6)} ${ann.w.toFixed(6)} ${ann.h.toFixed(6)}`;
+                }).join('\n');
+
+                // Build save request based on format
+                const requestBody = {
+                    content: yoloContent
+                };
+
+                if (imageData.basePath && imageData.relativeLabel) {
+                    requestBody.basePath = imageData.basePath;
+                    requestBody.relativeLabelPath = imageData.relativeLabel;
+                } else {
+                    requestBody.labelPath = imageData.labelPath;
+                }
+
+                const response = await fetch('/api/label-editor/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to save labels');
+                }
+
+                if (showMessage) {
+                    showStatus('Labels saved successfully!');
+                    setTimeout(() => showStatus('Ready'), 2000);
+                }
+
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function showStatus(message) {
+            document.getElementById('statusBar').textContent = message;
+            document.getElementById('statusBar').style.color = '#aaa';
+        }
+
+        function showError(message) {
+            const container = document.getElementById('canvasContainer');
+            container.innerHTML = `<div class="error">Error: ${message}</div>`;
+            document.getElementById('statusBar').textContent = `Error: ${message}`;
+            document.getElementById('statusBar').style.color = '#dc3545';
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

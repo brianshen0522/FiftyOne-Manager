@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FiftyOne Manager</title>
+    <style>
+        :root {
+            --bg: #0d1626;
+            --card: #152033;
+            --card-muted: #1b2940;
+            --text: #e6edf7;
+            --subtle: #9ba9c3;
+            --border: #25344d;
+            --accent: #e45d25;
+            --green: #20c25a;
+            --green-strong: #17a34a;
+            --red: #d24343;
+            --red-strong: #bb2f2f;
+            --yellow: #f1b11a;
+            --blue: #2f7ff5;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: "Nunito Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at 20% 20%, #15233a, #0a111f 50%),
+                        radial-gradient(circle at 80% 0%, #12213a, #0a111f 40%),
+                        var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 28px 20px 60px;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .title-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+        }
+
+        .title span { color: var(--accent); }
+
+        .subtitle {
+            color: var(--subtle);
+            font-size: 13px;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease, border 0.15s ease;
+            color: #0a111f;
+        }
+
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn:hover:not(:disabled) { transform: translateY(-1px); }
+        .btn:active:not(:disabled) { transform: translateY(0); }
+
+        .btn.ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn.success {
+            background: var(--green);
+            box-shadow: 0 6px 20px rgba(32, 194, 90, 0.35);
+            color: #081321;
+        }
+
+        .btn.success:hover:not(:disabled) { background: var(--green-strong); }
+
+        .btn.danger {
+            background: var(--red);
+            box-shadow: 0 6px 20px rgba(210, 67, 67, 0.35);
+            color: #fff;
+        }
+
+        .btn.danger:hover:not(:disabled) { background: var(--red-strong); }
+
+        .btn.secondary {
+            background: var(--card-muted);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title small {
+            color: var(--subtle);
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .instances {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .instance-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .instance-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .instance-id {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            color: #06101f;
+        }
+
+        .status-pill .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-online { background: rgba(32, 194, 90, 0.15); color: var(--green); border: 1px solid rgba(32,194,90,0.4); }
+        .status-online .dot { background: var(--green); }
+
+        .status-stopped { background: rgba(155, 169, 195, 0.12); color: var(--subtle); border: 1px solid rgba(155, 169, 195, 0.4); }
+        .status-stopped .dot { background: var(--subtle); }
+
+        .status-unknown { background: rgba(241, 177, 26, 0.15); color: var(--yellow); border: 1px solid rgba(241, 177, 26, 0.4); }
+        .status-unknown .dot { background: var(--yellow); }
+
+        .status-error { background: rgba(210, 67, 67, 0.18); color: var(--red); border: 1px solid rgba(210, 67, 67, 0.5); }
+        .status-error .dot { background: var(--red); }
+
+        .health-healthy { background: rgba(32, 194, 90, 0.15); color: var(--green); border: 1px solid rgba(32,194,90,0.4); }
+        .health-healthy .dot { background: var(--green); }
+
+        .health-unhealthy { background: rgba(210, 67, 67, 0.18); color: var(--red); border: 1px solid rgba(210, 67, 67, 0.5); }
+        .health-unhealthy .dot { background: var(--red); }
+
+        .health-na { background: rgba(155, 169, 195, 0.12); color: var(--subtle); border: 1px solid rgba(155, 169, 195, 0.4); }
+        .health-na .dot { background: var(--subtle); }
+
+        .status-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .status-message {
+            background: rgba(210, 67, 67, 0.15);
+            border: 1px solid rgba(210, 67, 67, 0.5);
+            color: #ffd7d7;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .instance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field label {
+            color: var(--subtle);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            font-weight: 700;
+        }
+
+        .field input {
+            background: var(--card-muted);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        .field input.input-error {
+            border-color: var(--red);
+            box-shadow: 0 0 0 2px rgba(210, 67, 67, 0.2);
+        }
+
+        .hint {
+            color: var(--subtle);
+            font-size: 12px;
+            margin-top: -2px;
+        }
+
+        .instance-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .instance-actions .btn {
+            flex: 1;
+            min-width: 90px;
+            padding: 10px 12px;
+            text-align: center;
+        }
+
+        .logs-wrapper {
+            position: relative;
+        }
+
+        .logs-container {
+            background: #0d131f;
+            color: #d4d9e6;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
+            font-size: 12px;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .scroll-latest-btn {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: rgba(21, 32, 51, 0.95);
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer;
+            display: none;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+        }
+
+        .scroll-latest-btn:hover {
+            background: rgba(44, 61, 88, 0.95);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(4, 8, 15, 0.65);
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #0f1827;
+            padding: 26px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .modal-header h2 { color: var(--text); }
+
+        .close-btn {
+            background: transparent;
+            color: var(--subtle);
+            font-size: 26px;
+            cursor: pointer;
+            border: none;
+            width: 32px;
+            height: 32px;
+        }
+
+        .close-btn:hover { color: var(--text); }
+
+        .form-group { margin-bottom: 16px; }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--subtle);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            font-size: 12px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            background: var(--card);
+            color: var(--text);
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(47, 127, 245, 0.25);
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 6px;
+            color: var(--subtle);
+            font-size: 12px;
+        }
+
+        #instancePort {
+            height: auto;
+            overflow-y: auto;
+        }
+
+        #instancePort option {
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        #instancePort option:hover {
+            background: var(--card-muted);
+        }
+
+        #instancePort option.available {
+            color: var(--green);
+        }
+
+        #instancePort option.used {
+            color: var(--red);
+            text-decoration: line-through;
+        }
+
+        #selectedPortDisplay {
+            background: var(--card-muted);
+            cursor: not-allowed;
+            font-weight: 600;
+            color: var(--green);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--subtle);
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--green);
+        }
+
+        .dataset-browser {
+            background: var(--card-muted);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .class-preview {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .class-preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--subtle);
+            font-weight: 800;
+            letter-spacing: 0.4px;
+        }
+
+        .class-preview-badge {
+            background: rgba(47, 127, 245, 0.12);
+            color: var(--blue);
+            border: 1px solid rgba(47, 127, 245, 0.4);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .class-preview-body {
+            margin-top: 8px;
+            background: #0d131f;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            color: var(--text);
+            font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
+            font-size: 12px;
+            max-height: 180px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .class-preview-note {
+            margin-top: 6px;
+            color: var(--subtle);
+            font-size: 12px;
+        }
+
+        .class-preview-error {
+            margin-top: 8px;
+            color: #ffc9c9;
+            font-size: 12px;
+        }
+
+        .breadcrumb {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+
+        .btn-refresh {
+            margin-left: auto;
+            padding: 6px 12px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-refresh:hover {
+            background: var(--card-muted);
+            transform: rotate(180deg);
+        }
+
+        .crumb {
+            color: var(--accent);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+
+        .crumb:hover {
+            background: rgba(228, 93, 37, 0.15);
+        }
+
+        .crumb-sep {
+            color: var(--subtle);
+            user-select: none;
+        }
+
+        .folder-list {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .folder-item {
+            padding: 10px 12px;
+            border-radius: 6px;
+            transition: background 0.15s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .folder-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .folder-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .folder-name::before {
+            content: "📁";
+        }
+
+        .file-name::before {
+            content: "📄";
+        }
+
+        .file-item {
+            color: var(--green);
+        }
+
+        .folder-item.empty {
+            color: var(--subtle);
+            font-style: italic;
+            cursor: default;
+        }
+
+        .folder-item.empty:hover {
+            background: transparent;
+        }
+
+        .error-message {
+            background: rgba(210, 67, 67, 0.1);
+            color: #ffc9c9;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(210,67,67,0.4);
+        }
+
+        .port-hint {
+            display: block;
+            margin-top: 4px;
+            color: var(--subtle);
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--subtle);
+            border: 1px dashed var(--border);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.02);
+        }
+
+        .empty-state h2 { color: var(--text); margin-bottom: 6px; }
+
+        .processing-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 8, 15, 0.6);
+            z-index: 1200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .processing-card {
+            background: #0f1827;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 22px;
+            min-width: 240px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+
+        .spinner {
+            width: 28px;
+            height: 28px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .processing-text {
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        @media (max-width: 720px) {
+            .top-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .top-actions { width: 100%; flex-wrap: wrap; }
+            .top-actions .btn { flex: 1; text-align: center; }
+            .instance-grid { grid-template-columns: 1fr; }
+            .instance-actions .btn { flex: 1 1 45%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header class="top-bar">
+            <div class="title-wrap">
+                <div class="title"><span>FiftyOne</span> Manager</div>
+                <div class="subtitle">Status refresh every 5s</div>
+            </div>
+            <div class="top-actions">
+                <button class="btn success" onclick="startAllInstances()">Start All (Up)</button>
+                <button class="btn danger" onclick="stopAllInstances()">Stop All (Down)</button>
+                <button class="btn ghost" onclick="showAddModal()">Add Instance</button>
+            </div>
+        </header>
+
+        <section class="section">
+            <div class="section-title">
+                Instances
+                <small>Base path: <span id="basePath">-</span> · Ports: <span id="portRange">-</span></small>
+            </div>
+            <div id="instancesContainer" class="instances">
+                <div class="empty-state">
+                    <h2>No instances yet</h2>
+                    <p>Click "Add Instance" to create your first FiftyOne instance</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Add/Edit Instance Modal -->
+    <div id="instanceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Add New Instance</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalError" class="error-message" style="display: none;"></div>
+            <form id="instanceForm" onsubmit="saveInstance(event)">
+                <div class="form-group">
+                    <label for="instanceName">Instance Name *</label>
+                    <input type="text" id="instanceName" required>
+                    <small>Unique identifier for this instance</small>
+                    <div id="instanceNameError" class="error-message" style="display: none; margin-top: 8px;">Instance name already exists.</div>
+                </div>
+                <div class="form-group">
+                    <label for="selectedPortDisplay">Selected Port *</label>
+                    <input type="text" id="selectedPortDisplay" readonly placeholder="Select a port below..." style="margin-bottom: 8px;">
+                    <label for="instancePort" style="font-size: 13px; color: var(--subtle);">Available Ports</label>
+                    <select id="instancePort" size="5" required onchange="updateSelectedPortDisplay()">
+                        <option value="">Loading ports...</option>
+                    </select>
+                    <small class="port-hint" id="portHint">Select an available port from the list.</small>
+                </div>
+                <div class="form-group">
+                    <label for="datasetPath">Dataset Path *</label>
+                    <div class="dataset-browser">
+                        <div class="breadcrumb" id="breadcrumb">
+                            <span class="crumb" onclick="navigateToPath('')">📁 datasets</span>
+                        </div>
+                        <div class="folder-list" id="folderList">
+                            <div class="folder-item">Loading...</div>
+                        </div>
+                    </div>
+                    <input type="text" id="datasetPath" required placeholder="Selected path will appear here">
+                    <small>Browse folders above or enter path manually</small>
+                </div>
+                <div class="form-group">
+                    <label for="classFile">Class Names File (Optional)</label>
+                    <div class="dataset-browser">
+                        <div class="breadcrumb" id="classBreadcrumb">
+                            <span class="crumb" onclick="navigateToClassPath('')">📁 datasets</span>
+                        </div>
+                        <div class="folder-list" id="classFolderList">
+                            <div class="folder-item">Loading...</div>
+                        </div>
+                    </div>
+                    <input type="text" id="classFile" placeholder="Or enter path manually">
+                    <small>Browse for .txt file containing "class" in filename (one class name per line)</small>
+                    <div id="classPreview" class="class-preview">
+                        <div class="class-preview-header">
+                            <span>Preview</span>
+                            <span id="classPreviewMeta" class="class-preview-badge">0 lines</span>
+                        </div>
+                        <div id="classPreviewBody" class="class-preview-body">Select a class file to preview</div>
+                        <div id="classPreviewNote" class="class-preview-note" style="display: none;"></div>
+                        <div id="classPreviewError" class="class-preview-error" style="display: none;"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="threshold">Duplicate Threshold</label>
+                    <input type="number" id="threshold" step="0.01" min="0" max="1">
+                    <small>Similarity threshold (0.0 - 1.0) for duplicate detection</small>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="debugMode">
+                        <label for="debugMode">Debug Mode</label>
+                    </div>
+                    <small>Group duplicates into separate folders</small>
+                </div>
+                <div class="form-group">
+                    <button type="submit" id="saveInstanceBtn" class="btn success" style="width: 100%;">Save Instance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div id="logsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="logsTitle">Instance Logs</h2>
+                <button class="close-btn" onclick="closeLogsModal()">&times;</button>
+            </div>
+            <div class="logs-wrapper">
+                <div class="logs-container" id="logsContent">
+                    Loading logs...
+                </div>
+                <button id="scrollLatestBtn" class="scroll-latest-btn" onclick="scrollToLatest()">Scroll to latest</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Overlay -->
+    <div id="processingOverlay" class="processing-overlay" role="alert" aria-live="assertive">
+        <div class="processing-card">
+            <div class="spinner" aria-hidden="true"></div>
+            <div id="processingText" class="processing-text">Processing...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let config = {};
+        let editingInstance = null;
+        let latestInstances = [];
+        let datasets = [];
+        let datasetsError = null;
+        let logsIntervalId = null;
+        let activeLogsInstance = null;
+        let followLogs = true;
+        const LOG_POLL_MS = 2000;
+        const SCROLL_THRESHOLD = 40;
+
+        function showProcessing(text = 'Processing...') {
+            const overlay = document.getElementById('processingOverlay');
+            const label = document.getElementById('processingText');
+            if (!overlay || !label) return;
+            label.textContent = text;
+            overlay.style.display = 'flex';
+        }
+
+        function hideProcessing() {
+            const overlay = document.getElementById('processingOverlay');
+            if (!overlay) return;
+            overlay.style.display = 'none';
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetch(`${API_BASE}/api/config`);
+                config = await response.json();
+                document.getElementById('basePath').textContent = config.datasetBasePath;
+                document.getElementById('portRange').textContent = `${config.portRange.start}-${config.portRange.end}`;
+                await loadDatasets();
+            } catch (err) {
+                console.error('Failed to load config:', err);
+            }
+        }
+
+        async function loadDatasets() {
+            datasetsError = null;
+            try {
+                const response = await fetch(`${API_BASE}/api/datasets`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load datasets');
+                }
+                if (!Array.isArray(data)) {
+                    throw new Error('Datasets response was not an array');
+                }
+
+                datasets = data;
+            } catch (err) {
+                datasets = [];
+                datasetsError = err.message || 'Failed to load datasets';
+                console.error('Failed to load datasets:', err);
+            }
+            populateDatasetOptions();
+        }
+
+        async function loadClassFiles(datasetFullPath) {
+            const basePath = config.datasetBasePath || '/data/datasets';
+            let relativePath = '';
+
+            if (datasetFullPath && datasetFullPath.startsWith(basePath)) {
+                relativePath = datasetFullPath.slice(basePath.length).replace(/^\//, '');
+            }
+
+            try {
+                await navigateToClassPath(relativePath);
+            } catch (err) {
+                console.error('Failed to load class files:', err);
+            }
+        }
+
+        // Current navigation path
+        let currentPath = '';
+
+        // Build tree structure from flat dataset list
+        function buildDatasetTree() {
+            const tree = { folders: new Set(), datasets: new Set() };
+
+            if (!Array.isArray(datasets)) {
+                return tree;
+            }
+
+            datasets.forEach(d => {
+                const parts = d.name.split('/');
+
+                // Add all intermediate folders
+                for (let i = 0; i < parts.length; i++) {
+                    const folderPath = parts.slice(0, i + 1).join('/');
+                    const parentPath = i === 0 ? '' : parts.slice(0, i).join('/');
+
+                    if (!tree[parentPath]) {
+                        tree[parentPath] = { folders: new Set(), datasets: new Set() };
+                    }
+
+                    if (i === parts.length - 1) {
+                        // This is a dataset
+                        tree[parentPath].datasets.add({ name: parts[i], path: d.path });
+                    } else {
+                        // This is a folder
+                        tree[parentPath].folders.add(parts[i]);
+                    }
+                }
+            });
+
+            return tree;
+        }
+
+        function populateDatasetOptions() {
+            window.datasetTree = buildDatasetTree();
+            navigateToPath('');
+        }
+
+        function navigateToPath(path) {
+            currentPath = path;
+            renderBreadcrumb(path);
+            renderFolderList(path);
+
+            // Auto-update dataset path
+            const basePath = config.datasetBasePath || '/data/datasets';
+            const fullPath = path ? `${basePath}/${path}` : basePath;
+            document.getElementById('datasetPath').value = fullPath;
+
+            // Load class files for this path
+            loadClassFiles(fullPath);
+        }
+
+        function renderBreadcrumb(path) {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (!breadcrumb) return;
+
+            const parts = path ? path.split('/') : [];
+            let html = '<span class="crumb" onclick="navigateToPath(\'\')">📁 datasets</span>';
+
+            if (parts.length > 0 && parts[0] !== '') {
+                html += '<span class="crumb-sep">/</span>';
+                parts.forEach((part, index) => {
+                    const pathToHere = parts.slice(0, index + 1).join('/');
+                    html += `<span class="crumb" onclick="navigateToPath('${pathToHere}')">${part}</span>`;
+                    if (index < parts.length - 1) {
+                        html += '<span class="crumb-sep">/</span>';
+                    }
+                });
+            }
+
+            // Add refresh button
+            html += '<button type="button" class="btn-refresh" onclick="refreshAndStay()" title="Refresh folders">↻</button>';
+
+            breadcrumb.innerHTML = html;
+        }
+
+        function renderFolderList(path) {
+            const folderList = document.getElementById('folderList');
+            if (!folderList || !window.datasetTree) return;
+
+            const currentLevel = window.datasetTree[path] || { folders: new Set(), datasets: new Set() };
+            let html = '';
+
+            if (datasetsError) {
+                folderList.innerHTML = `<div class="folder-item empty">Error loading datasets: ${datasetsError}</div>`;
+                return;
+            }
+
+            // Show all folders (including those that are datasets)
+            const allItems = new Map();
+
+            // Add regular folders
+            Array.from(currentLevel.folders).forEach(folder => {
+                const folderPath = path ? `${path}/${folder}` : folder;
+                allItems.set(folder, { name: folder, path: folderPath });
+            });
+
+            // Add datasets as folders too
+            Array.from(currentLevel.datasets).forEach(dataset => {
+                if (!allItems.has(dataset.name)) {
+                    const folderPath = path ? `${path}/${dataset.name}` : dataset.name;
+                    allItems.set(dataset.name, { name: dataset.name, path: folderPath });
+                }
+            });
+
+            // Sort and render all items
+            const sortedItems = Array.from(allItems.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+            sortedItems.forEach(item => {
+                html += `
+                    <div class="folder-item" onclick="navigateToPath('${item.path}')">
+                        <div class="folder-name">${item.name}</div>
+                    </div>
+                `;
+            });
+
+            if (html === '') {
+                html = '<div class="folder-item empty">No folders here</div>';
+            }
+
+            folderList.innerHTML = html;
+        }
+
+        async function refreshDatasetOptions() {
+            await loadDatasets();
+        }
+
+        async function refreshAndStay() {
+            const previousPath = currentPath;
+            await loadDatasets();
+            // Return to the same path after refresh
+            navigateToPath(previousPath);
+        }
+
+        // Current class file navigation path
+        let currentClassPath = '';
+
+        async function navigateToClassPath(path) {
+            currentClassPath = path;
+            await renderClassBreadcrumb(path);
+            await renderClassFolderList(path);
+        }
+
+        function renderClassBreadcrumb(path) {
+            const breadcrumb = document.getElementById('classBreadcrumb');
+            if (!breadcrumb) return;
+
+            const parts = path ? path.split('/').filter(p => p) : [];
+            let html = '<span class="crumb" onclick="navigateToClassPath(\'\')">📁 datasets</span>';
+
+            if (parts.length > 0) {
+                html += '<span class="crumb-sep">/</span>';
+                parts.forEach((part, index) => {
+                    const pathToHere = parts.slice(0, index + 1).join('/');
+                    html += `<span class="crumb" onclick="navigateToClassPath('${pathToHere}')">${part}</span>`;
+                    if (index < parts.length - 1) {
+                        html += '<span class="crumb-sep">/</span>';
+                    }
+                });
+            }
+
+            // Add refresh button
+            html += '<button type="button" class="btn-refresh" onclick="navigateToClassPath(currentClassPath)" title="Refresh folders">↻</button>';
+
+            breadcrumb.innerHTML = html;
+        }
+
+        async function renderClassFolderList(path) {
+            const folderList = document.getElementById('classFolderList');
+            if (!folderList) return;
+
+            try {
+                // Build full path from base path
+                const basePath = config.datasetBasePath || '/data/datasets';
+                const fullPath = path ? `${basePath}/${path}` : basePath;
+
+                const response = await fetch(`${API_BASE}/api/browse-path?path=${encodeURIComponent(fullPath)}&filterClassFiles=true`);
+                const data = await response.json();
+
+                let html = '';
+
+                // Show folders first
+                if (data.folders && data.folders.length > 0) {
+                    data.folders.forEach(folder => {
+                        const folderPath = path ? `${path}/${folder}` : folder;
+                        html += `
+                            <div class="folder-item" onclick="navigateToClassPath('${folderPath}')">
+                                <div class="folder-name">${folder}</div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Show .txt files containing "class"
+                if (data.files && data.files.length > 0) {
+                    data.files.forEach(file => {
+                        if (file.toLowerCase().endsWith('.txt') && file.toLowerCase().includes('class')) {
+                            const filePath = path ? `${path}/${file}` : file;
+                            const absolutePath = path ? `${basePath}/${filePath}` : `${basePath}/${file}`;
+                            html += `
+                                <div class="folder-item file-item" onclick="selectClassFile('${absolutePath}')">
+                                    <div class="folder-name file-name">${file}</div>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+
+                if (html === '') {
+                    html = '<div class="folder-item empty">No folders or class files here</div>';
+                }
+
+                folderList.innerHTML = html;
+            } catch (err) {
+                console.error('Failed to load path:', err);
+                folderList.innerHTML = '<div class="folder-item empty">Error loading path</div>';
+            }
+        }
+
+        function hideClassPreview() {
+            const container = document.getElementById('classPreview');
+            const body = document.getElementById('classPreviewBody');
+            const meta = document.getElementById('classPreviewMeta');
+            const note = document.getElementById('classPreviewNote');
+            const error = document.getElementById('classPreviewError');
+            if (!container || !body || !meta) return;
+            container.style.display = 'none';
+            body.textContent = 'Select a class file to preview';
+            meta.textContent = '';
+            if (note) note.style.display = 'none';
+            if (error) error.style.display = 'none';
+        }
+
+        async function previewClassFile(path) {
+            const container = document.getElementById('classPreview');
+            const body = document.getElementById('classPreviewBody');
+            const meta = document.getElementById('classPreviewMeta');
+            const note = document.getElementById('classPreviewNote');
+            const error = document.getElementById('classPreviewError');
+            if (!container || !body || !meta) return;
+
+            if (!path) {
+                hideClassPreview();
+                return;
+            }
+
+            container.style.display = 'block';
+            body.textContent = 'Loading preview...';
+            meta.textContent = '';
+            if (note) note.style.display = 'none';
+            if (error) {
+                error.style.display = 'none';
+                error.textContent = '';
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/class-file?path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load class file');
+                }
+
+                const lines = (data.content || '')
+                    .split(/\r?\n/)
+                    .filter(line => line.trim() !== '');
+
+                body.textContent = lines.length ? lines.join('\n') : 'File is empty';
+
+                const lineCount = lines.length;
+                meta.textContent = `${lineCount} line${lineCount === 1 ? '' : 's'}`;
+
+                if (note) {
+                    if (data.truncated) {
+                        note.textContent = 'Preview truncated to the first 10,000 characters.';
+                        note.style.display = 'block';
+                    } else {
+                        note.style.display = 'none';
+                    }
+                }
+            } catch (err) {
+                body.textContent = '';
+                meta.textContent = '';
+                if (error) {
+                    error.textContent = err.message || 'Unable to preview file.';
+                    error.style.display = 'block';
+                }
+            }
+        }
+
+        function selectClassFile(path) {
+            document.getElementById('classFile').value = path;
+            previewClassFile(path);
+        }
+
+        async function loadInstances() {
+            try {
+                const response = await fetch(`${API_BASE}/api/instances`);
+                const instances = await response.json();
+                latestInstances = instances;
+                renderInstances(instances);
+            } catch (err) {
+                console.error('Failed to load instances:', err);
+            }
+        }
+
+        function statusMeta(instance) {
+            const status = (instance.status || 'unknown').toLowerCase();
+            if (status === 'online') return { cls: 'status-online', text: 'Running' };
+            if (status === 'stopped') return { cls: 'status-stopped', text: 'Not running' };
+            return { cls: 'status-unknown', text: 'Unknown' };
+        }
+
+        function healthMeta(instance) {
+            const health = (instance.serviceHealth || 'n/a').toLowerCase();
+            if (health === 'healthy') return { cls: 'health-healthy', text: 'Service OK' };
+            if (health === 'unhealthy') return { cls: 'health-unhealthy', text: 'Service Down' };
+            return { cls: 'health-na', text: 'N/A' };
+        }
+
+        function renderInstances(instances) {
+            const container = document.getElementById('instancesContainer');
+
+            if (!instances.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No instances yet</h2>
+                        <p>Click "Add Instance" to create your first FiftyOne instance</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = instances.map(instance => {
+                const meta = statusMeta(instance);
+                const health = healthMeta(instance);
+                const hasError = instance.status && instance.status.toLowerCase() === 'error';
+
+                return `
+                <div class="instance-card">
+                    <div class="instance-header">
+                        <div class="instance-id">
+                            <span>${instance.name || 'Instance'}</span>
+                        </div>
+                        <div class="status-group">
+                            <div class="status-pill ${hasError ? 'status-error' : meta.cls}">
+                                <span class="dot"></span>
+                                <span>${hasError ? 'Error' : meta.text}</span>
+                            </div>
+                            ${instance.status === 'online' ? `
+                            <div class="status-pill ${health.cls}">
+                                <span class="dot"></span>
+                                <span>${health.text}</span>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    ${hasError ? `<div class="status-message">Last error reported. Check logs for details.</div>` : ''}
+
+                    <div class="instance-grid">
+                        <div class="field">
+                            <label>Name</label>
+                            <input type="text" value="${instance.name || ''}" readonly>
+                        </div>
+                        <div class="field">
+                            <label>Port</label>
+                            <input type="text" value="${instance.port || ''}" readonly>
+                        </div>
+                        <div class="field" style="grid-column: span 2;">
+                            <label>Dataset Dir</label>
+                            <input type="text" value="${instance.datasetPath || ''}" readonly>
+                        </div>
+                    </div>
+                    <div class="hint">Must be inside the base path defined in .env.</div>
+                    <div class="instance-actions">
+                        ${instance.status === 'online'
+                            ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">Restart</button>
+                               <button class="btn danger" onclick="stopInstance('${instance.name}')">Stop</button>
+                               <button class="btn secondary" onclick="openInstance(${instance.port})">Open</button>`
+                            : `<button class="btn success" onclick="startInstance('${instance.name}')">Start</button>
+                               <button class="btn ghost" onclick="editInstance('${instance.name}')">Edit</button>
+                               <button class="btn danger" onclick="deleteInstance('${instance.name}')">Remove</button>`
+                        }
+                        <button class="btn ghost" onclick="showLogs('${instance.name}')">Logs</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        async function startInstance(name) {
+            showProcessing(`Starting ${name}...`);
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/${name}/start`, { method: 'POST' });
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Failed to start instance: ${error.error}`);
+                    return;
+                }
+                setTimeout(refreshInstances, 800);
+            } catch (err) {
+                alert(`Failed to start instance: ${err.message}`);
+            } finally {
+                hideProcessing();
+            }
+        }
+
+        async function stopInstance(name) {
+            showProcessing(`Stopping ${name}...`);
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/${name}/stop`, { method: 'POST' });
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Failed to stop instance: ${error.error}`);
+                    return;
+                }
+                setTimeout(refreshInstances, 800);
+            } catch (err) {
+                alert(`Failed to stop instance: ${err.message}`);
+            } finally {
+                hideProcessing();
+            }
+        }
+
+        async function restartInstance(name) {
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/${name}/restart`, { method: 'POST' });
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Failed to restart instance: ${error.error}`);
+                    return;
+                }
+                setTimeout(refreshInstances, 800);
+            } catch (err) {
+                alert(`Failed to restart instance: ${err.message}`);
+            }
+        }
+
+        async function startAllInstances() {
+            if (!latestInstances.length) return;
+            for (const instance of latestInstances) {
+                if (instance.status !== 'online') {
+                    await startInstance(instance.name);
+                }
+            }
+            refreshInstances();
+        }
+
+        async function stopAllInstances() {
+            if (!latestInstances.length) return;
+            for (const instance of latestInstances) {
+                if (instance.status === 'online') {
+                    await stopInstance(instance.name);
+                }
+            }
+            refreshInstances();
+        }
+
+        async function deleteInstance(name) {
+            if (!confirm(`Are you sure you want to delete instance "${name}"?`)) {
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/${name}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Failed to delete instance: ${error.error}`);
+                    return;
+                }
+                refreshInstances();
+            } catch (err) {
+                alert(`Failed to delete instance: ${err.message}`);
+            }
+        }
+
+        function openInstance(port) {
+            window.open(`http://${window.location.hostname}:${port}`, '_blank');
+        }
+
+        function findSmallestAvailablePort() {
+            const usedPorts = new Set(latestInstances.map(i => i.port));
+            for (let port = config.portRange.start; port <= config.portRange.end; port++) {
+                if (!usedPorts.has(port)) {
+                    return port;
+                }
+            }
+            return config.portRange.start; // Fallback to start if all ports are used
+        }
+
+        function populatePortOptions(excludeInstance = null) {
+            const portSelect = document.getElementById('instancePort');
+            if (!portSelect || !config.portRange) return;
+
+            const usedPorts = new Set(
+                latestInstances
+                    .filter(i => i.name !== excludeInstance)
+                    .map(i => i.port)
+            );
+
+            const ports = [];
+            for (let port = config.portRange.start; port <= config.portRange.end; port++) {
+                const isAvailable = !usedPorts.has(port);
+                ports.push({
+                    value: port,
+                    label: isAvailable ? `${port} (available)` : `${port} (in use)`,
+                    available: isAvailable,
+                    display: true
+                });
+            }
+
+            // Store all ports for filtering
+            portSelect._allPorts = ports;
+            renderPortOptions(ports);
+        }
+
+        function renderPortOptions(ports) {
+            const portSelect = document.getElementById('instancePort');
+            if (!portSelect) return;
+
+            // Get currently selected value
+            const currentValue = portSelect.value;
+
+            portSelect.innerHTML = ports
+                .filter(p => p.display)
+                .map(p => `<option value="${p.value}" class="${p.available ? 'available' : 'used'}" ${!p.available ? 'disabled' : ''}>${p.label}</option>`)
+                .join('');
+
+            // Restore selection if it's still available
+            if (currentValue && ports.find(p => p.value == currentValue && p.display)) {
+                portSelect.value = currentValue;
+            }
+        }
+
+        function updateSelectedPortDisplay() {
+            const portSelect = document.getElementById('instancePort');
+            const displayInput = document.getElementById('selectedPortDisplay');
+            if (!portSelect || !displayInput) return;
+
+            const selectedPort = portSelect.value;
+            if (selectedPort) {
+                displayInput.value = selectedPort;
+            } else {
+                displayInput.value = '';
+            }
+        }
+
+        async function showAddModal() {
+            // Ensure config is loaded
+            if (!config.portRange) {
+                await loadConfig();
+            }
+
+            editingInstance = null;
+            document.getElementById('modalTitle').textContent = 'Add New Instance';
+            document.getElementById('instanceForm').reset();
+            document.getElementById('threshold').value = config.defaultThreshold;
+            document.getElementById('debugMode').checked = config.defaultDebug;
+            document.getElementById('instanceName').disabled = false;
+            hideInstanceNameError();
+            document.getElementById('modalError').style.display = 'none';
+            document.getElementById('instanceModal').classList.add('active');
+            hideClassPreview();
+            populateDatasetOptions();
+
+            // Initialize class file browser
+            await navigateToClassPath('');
+
+            // Populate port dropdown and select smallest available port
+            populatePortOptions();
+            const defaultPort = findSmallestAvailablePort();
+            document.getElementById('instancePort').value = defaultPort;
+            updateSelectedPortDisplay();
+        }
+
+        async function editInstance(name) {
+            try {
+                // Ensure config is loaded
+                if (!config.portRange) {
+                    await loadConfig();
+                }
+
+                const instance = latestInstances.find(i => i.name === name);
+                if (!instance) {
+                    alert('Instance not found');
+                    return;
+                }
+
+                editingInstance = name;
+                document.getElementById('modalTitle').textContent = 'Edit Instance';
+                document.getElementById('instanceName').value = instance.name;
+                document.getElementById('instanceName').disabled = true;
+                document.getElementById('datasetPath').value = instance.datasetPath;
+                document.getElementById('threshold').value = instance.threshold;
+                document.getElementById('debugMode').checked = instance.debug;
+                document.getElementById('classFile').value = instance.classFile || '';
+                hideInstanceNameError();
+                document.getElementById('modalError').style.display = 'none';
+                document.getElementById('instanceModal').classList.add('active');
+                if (instance.classFile) {
+                    previewClassFile(instance.classFile);
+                } else {
+                    hideClassPreview();
+                }
+                populateDatasetOptions();
+
+                // Initialize class file browser - navigate to parent folder if classFile exists
+                if (instance.classFile) {
+                    const basePath = config.datasetBasePath || '/data/datasets';
+                    // Remove base path to get relative path
+                    const relativePath = instance.classFile.replace(basePath + '/', '');
+                    const classDir = relativePath.substring(0, relativePath.lastIndexOf('/'));
+                    if (classDir) {
+                        await navigateToClassPath(classDir);
+                    } else {
+                        await navigateToClassPath('');
+                    }
+                } else {
+                    await navigateToClassPath('');
+                }
+
+                // Navigate to the parent folder of the selected dataset
+                if (instance.datasetPath) {
+                    const matchingDataset = datasets.find(d => d.path === instance.datasetPath);
+                    if (matchingDataset) {
+                        const parts = matchingDataset.name.split('/');
+                        if (parts.length > 1) {
+                            // Navigate to parent folder
+                            const parentPath = parts.slice(0, -1).join('/');
+                            navigateToPath(parentPath);
+                        }
+                    }
+                }
+
+                // Populate port dropdown excluding this instance's port
+                populatePortOptions(name);
+                document.getElementById('instancePort').value = instance.port;
+                updateSelectedPortDisplay();
+            } catch (err) {
+                alert(`Failed to load instance: ${err.message}`);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('instanceModal').classList.remove('active');
+        }
+
+        async function saveInstance(event) {
+            event.preventDefault();
+
+            const name = document.getElementById('instanceName').value;
+            const port = parseInt(document.getElementById('instancePort').value, 10);
+            const datasetPath = document.getElementById('datasetPath').value;
+            const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
+            const debug = document.getElementById('debugMode').checked;
+            const classFile = document.getElementById('classFile').value || null;
+
+            if (!validateInstanceName()) {
+                return;
+            }
+
+            const data = { name, port, datasetPath, threshold, debug, classFile };
+
+            try {
+                if (!config.portRange) {
+                    document.getElementById('modalError').textContent = 'Config not loaded yet. Try again.';
+                    document.getElementById('modalError').style.display = 'block';
+                    return;
+                }
+                if (Number.isNaN(port) || port < config.portRange.start || port > config.portRange.end) {
+                    const message = `Port must be between ${config.portRange.start} and ${config.portRange.end}.`;
+                    document.getElementById('modalError').textContent = message;
+                    document.getElementById('modalError').style.display = 'block';
+                    return;
+                }
+
+                const url = editingInstance
+                    ? `${API_BASE}/api/instances/${editingInstance}`
+                    : `${API_BASE}/api/instances`;
+                const method = editingInstance ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    document.getElementById('modalError').textContent = error.error;
+                    document.getElementById('modalError').style.display = 'block';
+                    return;
+                }
+
+                closeModal();
+                refreshInstances();
+            } catch (err) {
+                document.getElementById('modalError').textContent = err.message;
+                document.getElementById('modalError').style.display = 'block';
+            }
+        }
+
+        async function showLogs(name) {
+            document.getElementById('logsTitle').textContent = `Logs: ${name}`;
+            document.getElementById('logsContent').textContent = 'Loading logs...';
+            document.getElementById('logsModal').classList.add('active');
+            activeLogsInstance = name;
+            followLogs = true;
+            toggleScrollLatest(false);
+            attachLogsScrollHandler();
+
+            await fetchAndRenderLogs(name);
+            startLogsAutoRefresh(name);
+        }
+
+        function closeLogsModal() {
+            document.getElementById('logsModal').classList.remove('active');
+            stopLogsAutoRefresh();
+        }
+
+        // Close modal on background click
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('logsModal');
+            if (!modal) return;
+            if (modal.classList.contains('active') && e.target === modal) {
+                closeLogsModal();
+            }
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('logsModal');
+                if (modal && modal.classList.contains('active')) {
+                    closeLogsModal();
+                }
+            }
+        });
+
+        function refreshInstances() {
+            loadInstances();
+        }
+
+        function startLogsAutoRefresh(name) {
+            stopLogsAutoRefresh();
+            logsIntervalId = setInterval(() => fetchAndRenderLogs(name), LOG_POLL_MS);
+        }
+
+        function stopLogsAutoRefresh() {
+            if (logsIntervalId) {
+                clearInterval(logsIntervalId);
+                logsIntervalId = null;
+            }
+            activeLogsInstance = null;
+        }
+
+        function toggleScrollLatest(show) {
+            const btn = document.getElementById('scrollLatestBtn');
+            if (!btn) return;
+            btn.style.display = show ? 'block' : 'none';
+        }
+
+        function scrollToLatest() {
+            const container = document.getElementById('logsContent');
+            if (!container) return;
+            followLogs = true;
+            toggleScrollLatest(false);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function attachLogsScrollHandler() {
+            const container = document.getElementById('logsContent');
+            if (!container || container.dataset.listenerAttached) return;
+            container.addEventListener('scroll', () => {
+                const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+                const nearBottom = distanceFromBottom <= SCROLL_THRESHOLD;
+                followLogs = nearBottom;
+                toggleScrollLatest(!nearBottom);
+            });
+            container.dataset.listenerAttached = 'true';
+        }
+
+        function hideInstanceNameError() {
+            const errorEl = document.getElementById('instanceNameError');
+            const input = document.getElementById('instanceName');
+            const saveBtn = document.getElementById('saveInstanceBtn');
+            if (errorEl) errorEl.style.display = 'none';
+            if (input) input.classList.remove('input-error');
+            if (saveBtn) saveBtn.disabled = false;
+        }
+
+        function validateInstanceName() {
+            const input = document.getElementById('instanceName');
+            const errorEl = document.getElementById('instanceNameError');
+            const saveBtn = document.getElementById('saveInstanceBtn');
+            if (!input || !errorEl) return true;
+
+            const name = input.value.trim();
+            const validFormat = /^[A-Za-z0-9_-]+$/.test(name);
+            const isSameAsEditing = editingInstance && name === editingInstance;
+            const exists = latestInstances.some(i => i.name === name);
+            const duplicate = name && exists && !isSameAsEditing;
+            const invalidFormat = name && !validFormat;
+            const invalid = duplicate || invalidFormat;
+
+            if (invalidFormat) {
+                errorEl.textContent = 'Use only letters, numbers, hyphens, or underscores.';
+                errorEl.style.display = 'block';
+                input.classList.add('input-error');
+            } else if (duplicate) {
+                errorEl.textContent = `Instance name "${name}" is already in use. Choose another.`;
+                errorEl.style.display = 'block';
+                input.classList.add('input-error');
+            } else {
+                hideInstanceNameError();
+            }
+
+            if (saveBtn) {
+                saveBtn.disabled = invalid;
+            }
+
+            return !invalid;
+        }
+
+        async function fetchAndRenderLogs(name) {
+            const container = document.getElementById('logsContent');
+            if (!container || !name) return;
+
+            const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/${name}/logs?lines=all`);
+                const logs = await response.json();
+
+                // Debug info
+                let debugText = '';
+                if (logs._debug) {
+                    debugText = `[DEBUG] Out log exists: ${logs._debug.outLogExists}, size: ${logs._debug.outLogSize || 0}, lines: ${logs._debug.outLogLineCount || 0}\n`;
+                    debugText += `[DEBUG] Out path: ${logs._debug.outLogPath}\n`;
+                    if (logs._debug.errLogSkipped) {
+                        debugText += `[DEBUG] Err log skipped (only reading -out.log)\n`;
+                    }
+                    debugText += '\n';
+                }
+
+                // Combine stdout and stderr, with clear separation
+                let combined = debugText;
+                if (logs.stdout && logs.stdout.trim()) {
+                    combined += '=== STDOUT ===\n' + logs.stdout + '\n';
+                }
+                if (logs.stderr && logs.stderr.trim()) {
+                    combined += '=== STDERR ===\n' + logs.stderr;
+                }
+
+                container.textContent = combined || 'No logs available';
+
+                if (followLogs) {
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    const newDistance = Math.max(0, container.scrollHeight - container.clientHeight - distanceFromBottom);
+                    container.scrollTop = newDistance;
+                }
+            } catch (err) {
+                container.textContent = `Failed to load logs: ${err.message}`;
+            }
+        }
+
+        loadConfig().then(() => {
+            // Start auto-refresh with interval from config
+            const refreshInterval = config.healthCheckInterval || 5000;
+            setInterval(loadInstances, refreshInterval);
+        });
+        loadInstances();
+
+        // Attach validation handlers once DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const nameInput = document.getElementById('instanceName');
+            if (nameInput) {
+                nameInput.addEventListener('blur', validateInstanceName);
+                nameInput.addEventListener('input', () => {
+                    hideInstanceNameError();
+                });
+            }
+
+            const classInput = document.getElementById('classFile');
+            if (classInput) {
+                classInput.addEventListener('change', () => previewClassFile(classInput.value));
+                classInput.addEventListener('blur', () => previewClassFile(classInput.value));
+            }
+        });
+    </script>
+</body>
+</html>

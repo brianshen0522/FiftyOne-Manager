@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Label Editor Launcher</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #aaa;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            color: white;
+            font-family: monospace;
+            font-size: 13px;
+            min-height: 80px;
+            resize: vertical;
+        }
+        button {
+            padding: 12px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 15px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        .success {
+            color: #28a745;
+            margin-top: 15px;
+        }
+        .steps {
+            list-style: none;
+            counter-reset: step-counter;
+        }
+        .steps li {
+            counter-increment: step-counter;
+            margin-bottom: 20px;
+            padding-left: 40px;
+            position: relative;
+        }
+        .steps li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #007bff;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .steps code {
+            background: #1a1a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .info-box {
+            background: #1a3a5a;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Label Editor Launcher</h1>
+        <p class="subtitle">Quickly open the label editor from FiftyOne</p>
+
+        <div class="card">
+            <h2>Quick Launch</h2>
+            <p style="margin-bottom: 15px; color: #aaa;">Paste the URL from FiftyOne operator here:</p>
+            <textarea id="urlInput" placeholder="//&#123;hostname&#125;:3000/open-editor.html?image=/path/to/image.jpg&label=/path/to/label.txt&port=3000"></textarea>
+            <button onclick="openFromUrl()">Open Editor</button>
+            <button class="btn-secondary" onclick="document.getElementById('urlInput').value = ''">Clear</button>
+            <div id="success" class="success" style="display: none;"></div>
+        </div>
+
+        <div class="card">
+            <h2>How It Works</h2>
+            <ol class="steps">
+                <li>
+                    In FiftyOne, select an image and run the <code>Edit Label in Tool</code> operator (press backtick <code>`</code>)
+                </li>
+                <li>
+                    Copy the URL from the "Open Editor" field in the operator result
+                </li>
+                <li>
+                    Paste it into the text box above and click <strong>Open Editor</strong>
+                </li>
+                <li>
+                    The label editor will open automatically using your current IP address!
+                </li>
+            </ol>
+        </div>
+
+        <div class="info-box">
+            <strong>💡 Pro Tip:</strong> Bookmark this page for quick access! You can find it at:
+            <code id="currentUrl"></code>
+        </div>
+    </div>
+
+    <script>
+        // Show current URL
+        document.getElementById('currentUrl').textContent = window.location.href;
+
+        function openFromUrl() {
+            const input = document.getElementById('urlInput').value.trim();
+
+            if (!input) {
+                alert('Please paste a URL first');
+                return;
+            }
+
+            try {
+                // Extract parameters from the URL
+                let urlToParse = input;
+
+                // If it starts with //, add protocol
+                if (urlToParse.startsWith('//')) {
+                    urlToParse = window.location.protocol + urlToParse;
+                }
+
+                // Replace {hostname} placeholder with current hostname
+                urlToParse = urlToParse.replace('{hostname}', window.location.hostname);
+                urlToParse = urlToParse.replace('%7Bhostname%7D', window.location.hostname);
+
+                // Parse URL
+                const url = new URL(urlToParse);
+                const params = new URLSearchParams(url.search);
+
+                const imagePath = params.get('image');
+                const labelPath = params.get('label');
+
+                if (!imagePath || !labelPath) {
+                    alert('Invalid URL: missing image or label path');
+                    return;
+                }
+
+                // Get config from server to get the correct port
+                fetch('/api/config')
+                    .then(response => response.json())
+                    .then(config => {
+                        const protocol = window.location.protocol;
+                        const publicAddress = config.publicAddress || window.location.hostname;
+                        const managerPort = params.get('port') || config.managerPort || '5000';
+                        const editorUrl = `${protocol}//${publicAddress}:${managerPort}/label-editor.html?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
+
+                        // Open in new tab
+                        window.open(editorUrl, '_blank');
+
+                        // Show success message
+                        const successDiv = document.getElementById('success');
+                        successDiv.textContent = `✓ Opened label editor for ${imagePath.split('/').pop()}`;
+                        successDiv.style.display = 'block';
+
+                        // Clear input after a moment
+                        setTimeout(() => {
+                            document.getElementById('urlInput').value = '';
+                            successDiv.style.display = 'none';
+                        }, 3000);
+                    })
+                    .catch(error => {
+                        alert('Error fetching config: ' + error.message);
+                    });
+
+            } catch (error) {
+                alert('Error parsing URL: ' + error.message);
+            }
+        }
+
+        // Allow Enter key in textarea to open editor
+        document.getElementById('urlInput').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                openFromUrl();
+            }
+        });
+    </script>
+</body>
+</html>
