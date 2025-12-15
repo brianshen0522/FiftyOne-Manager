@@ -13,7 +13,9 @@
       "Bash(docker compose:*)",
       "Bash(chmod:*)",
       "Bash(curl:*)",
-      "Bash(./test_path_bug.sh)"
+      "Bash(./test_path_bug.sh)",
+      "Bash(ls:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
