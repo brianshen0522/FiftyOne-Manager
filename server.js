@@ -27,7 +27,13 @@ const CONFIG = {
   defaultIouThreshold: parseFloat(process.env.DEFAULT_IOU_THRESHOLD || '0.8'),
   defaultDebug: process.env.DEFAULT_DEBUG_MODE === 'true',
   healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '5000'),
-  healthCheckTimeout: parseInt(process.env.HEALTH_CHECK_TIMEOUT || '3000')
+  healthCheckTimeout: parseInt(process.env.HEALTH_CHECK_TIMEOUT || '3000'),
+  cvat: {
+    url: process.env.CVAT_URL || '',
+    username: process.env.CVAT_USERNAME || '',
+    password: process.env.CVAT_PASSWORD || '',
+    email: process.env.CVAT_EMAIL || ''
+  }
 };
 
 // Store instances configuration
@@ -361,7 +367,7 @@ app.get('/api/instances', async (req, res) => {
 // Add new instance
 app.post('/api/instances', (req, res) => {
   try {
-    const { name, port, datasetPath, threshold, debug, classFile } = req.body;
+    const { name, port, datasetPath, threshold, debug, cvatSync, classFile } = req.body;
 
     // Validation
     if (!name || !port || !datasetPath) {
@@ -394,6 +400,7 @@ app.post('/api/instances', (req, res) => {
       datasetPath,
       threshold: threshold !== undefined ? threshold : CONFIG.defaultIouThreshold,
       debug: debug !== undefined ? debug : CONFIG.defaultDebug,
+      cvatSync: cvatSync !== undefined ? cvatSync : false,
       classFile: classFile || null,
       status: 'stopped',
       createdAt: new Date().toISOString()
@@ -412,7 +419,7 @@ app.post('/api/instances', (req, res) => {
 app.put('/api/instances/:name', (req, res) => {
   try {
     const { name } = req.params;
-    const { port, datasetPath, threshold, debug, classFile } = req.body;
+    const { port, datasetPath, threshold, debug, cvatSync, classFile } = req.body;
 
     const instances = loadInstances();
     const index = instances.findIndex(i => i.name === name);
@@ -442,6 +449,7 @@ app.put('/api/instances/:name', (req, res) => {
     if (datasetPath !== undefined) instances[index].datasetPath = datasetPath;
     if (threshold !== undefined) instances[index].threshold = threshold;
     if (debug !== undefined) instances[index].debug = debug;
+    if (cvatSync !== undefined) instances[index].cvatSync = cvatSync;
     if (classFile !== undefined) instances[index].classFile = classFile || null;
     instances[index].updatedAt = new Date().toISOString();
 
@@ -524,8 +532,30 @@ app.post('/api/instances/:name/start', async (req, res) => {
     const pluginsDir = path.join(__dirname, 'fiftyone_plugins');
 
     // Start with PM2, passing FiftyOne MongoDB configuration as environment variables
+    // Build environment variables
+    const envVars = {
+      FIFTYONE_DATABASE_URI: mongodbUri,
+      FIFTYONE_DATABASE_NAME: dbName,
+      FIFTYONE_PLUGINS_DIR: pluginsDir,
+      MANAGER_PORT: CONFIG.managerPort,
+      PUBLIC_ADDRESS: CONFIG.publicAddress
+    };
+
+    // Add CVAT configuration if sync is enabled
+    if (instance.cvatSync) {
+      if (CONFIG.cvat.url) envVars.FIFTYONE_CVAT_URL = CONFIG.cvat.url;
+      if (CONFIG.cvat.username) envVars.FIFTYONE_CVAT_USERNAME = CONFIG.cvat.username;
+      if (CONFIG.cvat.password) envVars.FIFTYONE_CVAT_PASSWORD = CONFIG.cvat.password;
+      if (CONFIG.cvat.email) envVars.FIFTYONE_CVAT_EMAIL = CONFIG.cvat.email;
+    }
+
+    // Build environment variable string
+    const envString = Object.entries(envVars)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(' ');
+
     // These MUST be set before FiftyOne is imported (per official docs)
-    const fullCommand = `FIFTYONE_DATABASE_URI=${mongodbUri} FIFTYONE_DATABASE_NAME=${dbName} FIFTYONE_PLUGINS_DIR=${pluginsDir} MANAGER_PORT=${CONFIG.managerPort} PUBLIC_ADDRESS=${CONFIG.publicAddress} pm2 start "${command}" --name ${name} --interpreter none --update-env`;
+    const fullCommand = `${envString} pm2 start "${command}" --name ${name} --interpreter none --update-env`;
     await execPromise(fullCommand);
 
     res.json({ message: 'Instance started successfully' });

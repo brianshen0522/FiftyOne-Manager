@@ -32,6 +32,10 @@ services:
       - DEFAULT_IOU_THRESHOLD=${DEFAULT_IOU_THRESHOLD:-0.8}
       - DEFAULT_DEBUG_MODE=${DEFAULT_DEBUG_MODE:-false}
       - FIFTYONE_DATABASE_URI=mongodb://mongodb-dev:27017
+      - CVAT_URL=${CVAT_URL}
+      - CVAT_USERNAME=${CVAT_USERNAME}
+      - CVAT_PASSWORD=${CVAT_PASSWORD}
+      - CVAT_EMAIL=${CVAT_EMAIL}
     restart: unless-stopped
 
 volumes:

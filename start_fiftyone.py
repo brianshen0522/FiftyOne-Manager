@@ -10,6 +10,126 @@ from pymongo import MongoClient
 
 fo.config.show_progress_bars = True
 
+# CVAT Integration Note:
+# CVAT annotation backend is configured via environment variables set by the manager:
+# - FIFTYONE_CVAT_URL: CVAT server URL
+# - FIFTYONE_CVAT_USERNAME: CVAT username
+# - FIFTYONE_CVAT_PASSWORD: CVAT password
+# - FIFTYONE_CVAT_EMAIL: CVAT email (if applicable)
+# These are automatically used by FiftyOne's annotation API when cvatSync is enabled.
+
+
+def create_cvat_project(dataset, dataset_name, class_names):
+    """
+    Automatically create a CVAT project when CVAT sync is enabled.
+
+    This creates a project in CVAT that can be used for annotation workflows.
+    The project is created with the dataset's class schema.
+
+    If a project with the same name already exists, it will be deleted and recreated.
+    """
+    # Check if CVAT is configured
+    cvat_url = os.getenv('FIFTYONE_CVAT_URL')
+    if not cvat_url:
+        return  # CVAT not configured, skip
+
+    print(f"\n{'='*60}")
+    print("CVAT Integration: Creating project...")
+    print(f"{'='*60}")
+
+    try:
+        import fiftyone.utils.annotations as foua
+
+        # Project name based on dataset name
+        project_name = f"FiftyOne_{dataset_name}"
+
+        print(f"Project name: {project_name}")
+        print(f"CVAT server: {cvat_url}")
+        print(f"Classes: {', '.join(class_names)}")
+
+        # Check if project already exists and delete it if it does
+        try:
+            from cvat_sdk import make_client
+            from cvat_sdk.core.exceptions import NotFoundException
+
+            cvat_username = os.getenv('FIFTYONE_CVAT_USERNAME')
+            cvat_password = os.getenv('FIFTYONE_CVAT_PASSWORD')
+
+            if cvat_username and cvat_password:
+                print(f"Checking for existing CVAT project...")
+
+                # Create CVAT client
+                with make_client(host=cvat_url, credentials=(cvat_username, cvat_password)) as client:
+                    # Get all projects
+                    projects = client.projects.list()
+
+                    # Find project with matching name
+                    existing_project = None
+                    for project in projects:
+                        if project.name == project_name:
+                            existing_project = project
+                            break
+
+                    if existing_project:
+                        print(f"⚠ Found existing project '{project_name}' (ID: {existing_project.id})")
+                        print(f"⚠ Deleting existing project...")
+                        client.projects.remove(existing_project.id)
+                        print(f"✓ Existing project deleted successfully")
+                    else:
+                        print(f"✓ No existing project found")
+            else:
+                print("Warning: CVAT credentials not found, skipping existence check")
+
+        except ImportError:
+            print("Warning: cvat-sdk not installed, skipping existence check")
+            print("Install with: pip install cvat-sdk")
+        except Exception as e:
+            print(f"Warning: Could not check/delete existing project: {e}")
+            print("Continuing with project creation...")
+
+        # Create a small view for project initialization (just to create the schema)
+        # We'll take the first sample (or empty view if no samples)
+        if len(dataset) > 0:
+            init_view = dataset.limit(1)
+        else:
+            print("Warning: No samples in dataset, creating empty project")
+            init_view = dataset.view()
+
+        # Create CVAT project with the schema
+        # This uses FiftyOne's annotation API to create the project
+        anno_key = f"cvat_project_init_{dataset_name}"
+
+        print(f"Creating CVAT project...")
+        init_view.annotate(
+            anno_key,
+            backend="cvat",
+            label_field="ground_truth",
+            label_type="detections",
+            classes=class_names,
+            project_name=project_name,
+            # Don't launch editor, we're just creating the project
+            launch_editor=False,
+        )
+
+        print(f"✓ CVAT project '{project_name}' created successfully!")
+        print(f"✓ You can now use this project for annotation workflows")
+
+        # Clean up the initialization annotation run (but keep the project)
+        try:
+            # Just delete the run record, not the CVAT project
+            dataset.delete_annotation_run(anno_key)
+        except:
+            pass  # Ignore cleanup errors
+
+        print(f"{'='*60}\n")
+
+    except ImportError:
+        print("Warning: FiftyOne annotation module not available")
+    except Exception as e:
+        print(f"Warning: Could not create CVAT project: {e}")
+        print("You can still create projects manually using FiftyOne's annotation API")
+        print(f"{'='*60}\n")
+
 
 # ----------------------------------------------------------------------
 # Duplicate detection helpers (label-based, no image hashing)
@@ -480,6 +600,11 @@ def main() -> None:
 
     dataset.app_config.sort_by = "filename_order"
     dataset.save()
+
+    # ------------------------------------------------------------------
+    # 3.5. Create CVAT project if CVAT sync is enabled
+    # ------------------------------------------------------------------
+    create_cvat_project(dataset, db_name, names)
 
     # ------------------------------------------------------------------
     # 4. Launch FiftyOne App

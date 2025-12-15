@@ -777,6 +777,13 @@
                     <small>Group duplicates into separate folders</small>
                 </div>
                 <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="cvatSync">
+                        <label for="cvatSync">CVAT Sync</label>
+                    </div>
+                    <small>Enable synchronization with CVAT annotation backend</small>
+                </div>
+                <div class="form-group">
                     <button type="submit" id="saveInstanceBtn" class="btn success" style="width: 100%;">Save Instance</button>
                 </div>
             </form>
@@ -924,18 +931,22 @@
             navigateToPath('');
         }
 
-        function navigateToPath(path) {
+        function navigateToPath(path, updatePathField = true) {
             currentPath = path;
             renderBreadcrumb(path);
             renderFolderList(path);
 
-            // Auto-update dataset path
+            // Compute target path once so we can reuse it without leaking scope errors
             const basePath = config.datasetBasePath || '/data/datasets';
             const fullPath = path ? `${basePath}/${path}` : basePath;
-            document.getElementById('datasetPath').value = fullPath;
+
+            // Auto-update dataset path only if requested (skip when editing existing instance)
+            if (updatePathField) {
+                document.getElementById('datasetPath').value = fullPath;
+            }
 
             // Load class files for this path
-            loadClassFiles(fullPath);
+            loadClassFiles(fullPath || config.datasetBasePath);
         }
 
         function renderBreadcrumb(path) {
@@ -1377,13 +1388,27 @@
 
         function populatePortOptions(excludeInstance = null) {
             const portSelect = document.getElementById('instancePort');
-            if (!portSelect || !config.portRange) return;
+            if (!portSelect) {
+                console.error('Port select element not found');
+                return;
+            }
+
+            if (!config.portRange) {
+                console.error('Config port range not loaded', config);
+                return;
+            }
 
             const usedPorts = new Set(
                 latestInstances
                     .filter(i => i.name !== excludeInstance)
                     .map(i => i.port)
             );
+
+            console.log('Populating port options:', {
+                portRange: config.portRange,
+                usedPorts: Array.from(usedPorts),
+                latestInstances: latestInstances.length
+            });
 
             const ports = [];
             for (let port = config.portRange.start; port <= config.portRange.end; port++) {
@@ -1395,6 +1420,8 @@
                     display: true
                 });
             }
+
+            console.log('Generated ports:', ports);
 
             // Store all ports for filtering
             portSelect._allPorts = ports;
@@ -1433,16 +1460,27 @@
         }
 
         async function showAddModal() {
+            console.log('showAddModal: Starting...');
+
             // Ensure config is loaded
             if (!config.portRange) {
+                console.log('showAddModal: Loading config...');
                 await loadConfig();
             }
+            console.log('showAddModal: Config loaded', config);
+
+            // Ensure instances are loaded for port availability check
+            // Always refresh to get latest state
+            console.log('showAddModal: Loading instances...');
+            await loadInstances();
+            console.log('showAddModal: Instances loaded', latestInstances);
 
             editingInstance = null;
             document.getElementById('modalTitle').textContent = 'Add New Instance';
             document.getElementById('instanceForm').reset();
             document.getElementById('threshold').value = config.defaultThreshold;
             document.getElementById('debugMode').checked = config.defaultDebug;
+            document.getElementById('cvatSync').checked = false;
             document.getElementById('instanceName').disabled = false;
             hideInstanceNameError();
             document.getElementById('modalError').style.display = 'none';
@@ -1454,10 +1492,13 @@
             await navigateToClassPath('');
 
             // Populate port dropdown and select smallest available port
+            console.log('showAddModal: Populating port options...');
             populatePortOptions();
             const defaultPort = findSmallestAvailablePort();
+            console.log('showAddModal: Default port selected:', defaultPort);
             document.getElementById('instancePort').value = defaultPort;
             updateSelectedPortDisplay();
+            console.log('showAddModal: Complete');
         }
 
         async function editInstance(name) {
@@ -1466,6 +1507,9 @@
                 if (!config.portRange) {
                     await loadConfig();
                 }
+
+                // Ensure instances are loaded
+                await loadInstances();
 
                 const instance = latestInstances.find(i => i.name === name);
                 if (!instance) {
@@ -1477,9 +1521,9 @@
                 document.getElementById('modalTitle').textContent = 'Edit Instance';
                 document.getElementById('instanceName').value = instance.name;
                 document.getElementById('instanceName').disabled = true;
-                document.getElementById('datasetPath').value = instance.datasetPath;
                 document.getElementById('threshold').value = instance.threshold;
                 document.getElementById('debugMode').checked = instance.debug;
+                document.getElementById('cvatSync').checked = instance.cvatSync || false;
                 document.getElementById('classFile').value = instance.classFile || '';
                 hideInstanceNameError();
                 document.getElementById('modalError').style.display = 'none';
@@ -1489,7 +1533,13 @@
                 } else {
                     hideClassPreview();
                 }
+
+                // Populate dataset options first (this will reset the path)
                 populateDatasetOptions();
+
+                // IMPORTANT: Set the dataset path AFTER populateDatasetOptions()
+                // to prevent it from being overwritten by the base directory
+                document.getElementById('datasetPath').value = instance.datasetPath;
 
                 // Initialize class file browser - navigate to parent folder if classFile exists
                 if (instance.classFile) {
@@ -1507,15 +1557,22 @@
                 }
 
                 // Navigate to the parent folder of the selected dataset
+                // But don't update the path field - preserve the existing instance path
                 if (instance.datasetPath) {
                     const matchingDataset = datasets.find(d => d.path === instance.datasetPath);
                     if (matchingDataset) {
                         const parts = matchingDataset.name.split('/');
                         if (parts.length > 1) {
-                            // Navigate to parent folder
+                            // Navigate to parent folder for browsing, but don't update the path field
                             const parentPath = parts.slice(0, -1).join('/');
-                            navigateToPath(parentPath);
+                            navigateToPath(parentPath, false);
+                        } else {
+                            // Root level dataset
+                            navigateToPath('', false);
                         }
+                    } else {
+                        // Dataset not found in tree, navigate to root
+                        navigateToPath('', false);
                     }
                 }
 
@@ -1540,13 +1597,14 @@
             const datasetPath = document.getElementById('datasetPath').value;
             const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
             const debug = document.getElementById('debugMode').checked;
+            const cvatSync = document.getElementById('cvatSync').checked;
             const classFile = document.getElementById('classFile').value || null;
 
             if (!validateInstanceName()) {
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, debug, classFile };
+            const data = { name, port, datasetPath, threshold, debug, cvatSync, classFile };
 
             try {
                 if (!config.portRange) {

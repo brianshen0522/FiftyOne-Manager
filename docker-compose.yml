@@ -17,7 +17,7 @@ services:
     depends_on:
       - mongodb
     ports:
-      - "${MANAGER_PORT:-3000}:3000"
+      - "${MANAGER_PORT:-3000}:${MANAGER_PORT:-3000}"
       - "${PORT_START}-${PORT_END}:${PORT_START}-${PORT_END}"
     volumes:
       - ${DATASET_BASE_PATH}:${DATASET_BASE_PATH}:rw
@@ -32,6 +32,10 @@ services:
       - DEFAULT_IOU_THRESHOLD=${DEFAULT_IOU_THRESHOLD:-0.8}
       - DEFAULT_DEBUG_MODE=${DEFAULT_DEBUG_MODE:-false}
       - FIFTYONE_DATABASE_URI=mongodb://mongodb:27017
+      - CVAT_URL=${CVAT_URL}
+      - CVAT_USERNAME=${CVAT_USERNAME}
+      - CVAT_PASSWORD=${CVAT_PASSWORD}
+      - CVAT_EMAIL=${CVAT_EMAIL}
     restart: unless-stopped
 
 volumes:
