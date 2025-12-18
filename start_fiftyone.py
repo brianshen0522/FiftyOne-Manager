@@ -231,12 +231,20 @@ def calculate_iou(box1: Tuple[float, float, float, float],
 
 def labels_are_similar(labels1: List[Tuple[int, float, float, float, float]],
                        labels2: List[Tuple[int, float, float, float, float]],
-                       iou_threshold: float) -> bool:
+                       iou_threshold: float,
+                       is_dice_dataset: bool = False) -> bool:
     """
     Check if two label sets are similar based on class matching and IoU threshold.
     For multiple boxes of the same class, finds optimal matching using greedy algorithm.
     Returns True if both have same number of boxes, all classes match, and all IoUs exceed threshold.
+
+    For dice datasets, only compares the first 3 labels.
     """
+    # For dice datasets, only compare first 3 labels
+    if is_dice_dataset:
+        labels1 = labels1[:3]
+        labels2 = labels2[:3]
+
     if len(labels1) != len(labels2):
         return False
 
@@ -293,13 +301,20 @@ def labels_are_similar(labels1: List[Tuple[int, float, float, float, float]],
     return True
 
 
-def find_duplicate_groups(image_paths: Sequence[str], iou_threshold: float) -> List[List[int]]:
+def find_duplicate_groups(image_paths: Sequence[str], iou_threshold: float, dataset_path: str = "") -> List[List[int]]:
     """
     Find duplicate groups using sequential comparison based on filename order.
     Only uses label comparison (class + bounding box IoU).
+
+    For dice datasets (detected by "dice" in the folder path), only compares the first 3 labels.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     n = len(image_paths)
+
+    # Detect if this is a dice dataset
+    is_dice_dataset = "dice" in dataset_path.lower()
+    if is_dice_dataset:
+        print(f"Dice dataset detected - will only compare first 3 labels for duplicate detection")
 
     print(f"Finding duplicates in {n} images using IoU threshold {iou_threshold}")
 
@@ -334,7 +349,7 @@ def find_duplicate_groups(image_paths: Sequence[str], iou_threshold: float) -> L
                 compare_labels = parse_yolo_labels(image_paths[j])
 
                 # Check if labels are similar (same classes + IoU >= threshold)
-                if labels_are_similar(base_labels, compare_labels, iou_threshold):
+                if labels_are_similar(base_labels, compare_labels, iou_threshold, is_dice_dataset):
                     current_group.append(j)
                     visited[j] = True
                     f.write(f"Similar labels (IoU >= {iou_threshold})\n")
@@ -441,7 +456,7 @@ def handle_duplicates(dataset_base: str, iou_threshold: float, debug: bool) -> N
     print(f"Analyzing {len(image_paths)} images for duplicates using IoU threshold {iou_threshold}")
 
     # Find duplicate groups based on label similarity only
-    groups = find_duplicate_groups(image_paths, iou_threshold)
+    groups = find_duplicate_groups(image_paths, iou_threshold, dataset_base)
 
     if not groups:
         print("No duplicates found.")

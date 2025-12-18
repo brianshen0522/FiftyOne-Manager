@@ -15,7 +15,8 @@
       "Bash(curl:*)",
       "Bash(./test_path_bug.sh)",
       "Bash(ls:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []
