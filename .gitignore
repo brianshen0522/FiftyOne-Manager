@@ -9,5 +9,8 @@ duplicate/
 .pm2/
 npm-debug.log
 *.log
-.claude/
+# Claude Code local settings and files
+.claude/settings.local.json
+**/.claude/settings.local.json
+CLAUDE.local.md
 instances.json/instances.json
