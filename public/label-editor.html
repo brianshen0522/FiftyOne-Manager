@@ -849,6 +849,39 @@
                 }
             }
 
+            // Switch class with W/S keys
+            if (e.key === 'w' || e.key === 'W') {
+                e.preventDefault();
+                if (selectedAnnotation !== null) {
+                    // Change class of selected annotation
+                    const currentClass = annotations[selectedAnnotation].class;
+                    const newClass = (currentClass - 1 + CLASSES.length) % CLASSES.length;
+                    annotations[selectedAnnotation].class = newClass;
+                    updateUI();
+                    updateClassSelector();
+                    draw();
+                } else {
+                    // Change selected class for new annotations
+                    selectedClass = (selectedClass - 1 + CLASSES.length) % CLASSES.length;
+                    updateClassSelector();
+                }
+            } else if (e.key === 's' || e.key === 'S') {
+                e.preventDefault();
+                if (selectedAnnotation !== null) {
+                    // Change class of selected annotation
+                    const currentClass = annotations[selectedAnnotation].class;
+                    const newClass = (currentClass + 1) % CLASSES.length;
+                    annotations[selectedAnnotation].class = newClass;
+                    updateUI();
+                    updateClassSelector();
+                    draw();
+                } else {
+                    // Change selected class for new annotations
+                    selectedClass = (selectedClass + 1) % CLASSES.length;
+                    updateClassSelector();
+                }
+            }
+
             // Navigate between images with arrow keys or A/D keys
             if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
                 e.preventDefault();
