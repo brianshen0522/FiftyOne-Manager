@@ -39,7 +39,8 @@ RUN "${VIRTUAL_ENV}/bin/pip" install --no-cache-dir \
     fiftyone \
     opencv-python-headless \
     numpy \
-    pymongo
+    pymongo \
+    label-studio-sdk
 
 # Application code
 COPY . .

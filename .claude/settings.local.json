@@ -16,7 +16,12 @@
       "Bash(./test_path_bug.sh)",
       "Bash(ls:*)",
       "Bash(rm:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebFetch(domain:docs.voxel51.com)",
+      "WebSearch",
+      "WebFetch(domain:labelstud.io)",
+      "WebFetch(domain:api.labelstud.io)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

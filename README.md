@@ -13,6 +13,7 @@ A web-based manager for running multiple FiftyOne instances with YOLO dataset su
 - **Log Viewing**: View logs for each instance directly in the UI
 - **Subfolder Dataset Discovery**: Automatically finds valid datasets in nested directories
 - **Integrated Label Editor**: Edit YOLO annotations directly from FiftyOne - fix mistakes without leaving your workflow
+- **Annotation Backend Integration**: Built-in support for CVAT and Label Studio annotation workflows
 
 ## Quick Start
 
@@ -430,6 +431,40 @@ See [LABEL_EDITOR_GUIDE.md](LABEL_EDITOR_GUIDE.md) for:
 - Keyboard shortcuts
 - Troubleshooting tips
 - Advanced usage
+
+## Annotation Backend Integration
+
+FiftyOne Manager supports integration with external annotation platforms, allowing you to send datasets for annotation and import results back into FiftyOne.
+
+### Supported Backends
+
+- **CVAT**: Enterprise-grade annotation platform with advanced video annotation
+- **Label Studio**: Modern, user-friendly annotation tool with ML workflow support
+
+### Quick Setup
+
+1. **Configure credentials** in your `.env` file:
+   - For CVAT: Set `CVAT_URL`, `CVAT_USERNAME`, `CVAT_PASSWORD`
+   - For Label Studio: Set `LABELSTUDIO_URL`, `LABELSTUDIO_API_KEY`
+
+2. **Enable sync** when creating an instance:
+   - Check "CVAT Sync" or "Label Studio Sync" checkbox in the UI
+
+3. **Use FiftyOne's annotation API** to create annotation tasks:
+   ```python
+   view.annotate(
+       anno_key,
+       backend="labelstudio",  # or "cvat"
+       label_field="ground_truth",
+       label_type="detections",
+       classes=["class1", "class2"],
+   )
+   ```
+
+### Detailed Guides
+
+- [CVAT Integration Guide](CVAT_INTEGRATION.md)
+- [Label Studio Integration Guide](LABELSTUDIO_INTEGRATION.md)
 
 ## Contributors
 
