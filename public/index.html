@@ -784,13 +784,6 @@
                     <small>Enable synchronization with CVAT annotation backend</small>
                 </div>
                 <div class="form-group">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="labelstudioSync">
-                        <label for="labelstudioSync">Label Studio Sync</label>
-                    </div>
-                    <small>Enable synchronization with Label Studio annotation backend</small>
-                </div>
-                <div class="form-group">
                     <button type="submit" id="saveInstanceBtn" class="btn success" style="width: 100%;">Save Instance</button>
                 </div>
             </form>
@@ -1488,7 +1481,6 @@
             document.getElementById('threshold').value = config.defaultThreshold;
             document.getElementById('debugMode').checked = config.defaultDebug;
             document.getElementById('cvatSync').checked = false;
-            document.getElementById('labelstudioSync').checked = false;
             document.getElementById('instanceName').disabled = false;
             hideInstanceNameError();
             document.getElementById('modalError').style.display = 'none';
@@ -1532,7 +1524,6 @@
                 document.getElementById('threshold').value = instance.threshold;
                 document.getElementById('debugMode').checked = instance.debug;
                 document.getElementById('cvatSync').checked = instance.cvatSync || false;
-                document.getElementById('labelstudioSync').checked = instance.labelstudioSync || false;
                 document.getElementById('classFile').value = instance.classFile || '';
                 hideInstanceNameError();
                 document.getElementById('modalError').style.display = 'none';
@@ -1607,14 +1598,13 @@
             const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
             const debug = document.getElementById('debugMode').checked;
             const cvatSync = document.getElementById('cvatSync').checked;
-            const labelstudioSync = document.getElementById('labelstudioSync').checked;
             const classFile = document.getElementById('classFile').value || null;
 
             if (!validateInstanceName()) {
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, debug, cvatSync, labelstudioSync, classFile };
+            const data = { name, port, datasetPath, threshold, debug, cvatSync, classFile };
 
             try {
                 if (!config.portRange) {

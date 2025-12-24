@@ -33,13 +33,6 @@ const CONFIG = {
     username: process.env.CVAT_USERNAME || '',
     password: process.env.CVAT_PASSWORD || '',
     email: process.env.CVAT_EMAIL || ''
-  },
-  labelstudio: {
-    url: process.env.LABELSTUDIO_URL || '',
-    apiKey: process.env.LABELSTUDIO_API_KEY || '',
-    timeout: process.env.LABELSTUDIO_TIMEOUT || '86400',
-    localFilesServingEnabled: process.env.LABELSTUDIO_LOCAL_FILES_SERVING_ENABLED === 'true',
-    localFilesDocumentRoot: process.env.LABELSTUDIO_LOCAL_FILES_DOCUMENT_ROOT || ''
   }
 };
 
@@ -374,7 +367,7 @@ app.get('/api/instances', async (req, res) => {
 // Add new instance
 app.post('/api/instances', (req, res) => {
   try {
-    const { name, port, datasetPath, threshold, debug, cvatSync, labelstudioSync, classFile } = req.body;
+    const { name, port, datasetPath, threshold, debug, cvatSync, classFile } = req.body;
 
     // Validation
     if (!name || !port || !datasetPath) {
@@ -408,7 +401,6 @@ app.post('/api/instances', (req, res) => {
       threshold: threshold !== undefined ? threshold : CONFIG.defaultIouThreshold,
       debug: debug !== undefined ? debug : CONFIG.defaultDebug,
       cvatSync: cvatSync !== undefined ? cvatSync : false,
-      labelstudioSync: labelstudioSync !== undefined ? labelstudioSync : false,
       classFile: classFile || null,
       status: 'stopped',
       createdAt: new Date().toISOString()
@@ -427,7 +419,7 @@ app.post('/api/instances', (req, res) => {
 app.put('/api/instances/:name', (req, res) => {
   try {
     const { name } = req.params;
-    const { port, datasetPath, threshold, debug, cvatSync, labelstudioSync, classFile } = req.body;
+    const { port, datasetPath, threshold, debug, cvatSync, classFile } = req.body;
 
     const instances = loadInstances();
     const index = instances.findIndex(i => i.name === name);
@@ -458,7 +450,6 @@ app.put('/api/instances/:name', (req, res) => {
     if (threshold !== undefined) instances[index].threshold = threshold;
     if (debug !== undefined) instances[index].debug = debug;
     if (cvatSync !== undefined) instances[index].cvatSync = cvatSync;
-    if (labelstudioSync !== undefined) instances[index].labelstudioSync = labelstudioSync;
     if (classFile !== undefined) instances[index].classFile = classFile || null;
     instances[index].updatedAt = new Date().toISOString();
 
@@ -556,19 +547,6 @@ app.post('/api/instances/:name/start', async (req, res) => {
       if (CONFIG.cvat.username) envVars.FIFTYONE_CVAT_USERNAME = CONFIG.cvat.username;
       if (CONFIG.cvat.password) envVars.FIFTYONE_CVAT_PASSWORD = CONFIG.cvat.password;
       if (CONFIG.cvat.email) envVars.FIFTYONE_CVAT_EMAIL = CONFIG.cvat.email;
-    }
-
-    // Add Label Studio configuration if sync is enabled
-    if (instance.labelstudioSync) {
-      if (CONFIG.labelstudio.url) envVars.FIFTYONE_LABELSTUDIO_URL = CONFIG.labelstudio.url;
-      if (CONFIG.labelstudio.apiKey) envVars.FIFTYONE_LABELSTUDIO_API_KEY = CONFIG.labelstudio.apiKey;
-      if (CONFIG.labelstudio.timeout) envVars.FIFTYONE_LABELSTUDIO_TIMEOUT = CONFIG.labelstudio.timeout;
-      if (CONFIG.labelstudio.localFilesServingEnabled) {
-        envVars.LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED = 'true';
-        if (CONFIG.labelstudio.localFilesDocumentRoot) {
-          envVars.LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT = CONFIG.labelstudio.localFilesDocumentRoot;
-        }
-      }
     }
 
     // Build environment variable string
