@@ -519,7 +519,7 @@ app.post('/api/instances/:name/start', async (req, res) => {
       args.push('--class-file', instance.classFile);
     }
 
-    const command = `python3 ${scriptPath} ${args.join(' ')}`;
+    const command = `/opt/venv/bin/python ${scriptPath} ${args.join(' ')}`;
 
     // Generate unique database name for this instance
     const datasetName = path.basename(instance.datasetPath);

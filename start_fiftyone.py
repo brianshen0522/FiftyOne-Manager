@@ -54,12 +54,16 @@ def create_cvat_project(dataset, dataset_name, class_names):
 
             cvat_username = os.getenv('FIFTYONE_CVAT_USERNAME')
             cvat_password = os.getenv('FIFTYONE_CVAT_PASSWORD')
+            cvat_email = os.getenv('FIFTYONE_CVAT_EMAIL')
 
-            if cvat_username and cvat_password:
+            if cvat_password and (cvat_username or cvat_email):
                 print(f"Checking for existing CVAT project...")
 
+                # Use email for login if provided, otherwise use username
+                login_id = cvat_email if cvat_email else cvat_username
+
                 # Create CVAT client
-                with make_client(host=cvat_url, credentials=(cvat_username, cvat_password)) as client:
+                with make_client(host=cvat_url, credentials=(login_id, cvat_password)) as client:
                     # Get all projects
                     projects = client.projects.list()
 
@@ -87,10 +91,10 @@ def create_cvat_project(dataset, dataset_name, class_names):
             print(f"Warning: Could not check/delete existing project: {e}")
             print("Continuing with project creation...")
 
-        # Create a small view for project initialization (just to create the schema)
-        # We'll take the first sample (or empty view if no samples)
+        # Upload all samples to CVAT
         if len(dataset) > 0:
-            init_view = dataset.limit(1)
+            init_view = dataset
+            print(f"Uploading all {len(dataset)} samples to CVAT...")
         else:
             print("Warning: No samples in dataset, creating empty project")
             init_view = dataset.view()
@@ -107,19 +111,18 @@ def create_cvat_project(dataset, dataset_name, class_names):
             label_type="detections",
             classes=class_names,
             project_name=project_name,
+            # Explicitly pass CVAT credentials
+            url=cvat_url,
+            username=os.getenv('FIFTYONE_CVAT_USERNAME'),
+            password=os.getenv('FIFTYONE_CVAT_PASSWORD'),
             # Don't launch editor, we're just creating the project
             launch_editor=False,
         )
 
         print(f"✓ CVAT project '{project_name}' created successfully!")
-        print(f"✓ You can now use this project for annotation workflows")
-
-        # Clean up the initialization annotation run (but keep the project)
-        try:
-            # Just delete the run record, not the CVAT project
-            dataset.delete_annotation_run(anno_key)
-        except:
-            pass  # Ignore cleanup errors
+        print(f"✓ Uploaded {len(init_view)} samples to CVAT")
+        print(f"✓ Annotation run key: '{anno_key}'")
+        print(f"✓ To load annotations back: dataset.load_annotations('{anno_key}')")
 
         print(f"{'='*60}\n")
 

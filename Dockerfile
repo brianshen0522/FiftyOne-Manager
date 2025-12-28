@@ -26,7 +26,8 @@ RUN wget -O /tmp/libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/open
 
 # Isolate Python packages to avoid system-managed environment conflicts
 RUN python3 -m venv "${VIRTUAL_ENV}" \
-    && "${VIRTUAL_ENV}/bin/python" -m pip install --upgrade pip
+    && "${VIRTUAL_ENV}/bin/python" -m pip install --upgrade pip \
+    && "${VIRTUAL_ENV}/bin/python" -m pip install cvat-sdk
 
 WORKDIR /app
 
