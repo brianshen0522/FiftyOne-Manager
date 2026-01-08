@@ -81,14 +81,14 @@
             justify-content: center;
             background: #0a0a0a;
             position: relative;
-            overflow: auto;
+            overflow: hidden;
         }
 
         #canvas {
             border: 1px solid #3a3a3a;
             cursor: crosshair;
-            max-width: 100%;
-            max-height: 100%;
+            width: 100%;
+            height: 100%;
         }
 
         .sidebar {
@@ -668,7 +668,8 @@
         let dragHandle = null;
         let isPanning = false;
         let panStart = null;
-        let viewScale = 1;
+        let baseScale = 1; // Scale to fit image to canvas
+        let viewScale = 1; // User zoom level
         let viewOffsetX = 0;
         let viewOffsetY = 0;
         let pendingSelection = null;
@@ -1761,51 +1762,68 @@
         }
 
         function setupCanvas() {
-            canvas.width = image.width;
-            canvas.height = image.height;
+            // Set canvas internal resolution to match container size
+            const container = document.querySelector('.canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            // Calculate base scale to fit image to canvas (fill at least one dimension)
+            const scaleX = canvas.width / image.width;
+            const scaleY = canvas.height / image.height;
+            baseScale = Math.min(scaleX, scaleY);
+
             document.getElementById('imageSize').textContent = `${image.width} x ${image.height}`;
             viewScale = 1;
             viewOffsetX = 0;
             viewOffsetY = 0;
-            updateCanvasDisplaySize();
             draw();
         }
 
         function draw() {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.setTransform(viewScale, 0, 0, viewScale, viewOffsetX, viewOffsetY);
+
+            // Calculate total scale and centering offset
+            const totalScale = baseScale * viewScale;
+            const imageWidth = image.width * totalScale;
+            const imageHeight = image.height * totalScale;
+            const centerX = (canvas.width - imageWidth) / 2;
+            const centerY = (canvas.height - imageHeight) / 2;
+
+            // Apply transform: translate to center + pan, then scale, then draw image at origin
+            ctx.translate(centerX + viewOffsetX, centerY + viewOffsetY);
+            ctx.scale(totalScale, totalScale);
             ctx.drawImage(image, 0, 0);
 
-            // Draw annotations
+            // Draw annotations (now in image coordinate space)
             annotations.forEach((ann, idx) => {
                 const isSelected = selectedAnnotation === idx;
                 const color = getClassColor(ann.class);
 
-                const x = (ann.x - ann.w / 2) * canvas.width;
-                const y = (ann.y - ann.h / 2) * canvas.height;
-                const w = ann.w * canvas.width;
-                const h = ann.h * canvas.height;
+                const x = (ann.x - ann.w / 2) * image.width;
+                const y = (ann.y - ann.h / 2) * image.height;
+                const w = ann.w * image.width;
+                const h = ann.h * image.height;
 
-                // Draw box
+                // Draw box (scale line width inversely to keep constant visual size)
                 ctx.strokeStyle = color;
-                ctx.lineWidth = (isSelected ? 3 : 2) / viewScale;
+                ctx.lineWidth = (isSelected ? 3 : 2) / totalScale;
                 ctx.strokeRect(x, y, w, h);
 
                 // Draw label
                 ctx.fillStyle = color;
-                ctx.font = `${14 / viewScale}px monospace`;
+                ctx.font = `${14 / totalScale}px monospace`;
                 const label = CLASSES[ann.class] || `class_${ann.class}`;
                 const textWidth = ctx.measureText(label).width;
-                const labelHeight = 20 / viewScale;
-                const labelPadding = 8 / viewScale;
+                const labelHeight = 20 / totalScale;
+                const labelPadding = 8 / totalScale;
                 ctx.fillRect(x, y - labelHeight, textWidth + labelPadding, labelHeight);
                 ctx.fillStyle = '#000';
-                ctx.fillText(label, x + (4 / viewScale), y - (6 / viewScale));
+                ctx.fillText(label, x + 4 / totalScale, y - 6 / totalScale);
 
                 // Draw handles if selected
                 if (isSelected) {
-                    const handleSize = 8 / viewScale;
+                    const handleSize = 8 / totalScale;
                     ctx.fillStyle = color;
                     [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
                         ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
@@ -1816,8 +1834,8 @@
             // Draw current box being drawn
             if (isDrawing && drawStart && currentBox) {
                 ctx.strokeStyle = getClassColor(selectedClass);
-                ctx.lineWidth = 2 / viewScale;
-                ctx.setLineDash([5 / viewScale, 5 / viewScale]);
+                ctx.lineWidth = 2 / totalScale;
+                ctx.setLineDash([5 / totalScale, 5 / totalScale]);
                 ctx.strokeRect(currentBox.x, currentBox.y, currentBox.w, currentBox.h);
                 ctx.setLineDash([]);
             }
@@ -1834,13 +1852,19 @@
             return { x, y };
         }
 
-        // Convert mouse coordinates from display space to canvas space (accounting for pan/zoom)
+        // Convert mouse coordinates from display space to image coordinate space
         function getCanvasCoordinates(e) {
             const point = getCanvasPoint(e);
-            return {
-                x: (point.x - viewOffsetX) / viewScale,
-                y: (point.y - viewOffsetY) / viewScale
-            };
+            const totalScale = baseScale * viewScale;
+            const imageWidth = image.width * totalScale;
+            const imageHeight = image.height * totalScale;
+            const centerX = (canvas.width - imageWidth) / 2;
+            const centerY = (canvas.height - imageHeight) / 2;
+
+            // Convert from canvas space to image space
+            const x = (point.x - centerX - viewOffsetX) / totalScale;
+            const y = (point.y - centerY - viewOffsetY) / totalScale;
+            return { x, y };
         }
 
         function setupEventListeners() {
@@ -1853,6 +1877,12 @@
                 event.preventDefault();
             });
             document.addEventListener('keydown', handleKeyDown);
+
+            // Handle window resize to keep image filling the container
+            window.addEventListener('resize', () => {
+                updateCanvasDisplaySize();
+                draw();
+            });
         }
 
         function updateCanvasDisplaySize() {
@@ -1860,8 +1890,15 @@
                 return;
             }
 
-            canvas.style.width = `${image.width}px`;
-            canvas.style.height = `${image.height}px`;
+            // Update canvas internal resolution to match container size
+            const container = document.querySelector('.canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            // Recalculate base scale to fit image to canvas
+            const scaleX = canvas.width / image.width;
+            const scaleY = canvas.height / image.height;
+            baseScale = Math.min(scaleX, scaleY);
         }
 
         function handleMouseDown(e) {
@@ -1959,10 +1996,10 @@
                     const x1 = Math.min(drawStart.x, x);
                     const y1 = Math.min(drawStart.y, y);
 
-                    const centerX = (x1 + w / 2) / canvas.width;
-                    const centerY = (y1 + h / 2) / canvas.height;
-                    const normW = w / canvas.width;
-                    const normH = h / canvas.height;
+                    const centerX = (x1 + w / 2) / image.width;
+                    const centerY = (y1 + h / 2) / image.height;
+                    const normW = w / image.width;
+                    const normH = h / image.height;
 
                     annotations.push({
                         class: selectedClass,
@@ -2013,13 +2050,32 @@
                 return;
             }
 
+            // Get mouse position in canvas coordinates
             const point = getCanvasPoint(e);
-            const worldX = (point.x - viewOffsetX) / viewScale;
-            const worldY = (point.y - viewOffsetY) / viewScale;
 
+            // Calculate current mouse position in image space
+            const totalScale = baseScale * viewScale;
+            const imageWidth = image.width * totalScale;
+            const imageHeight = image.height * totalScale;
+            const centerX = (canvas.width - imageWidth) / 2;
+            const centerY = (canvas.height - imageHeight) / 2;
+            const imageX = (point.x - centerX - viewOffsetX) / totalScale;
+            const imageY = (point.y - centerY - viewOffsetY) / totalScale;
+
+            // Update scale
             viewScale = nextScale;
-            viewOffsetX = point.x - worldX * viewScale;
-            viewOffsetY = point.y - worldY * viewScale;
+
+            // Calculate new total scale and centering
+            const newTotalScale = baseScale * viewScale;
+            const newImageWidth = image.width * newTotalScale;
+            const newImageHeight = image.height * newTotalScale;
+            const newCenterX = (canvas.width - newImageWidth) / 2;
+            const newCenterY = (canvas.height - newImageHeight) / 2;
+
+            // Adjust pan offset so the image point under the mouse stays under the mouse
+            viewOffsetX = point.x - newCenterX - imageX * newTotalScale;
+            viewOffsetY = point.y - newCenterY - imageY * newTotalScale;
+
             draw();
         }
 
@@ -2096,10 +2152,10 @@
         function getAnnotationAt(x, y) {
             for (let i = annotations.length - 1; i >= 0; i--) {
                 const ann = annotations[i];
-                const ax = (ann.x - ann.w / 2) * canvas.width;
-                const ay = (ann.y - ann.h / 2) * canvas.height;
-                const aw = ann.w * canvas.width;
-                const ah = ann.h * canvas.height;
+                const ax = (ann.x - ann.w / 2) * image.width;
+                const ay = (ann.y - ann.h / 2) * image.height;
+                const aw = ann.w * image.width;
+                const ah = ann.h * image.height;
 
                 if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
                     return i;
@@ -2112,10 +2168,10 @@
             const hits = [];
             for (let i = annotations.length - 1; i >= 0; i--) {
                 const ann = annotations[i];
-                const ax = (ann.x - ann.w / 2) * canvas.width;
-                const ay = (ann.y - ann.h / 2) * canvas.height;
-                const aw = ann.w * canvas.width;
-                const ah = ann.h * canvas.height;
+                const ax = (ann.x - ann.w / 2) * image.width;
+                const ay = (ann.y - ann.h / 2) * image.height;
+                const aw = ann.w * image.width;
+                const ah = ann.h * image.height;
 
                 if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
                     hits.push(i);
@@ -2137,10 +2193,10 @@
         }
 
         function getHandleAt(ann, x, y) {
-            const ax = (ann.x - ann.w / 2) * canvas.width;
-            const ay = (ann.y - ann.h / 2) * canvas.height;
-            const aw = ann.w * canvas.width;
-            const ah = ann.h * canvas.height;
+            const ax = (ann.x - ann.w / 2) * image.width;
+            const ay = (ann.y - ann.h / 2) * image.height;
+            const aw = ann.w * image.width;
+            const ah = ann.h * image.height;
 
             const handles = [
                 { name: 'tl', x: ax, y: ay },
@@ -2149,7 +2205,8 @@
                 { name: 'br', x: ax + aw, y: ay + ah }
             ];
 
-            const handleSize = 16 / viewScale;
+            const totalScale = baseScale * viewScale;
+            const handleSize = 16 / totalScale;
             for (const handle of handles) {
                 if (Math.abs(x - handle.x) < handleSize && Math.abs(y - handle.y) < handleSize) {
                     return handle.name;
@@ -2159,10 +2216,10 @@
         }
 
         function resizeAnnotation(ann, handle, mouseX, mouseY) {
-            const centerX = ann.x * canvas.width;
-            const centerY = ann.y * canvas.height;
-            const halfW = ann.w * canvas.width / 2;
-            const halfH = ann.h * canvas.height / 2;
+            const centerX = ann.x * image.width;
+            const centerY = ann.y * image.height;
+            const halfW = ann.w * image.width / 2;
+            const halfH = ann.h * image.height / 2;
 
             let x1 = centerX - halfW;
             let y1 = centerY - halfH;
@@ -2193,10 +2250,10 @@
             const newW = Math.abs(x2 - x1);
             const newH = Math.abs(y2 - y1);
 
-            ann.x = newCenterX / canvas.width;
-            ann.y = newCenterY / canvas.height;
-            ann.w = newW / canvas.width;
-            ann.h = newH / canvas.height;
+            ann.x = newCenterX / image.width;
+            ann.y = newCenterY / image.height;
+            ann.w = newW / image.width;
+            ann.h = newH / image.height;
         }
 
         function deleteAnnotation(idx) {
