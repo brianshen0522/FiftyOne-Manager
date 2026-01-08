@@ -191,6 +191,8 @@ class DeleteSamplesOperator(foo.Operator):
             try:
                 ctx.dataset.delete_samples(sample_ids_to_remove)
                 ctx.dataset.save()
+                # Clear selection in UI after deletion
+                ctx.ops.clear_selected_samples()
             except Exception as e:
                 failed_deletions.append({
                     "sample_id": "ALL",

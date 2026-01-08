@@ -33,49 +33,67 @@ class OpenLabelEditor(foo.Operator):
                     f"Multiple samples selected ({num_selected}). All will be opened for editing."
                 )
         else:
+            total_samples = len(ctx.view)
             inputs.message(
                 "info",
-                "Please select a sample to edit its labels."
+                f"No samples selected. All {total_samples} images will be opened for editing."
             )
 
         return types.Property(inputs, view=types.View(label="Edit Label"))
 
     def execute(self, ctx):
-        """Open label editor for the selected sample(s)"""
+        """Open label editor for the selected sample(s) or all samples if none selected"""
 
-        # Get the selected sample(s)
+        # Get the selected sample(s) or all samples
         selected = ctx.selected
-        if not selected or len(selected) == 0:
-            ctx.ops.notify("Please select a sample first", variant="error")
-            return {}
 
-        # Get all selected samples
+        # Get all samples (either selected or all in view)
         samples = []
         base_path = None
         relative_images = []
 
-        for sample_id in selected:
-            view = ctx.view.select(sample_id)
-            sample = view.first()
+        if selected and len(selected) > 0:
+            # Process selected samples
+            for sample_id in selected:
+                view = ctx.view.select(sample_id)
+                sample = view.first()
 
-            if sample is None:
-                continue
+                if sample is None:
+                    continue
 
-            image_path = sample.filepath
+                image_path = sample.filepath
 
-            # Extract base path from first image
-            if base_path is None and "/images/" in image_path:
-                base_path = image_path.split("/images/")[0]
+                # Extract base path from first image
+                if base_path is None and "/images/" in image_path:
+                    base_path = image_path.split("/images/")[0]
 
-            # Get relative path
-            if "/images/" in image_path and base_path:
-                relative_image = "images/" + image_path.split("/images/")[1]
-                relative_images.append(relative_image)
-                samples.append({
-                    "filepath": image_path,
-                    "filename": os.path.basename(image_path),
-                    "relative": relative_image
-                })
+                # Get relative path
+                if "/images/" in image_path and base_path:
+                    relative_image = "images/" + image_path.split("/images/")[1]
+                    relative_images.append(relative_image)
+                    samples.append({
+                        "filepath": image_path,
+                        "filename": os.path.basename(image_path),
+                        "relative": relative_image
+                    })
+        else:
+            # Process all samples in view
+            for sample in ctx.view:
+                image_path = sample.filepath
+
+                # Extract base path from first image
+                if base_path is None and "/images/" in image_path:
+                    base_path = image_path.split("/images/")[0]
+
+                # Get relative path
+                if "/images/" in image_path and base_path:
+                    relative_image = "images/" + image_path.split("/images/")[1]
+                    relative_images.append(relative_image)
+                    samples.append({
+                        "filepath": image_path,
+                        "filename": os.path.basename(image_path),
+                        "relative": relative_image
+                    })
 
         if len(samples) == 0:
             ctx.ops.notify("Could not load samples", variant="error")
