@@ -653,6 +653,38 @@ app.get('/api/label-editor/load', async (req, res) => {
   }
 });
 
+// Label Editor API - Load only label data (optimized - no image base64 encoding)
+app.get('/api/label-editor/load-label', async (req, res) => {
+  try {
+    const { label, basePath, relativeLabel } = req.query;
+
+    // Support both absolute and relative paths
+    let labelPath = label;
+
+    if (basePath && relativeLabel) {
+      labelPath = path.join(basePath, relativeLabel);
+    }
+
+    if (!labelPath) {
+      return res.status(400).json({ error: 'Missing label path' });
+    }
+
+    // Read label file (return empty if doesn't exist)
+    let labelContent = '';
+    if (fs.existsSync(labelPath)) {
+      labelContent = fs.readFileSync(labelPath, 'utf-8');
+    }
+
+    res.json({
+      labelPath: labelPath,
+      labelContent: labelContent
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Label Editor API - Save label data
 app.post('/api/label-editor/save', async (req, res) => {
   try {
@@ -678,6 +710,55 @@ app.post('/api/label-editor/save', async (req, res) => {
     fs.writeFileSync(fullLabelPath, content || '', 'utf-8');
 
     res.json({ success: true, message: 'Labels saved successfully' });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List all images in a folder
+app.get('/api/label-editor/list-folder', async (req, res) => {
+  try {
+    const { basePath, folder } = req.query;
+
+    if (!basePath || !folder) {
+      return res.status(400).json({ error: 'Missing basePath or folder parameter' });
+    }
+
+    const fullPath = path.join(basePath, folder);
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    // Read all files in directory recursively
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
+    const images = [];
+
+    function scanDirectory(dir, baseDir) {
+      const items = fs.readdirSync(dir);
+
+      for (const item of items) {
+        const fullItemPath = path.join(dir, item);
+        const stat = fs.statSync(fullItemPath);
+
+        if (stat.isDirectory()) {
+          scanDirectory(fullItemPath, baseDir);
+        } else if (stat.isFile()) {
+          const ext = path.extname(item).toLowerCase();
+          if (imageExtensions.includes(ext)) {
+            // Get relative path from folder root
+            const relativePath = path.relative(baseDir, fullItemPath);
+            images.push(path.join(folder, relativePath).replace(/\\/g, '/'));
+          }
+        }
+      }
+    }
+
+    scanDirectory(fullPath, fullPath);
+    images.sort(); // Sort alphabetically
+
+    res.json({ images, count: images.length });
 
   } catch (err) {
     res.status(500).json({ error: err.message });

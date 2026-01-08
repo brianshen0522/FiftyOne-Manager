@@ -39,6 +39,15 @@ class OpenLabelEditor(foo.Operator):
                 f"No samples selected. All {total_samples} images will be opened for editing."
             )
 
+            # Add subfolder input when no samples are selected
+            inputs.str(
+                "subfolder",
+                label="Dataset Subfolder",
+                description="Subfolder within images/ (e.g., 'train', 'val'). Leave empty for root.",
+                default="",
+                required=False
+            )
+
         return types.Property(inputs, view=types.View(label="Edit Label"))
 
     def execute(self, ctx):
@@ -46,11 +55,13 @@ class OpenLabelEditor(foo.Operator):
 
         # Get the selected sample(s) or all samples
         selected = ctx.selected
+        subfolder = ctx.params.get("subfolder", "").strip()
 
         # Get all samples (either selected or all in view)
         samples = []
         base_path = None
         relative_images = []
+        use_folder_mode = False
 
         if selected and len(selected) > 0:
             # Process selected samples
@@ -77,23 +88,19 @@ class OpenLabelEditor(foo.Operator):
                         "relative": relative_image
                     })
         else:
-            # Process all samples in view
-            for sample in ctx.view:
-                image_path = sample.filepath
+            # No samples selected - use folder mode with subfolder
+            use_folder_mode = True
 
-                # Extract base path from first image
-                if base_path is None and "/images/" in image_path:
+            # Get base path from first sample
+            first_sample = ctx.view.first()
+            if first_sample:
+                image_path = first_sample.filepath
+                if "/images/" in image_path:
                     base_path = image_path.split("/images/")[0]
 
-                # Get relative path
-                if "/images/" in image_path and base_path:
-                    relative_image = "images/" + image_path.split("/images/")[1]
-                    relative_images.append(relative_image)
-                    samples.append({
-                        "filepath": image_path,
-                        "filename": os.path.basename(image_path),
-                        "relative": relative_image
-                    })
+                    # Count samples for reporting
+                    for sample in ctx.view:
+                        samples.append({"filepath": sample.filepath})
 
         if len(samples) == 0:
             ctx.ops.notify("Could not load samples", variant="error")
@@ -103,31 +110,42 @@ class OpenLabelEditor(foo.Operator):
         manager_port = os.environ.get("MANAGER_PORT", "3000")
         public_address = os.environ.get("PUBLIC_ADDRESS", "localhost")
 
-        # Construct the label editor URL with multiple images
+        # Construct the label editor URL
         from urllib.parse import quote
 
-        # For multiple images, pass them as comma-separated list
-        images_param = ",".join(relative_images)
-        editor_url = f"http://{public_address}:{manager_port}/label-editor.html?base={quote(base_path)}&images={quote(images_param)}"
+        if use_folder_mode:
+            # Folder mode: pass base path and subfolder instead of individual images
+            folder_path = f"images/{subfolder}" if subfolder else "images"
+            editor_url = f"http://{public_address}:{manager_port}/label-editor.html?base={quote(base_path)}&folder={quote(folder_path)}"
 
-        # Notify user
-        if len(samples) > 1:
             ctx.ops.notify(
-                f"Copy the URL below to open label editor for {len(samples)} images",
+                f"Copy the URL below to open label editor for {len(samples)} images in folder '{folder_path}'",
                 variant="success"
             )
         else:
-            ctx.ops.notify(
-                f"Copy the URL below to open label editor for {samples[0]['filename']}",
-                variant="success"
-            )
+            # Individual mode: pass comma-separated image list
+            images_param = ",".join(relative_images)
+            editor_url = f"http://{public_address}:{manager_port}/label-editor.html?base={quote(base_path)}&images={quote(images_param)}"
+
+            # Notify user
+            if len(samples) > 1:
+                ctx.ops.notify(
+                    f"Copy the URL below to open label editor for {len(samples)} images",
+                    variant="success"
+                )
+            else:
+                ctx.ops.notify(
+                    f"Copy the URL below to open label editor for {samples[0]['filename']}",
+                    variant="success"
+                )
 
         # Return data
+        first_filepath = samples[0]["filepath"]
         return {
             "editor_url": editor_url,
-            "filename": f"{len(samples)} image(s)" if len(samples) > 1 else samples[0]["filename"],
-            "image_path": samples[0]["filepath"],
-            "label_path": samples[0]["filepath"].replace("/images/", "/labels/").replace(".jpg", ".txt").replace(".jpeg", ".txt").replace(".png", ".txt"),
+            "filename": f"{len(samples)} image(s)" if len(samples) > 1 else (samples[0].get("filename", os.path.basename(first_filepath))),
+            "image_path": first_filepath,
+            "label_path": first_filepath.replace("/images/", "/labels/").replace(".jpg", ".txt").replace(".jpeg", ".txt").replace(".png", ".txt"),
             "image_count": len(samples),
         }
 

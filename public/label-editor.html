@@ -388,7 +388,6 @@
 
         // State
         let image = null;
-        let imageData = null;
         let labelData = null;
         let annotations = [];
         let selectedClass = 0;
@@ -404,6 +403,7 @@
         let currentImageIndex = 0;
         let basePath = '';
         let imageThumbnails = {}; // Store thumbnails for preview
+        let currentLabelPath = ''; // Current label path for saving
 
         // Canvas
         const canvas = document.getElementById('canvas');
@@ -418,6 +418,7 @@
         basePath = urlParams.get('base') || '';
         const relativeImage = urlParams.get('img');
         const relativeLabel = urlParams.get('lbl');
+        const folderParam = urlParams.get('folder');
 
         // Support multiple images (comma-separated)
         const imageListParam = urlParams.get('images');
@@ -429,8 +430,45 @@
             imageList = [imagePath];
         }
 
+        // Load images from folder if folder parameter is provided
+        async function loadImagesFromFolder() {
+            if (!folderParam || !basePath) {
+                return false;
+            }
+
+            try {
+                showStatus('Loading images from folder...');
+                const response = await fetch(`/api/label-editor/list-folder?basePath=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderParam)}`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to load folder');
+                }
+
+                const data = await response.json();
+                imageList = data.images;
+
+                if (imageList.length === 0) {
+                    showError(`No images found in folder: ${folderParam}`);
+                    return false;
+                }
+
+                showStatus(`Loaded ${imageList.length} images from folder`);
+                return true;
+            } catch (err) {
+                showError(`Error loading folder: ${err.message}`);
+                return false;
+            }
+        }
+
         // Initialize
         async function init() {
+            // Load from folder if folder parameter is provided
+            if (folderParam) {
+                const loaded = await loadImagesFromFolder();
+                if (!loaded) return;
+            }
+
             if (imageList.length === 0) {
                 showError('Missing image path parameters');
                 return;
@@ -515,17 +553,13 @@
         async function loadThumbnail(index) {
             try {
                 const imagePath = imageList[index];
-                let url;
 
-                if (basePath && imagePath.startsWith('images/')) {
-                    url = `/api/label-editor/load?basePath=${encodeURIComponent(basePath)}&relativeImage=${encodeURIComponent(imagePath)}&relativeLabel=dummy.txt`;
+                // Use direct image URL (much faster than base64)
+                if (basePath) {
+                    return `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imagePath)}`;
                 } else {
-                    url = `/api/label-editor/load?image=${encodeURIComponent(imagePath)}&label=dummy.txt`;
+                    return `/api/image?fullPath=${encodeURIComponent(imagePath)}`;
                 }
-
-                const response = await fetch(url);
-                const data = await response.json();
-                return data.imageDataUrl;
             } catch (error) {
                 console.error('Failed to load thumbnail:', error);
                 return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/></svg>';
@@ -618,32 +652,38 @@
 
                 // Get current image path
                 const currentImage = imageList[currentImageIndex];
+                const currentLabel = currentImage.replace('images/', 'labels/').replace(/\.(jpg|jpeg|png)$/i, '.txt');
 
-                // Build URL based on format (base+relative or full path)
-                let url;
-                if (basePath && currentImage.startsWith('images/')) {
-                    // New format: base path + relative path
-                    const currentLabel = currentImage.replace('images/', 'labels/').replace(/\.(jpg|jpeg|png)$/i, '.txt');
-                    url = `/api/label-editor/load?basePath=${encodeURIComponent(basePath)}&relativeImage=${encodeURIComponent(currentImage)}&relativeLabel=${encodeURIComponent(currentLabel)}`;
+                // Store current label path for saving
+                currentLabelPath = currentLabel;
+
+                // Build image URL for direct loading (much faster than base64)
+                let imageUrl;
+                if (basePath) {
+                    imageUrl = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(currentImage)}`;
                 } else {
-                    // Old format: full paths
-                    const currentLabel = currentImage.replace('/images/', '/labels/').replace(/\.(jpg|jpeg|png)$/i, '.txt');
-                    url = `/api/label-editor/load?image=${encodeURIComponent(currentImage)}&label=${encodeURIComponent(currentLabel)}`;
+                    imageUrl = `/api/image?fullPath=${encodeURIComponent(currentImage)}`;
                 }
 
-                // Fetch image and label data
-                const response = await fetch(url);
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to load image');
+                // Build label URL
+                let labelUrl;
+                if (basePath) {
+                    labelUrl = `/api/label-editor/load-label?basePath=${encodeURIComponent(basePath)}&relativeLabel=${encodeURIComponent(currentLabel)}`;
+                } else {
+                    labelUrl = `/api/label-editor/load-label?label=${encodeURIComponent(currentLabel)}`;
                 }
 
-                imageData = data;
-                labelData = data.labelContent;
+                // Load image and label in parallel for better performance
+                const [labelResponse] = await Promise.all([
+                    fetch(labelUrl),
+                    // Image loading is handled separately through Image object
+                ]);
+
+                const labelResult = await labelResponse.json();
+                labelData = labelResult.labelContent || '';
                 annotations = parseLabelData(labelData);
 
-                // Load image
+                // Load image directly via URL (browser caching works)
                 image = new Image();
                 image.onload = () => {
                     setupCanvas();
@@ -651,22 +691,55 @@
                     canvas.style.display = 'block';
                     showStatus('Ready');
                     updateUI();
-                };
-                image.src = data.imageDataUrl;
 
-                document.getElementById('filename').textContent = data.filename;
+                    // Preload adjacent images for faster navigation
+                    preloadAdjacentImages();
+                };
+                image.onerror = () => {
+                    showError('Failed to load image');
+                };
+                image.src = imageUrl;
+
+                const filename = currentImage.split('/').pop();
+                document.getElementById('filename').textContent = filename;
 
                 // Update image preview
                 updateImagePreview();
 
-                // Cache thumbnail
-                if (!imageThumbnails[currentImageIndex]) {
-                    imageThumbnails[currentImageIndex] = data.imageDataUrl;
-                }
-
             } catch (error) {
                 showError(error.message);
             }
+        }
+
+        // Preload next and previous images for instant navigation
+        function preloadAdjacentImages() {
+            const preloadIndexes = [];
+
+            // Preload next image
+            if (currentImageIndex < imageList.length - 1) {
+                preloadIndexes.push(currentImageIndex + 1);
+            }
+
+            // Preload previous image
+            if (currentImageIndex > 0) {
+                preloadIndexes.push(currentImageIndex - 1);
+            }
+
+            // Preload a few more ahead
+            for (let i = 2; i <= 3 && currentImageIndex + i < imageList.length; i++) {
+                preloadIndexes.push(currentImageIndex + i);
+            }
+
+            preloadIndexes.forEach(idx => {
+                const imgPath = imageList[idx];
+                const img = new Image();
+
+                if (basePath) {
+                    img.src = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imgPath)}`;
+                } else {
+                    img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}`;
+                }
+            });
         }
 
         function parseLabelData(content) {
@@ -1041,8 +1114,8 @@
 
         async function saveLabels(showMessage = true) {
             try {
-                // Prevent saving if no image is loaded
-                if (!imageData) return;
+                // Prevent saving if no label path is available
+                if (!currentLabelPath) return;
 
                 if (showMessage) showStatus('Saving labels...');
 
@@ -1056,11 +1129,11 @@
                     content: yoloContent
                 };
 
-                if (imageData.basePath && imageData.relativeLabel) {
-                    requestBody.basePath = imageData.basePath;
-                    requestBody.relativeLabelPath = imageData.relativeLabel;
+                if (basePath && currentLabelPath) {
+                    requestBody.basePath = basePath;
+                    requestBody.relativeLabelPath = currentLabelPath;
                 } else {
-                    requestBody.labelPath = imageData.labelPath;
+                    requestBody.labelPath = currentLabelPath;
                 }
 
                 const response = await fetch('/api/label-editor/save', {
