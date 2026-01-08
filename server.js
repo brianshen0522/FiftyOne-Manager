@@ -716,6 +716,241 @@ app.post('/api/label-editor/save', async (req, res) => {
   }
 });
 
+// Get label metadata for images (for filtering)
+app.post('/api/label-editor/get-metadata', async (req, res) => {
+  try {
+    const { basePath, images } = req.body;
+
+    if (!basePath || !images || !Array.isArray(images)) {
+      return res.status(400).json({ error: 'Missing basePath or images array' });
+    }
+
+    const metadata = {};
+
+    for (const imagePath of images) {
+      try {
+        // Convert image path to label path
+        const labelPath = imagePath.replace('images/', 'labels/').replace(/\.(jpg|jpeg|png|bmp|gif)$/i, '.txt');
+        const fullLabelPath = path.join(basePath, labelPath);
+
+        // Read label file
+        let labelContent = '';
+        if (fs.existsSync(fullLabelPath)) {
+          labelContent = fs.readFileSync(fullLabelPath, 'utf-8');
+        }
+
+        // Parse annotations
+        const lines = labelContent.trim().split('\n').filter(line => line.trim());
+        const annotations = [];
+
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length >= 5) {
+            const classId = parseInt(parts[0]);
+            if (!isNaN(classId)) {
+              annotations.push(classId);
+            }
+          }
+        }
+
+        // Extract unique classes
+        const classes = [...new Set(annotations)];
+
+        metadata[imagePath] = {
+          classes: classes,
+          count: annotations.length
+        };
+      } catch (err) {
+        // If error reading this image's labels, set empty metadata
+        metadata[imagePath] = {
+          classes: [],
+          count: 0
+        };
+      }
+    }
+
+    res.json({ metadata });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Load class names for label editor based on instance dataset path
+app.get('/api/label-editor/classes', async (req, res) => {
+  try {
+    const { basePath } = req.query;
+    const defaultClasses = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
+
+    if (!basePath) {
+      return res.json({ classes: defaultClasses, source: 'default' });
+    }
+
+    const instances = loadInstances();
+    const normalizedBase = path.resolve(basePath);
+    const instance = instances.find(i => path.resolve(i.datasetPath) === normalizedBase);
+
+    if (!instance || !instance.classFile) {
+      return res.json({ classes: defaultClasses, source: 'default' });
+    }
+
+    if (!fs.existsSync(instance.classFile)) {
+      return res.json({ classes: defaultClasses, source: 'default' });
+    }
+
+    const content = fs.readFileSync(instance.classFile, 'utf-8');
+    const classes = content
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    if (classes.length === 0) {
+      return res.json({ classes: defaultClasses, source: 'default' });
+    }
+
+    return res.json({ classes, source: 'classFile', classFile: instance.classFile });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Filter images based on criteria
+app.post('/api/label-editor/filter-images', async (req, res) => {
+  try {
+    const { basePath, images, filters } = req.body;
+
+    if (!basePath || !images || !Array.isArray(images)) {
+      return res.status(400).json({ error: 'Missing basePath or images array' });
+    }
+
+    const { nameFilter, selectedClasses, minLabels, maxLabels, classMode, classLogic } = filters || {};
+    const resolvedClassMode = classMode || 'any';
+    const resolvedClassLogic = classLogic || 'any';
+
+    const filteredImages = [];
+
+    for (const imagePath of images) {
+      let passFilter = true;
+
+      // Filter by name
+      if (nameFilter && nameFilter.trim()) {
+        if (!imagePath.toLowerCase().includes(nameFilter.toLowerCase().trim())) {
+          passFilter = false;
+        }
+      }
+
+      // Filter by label metadata (if class or count filters are active)
+      const max = maxLabels !== undefined && maxLabels !== null ? maxLabels : Infinity;
+      if (passFilter && (selectedClasses?.length > 0 || minLabels > 0 || max < Infinity || resolvedClassMode !== 'any')) {
+        try {
+          // Convert image path to label path
+          const labelPath = imagePath.replace('images/', 'labels/').replace(/\.(jpg|jpeg|png|bmp|gif)$/i, '.txt');
+          const fullLabelPath = path.join(basePath, labelPath);
+
+          // Read label file
+          let labelContent = '';
+          if (fs.existsSync(fullLabelPath)) {
+            labelContent = fs.readFileSync(fullLabelPath, 'utf-8');
+          }
+
+          // Parse annotations
+          const lines = labelContent.trim().split('\n').filter(line => line.trim());
+          const annotations = [];
+
+          for (const line of lines) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 5) {
+              const classId = parseInt(parts[0]);
+              if (!isNaN(classId)) {
+                annotations.push(classId);
+              }
+            }
+          }
+
+          const count = annotations.length;
+          const classes = [...new Set(annotations)];
+
+          // Check label count
+          const min = minLabels || 0;
+          if (count < min || count > max) {
+            passFilter = false;
+          }
+
+          if (passFilter) {
+            if (resolvedClassMode === 'none') {
+              if (count !== 0) {
+                passFilter = false;
+              }
+            } else if (resolvedClassMode === 'only') {
+              if (!selectedClasses || selectedClasses.length === 0) {
+                passFilter = false;
+              } else {
+                const hasOnlySelected = classes.every(cls => selectedClasses.includes(cls));
+                if (!hasOnlySelected) {
+                  passFilter = false;
+                } else if (resolvedClassLogic === 'all') {
+                  const hasAllClasses = selectedClasses.every(cls => classes.includes(cls));
+                  if (!hasAllClasses) {
+                    passFilter = false;
+                  }
+                } else {
+                  const hasAnyClass = selectedClasses.some(cls => classes.includes(cls));
+                  if (!hasAnyClass) {
+                    passFilter = false;
+                  }
+                }
+              }
+            } else if (selectedClasses && selectedClasses.length > 0) {
+              if (resolvedClassLogic === 'all') {
+                const hasAllClasses = selectedClasses.every(cls => classes.includes(cls));
+                if (!hasAllClasses) {
+                  passFilter = false;
+                }
+              } else {
+                const hasAnyClass = selectedClasses.some(cls => classes.includes(cls));
+                if (!hasAnyClass) {
+                  passFilter = false;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          // If error reading labels, assume no labels
+          const count = 0;
+          const min = minLabels || 0;
+
+          if (count < min || count > max) {
+            passFilter = false;
+          }
+
+          if (passFilter) {
+            if (resolvedClassMode === 'none') {
+              // Keep passFilter true
+            } else if (resolvedClassMode === 'only') {
+              passFilter = false;
+            } else if (selectedClasses && selectedClasses.length > 0) {
+              passFilter = false; // No labels means no classes
+            }
+          }
+        }
+      }
+
+      if (passFilter) {
+        filteredImages.push(imagePath);
+      }
+    }
+
+    res.json({
+      filteredImages,
+      totalCount: images.length,
+      filteredCount: filteredImages.length
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // List all images in a folder
 app.get('/api/label-editor/list-folder', async (req, res) => {
   try {

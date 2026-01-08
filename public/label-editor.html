@@ -221,12 +221,40 @@
             display: block;
         }
 
+        .preview-progress {
+            height: 6px;
+            background: #1f1f1f;
+            border: 1px solid #333;
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 6px 0 8px;
+        }
+
+        .preview-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #28a745, #2ecc71);
+            transition: width 0.2s ease;
+        }
+
         .image-preview {
             display: flex;
             gap: 8px;
             overflow-x: auto;
             overflow-y: hidden;
             padding: 5px 0;
+            cursor: grab;
+            user-select: none;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .image-preview::-webkit-scrollbar {
+            display: none;
+        }
+
+        .image-preview.dragging {
+            cursor: grabbing;
         }
 
         .preview-item {
@@ -308,6 +336,182 @@
             padding: 20px;
             text-align: center;
         }
+
+        .filter-section {
+            background: #252525;
+        }
+
+        .filter-input {
+            width: 100%;
+            padding: 8px 12px;
+            background: #333;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .filter-warning {
+            margin-top: 8px;
+            color: #dc3545;
+            font-size: 12px;
+        }
+
+        .filter-group {
+            margin-bottom: 15px;
+        }
+
+        .filter-label {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .filter-checkboxes {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-bottom: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .filter-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 4px;
+            background: #2a2a2a;
+            border-radius: 3px;
+        }
+
+        .filter-checkbox-item input[type="checkbox"] {
+            cursor: pointer;
+        }
+
+        .filter-class-search {
+            margin: 8px 0 10px;
+        }
+
+        .filter-class-search input[type="text"] {
+            width: 100%;
+            padding: 6px 8px;
+            background: #333;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .filter-class-search input[type="text"]:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .filter-class-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 8px 0 10px;
+            min-height: 18px;
+        }
+
+        .filter-class-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            background: #2a2a2a;
+            border-radius: 999px;
+            font-size: 11px;
+            color: #e0e0e0;
+            cursor: pointer;
+            border: 1px solid #3a3a3a;
+        }
+
+        .filter-class-chip span {
+            opacity: 0.8;
+        }
+
+        .filter-range {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-range input[type="number"] {
+            width: 60px;
+            padding: 6px 8px;
+            background: #333;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .filter-range select {
+            flex: 1;
+            padding: 6px 8px;
+            background: #333;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .filter-stats {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 10px;
+            padding: 8px;
+            background: #2a2a2a;
+            border-radius: 4px;
+        }
+
+        .filter-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .filter-toggle:hover {
+            color: #007bff;
+        }
+
+        .filter-content {
+            margin-top: 15px;
+        }
+
+        .filter-content.collapsed {
+            display: none;
+        }
+
+        .btn-clear-filter {
+            width: 100%;
+            padding: 8px;
+            background: #444;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .btn-clear-filter:hover {
+            background: #555;
+        }
     </style>
 </head>
 
@@ -332,6 +536,67 @@
         </div>
 
         <div class="sidebar">
+            <div class="sidebar-section filter-section">
+                <div class="filter-toggle" onclick="toggleFilterSection()">
+                    <h2>Filter Images</h2>
+                    <span id="filterToggleIcon">▶</span>
+                </div>
+                <div class="filter-content collapsed" id="filterContent">
+                    <div class="filter-group">
+                        <label class="filter-label">Image Name</label>
+                        <input type="text"
+                               class="filter-input"
+                               id="filterName"
+                               placeholder="Search by filename..."
+                               autocomplete="off"
+                               inputmode="text"
+                               oninput="applyFiltersDebounced()">
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Has Classes</label>
+                        <div class="filter-range">
+                            <select id="filterClassMode" onchange="applyFilters()">
+                                <option value="any">Any</option>
+                                <option value="none">None (no labels)</option>
+                                <option value="only">Only Selected</option>
+                            </select>
+                            <select id="filterClassLogic" onchange="applyFilters()">
+                                <option value="any">Match Any</option>
+                                <option value="all">Match All</option>
+                            </select>
+                        </div>
+                        <div class="filter-class-search">
+                            <input type="text"
+                                   id="filterClassSearch"
+                                   placeholder="Search classes..."
+                                   autocomplete="off"
+                                   inputmode="text">
+                        </div>
+                        <div class="filter-class-chips" id="filterClassChips"></div>
+                        <div class="filter-checkboxes" id="filterClasses"></div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Label Count</label>
+                        <div class="filter-range">
+                            <input type="number" id="filterMinLabels" placeholder="Min" min="0" value="0" onchange="applyFilters()">
+                            <span>to</span>
+                            <input type="number" id="filterMaxLabels" placeholder="Max" min="0" value="" onchange="applyFilters()">
+                        </div>
+                    </div>
+
+                    <button class="btn-clear-filter" onclick="clearFilters()">Clear All Filters</button>
+
+                <div class="filter-stats" id="filterStats">
+                    Showing all images
+                </div>
+                <div class="filter-warning" id="filterWarning" style="display: none;">
+                    Label count min cannot be greater than max
+                </div>
+            </div>
+        </div>
+
             <div class="sidebar-section">
                 <h2>Image Info</h2>
                 <div class="info-field">
@@ -371,8 +636,11 @@
     </div>
 
     <div class="preview-bar" id="previewBar">
-        <div style="color: #aaa; font-size: 12px; margin-bottom: 5px;">
-            Images (<span id="imagePreviewCount">0</span>)
+        <div style="color: #aaa; font-size: 12px; margin-bottom: 5px;" id="imagePreviewCount">
+            Images
+        </div>
+        <div class="preview-progress">
+            <div class="preview-progress-fill" id="previewProgressFill"></div>
         </div>
         <div class="image-preview" id="imagePreview"></div>
     </div>
@@ -383,8 +651,9 @@
 
     <script>
         // Configuration
-        const CLASSES = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
-        const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#E74C3C'];
+        const DEFAULT_CLASSES = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
+        const BASE_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#E74C3C'];
+        let CLASSES = [...DEFAULT_CLASSES];
 
         // State
         let image = null;
@@ -397,13 +666,43 @@
         let currentBox = null;
         let isDragging = false;
         let dragHandle = null;
+        let isPanning = false;
+        let panStart = null;
+        let viewScale = 1;
+        let viewOffsetX = 0;
+        let viewOffsetY = 0;
+        let pendingSelection = null;
+        let lastHitIndices = [];
+        let lastHitCycle = 0;
+        let lastHitPoint = null;
 
         // Multi-image support
-        let imageList = [];
+        let allImageList = []; // Full unfiltered list
+        let imageList = []; // Filtered list (used for navigation)
         let currentImageIndex = 0;
         let basePath = '';
         let imageThumbnails = {}; // Store thumbnails for preview
         let currentLabelPath = ''; // Current label path for saving
+        let previewDragInitialized = false;
+        let previewScrollInitialized = false;
+        let previewRenderStart = 0;
+        let previewRenderEnd = 0;
+        let pendingPreviewCenter = null;
+        let previewDragState = {
+            isDown: false,
+            moved: false,
+            startX: 0,
+            scrollLeft: 0,
+            pointerId: null,
+            dragging: false,
+            rafId: null,
+            lastDeltaX: 0
+        };
+
+        // Filter support
+        let labelCache = {}; // Cache label info for filtering: { imagePath: { classes: [0,1,2], count: 3 } }
+        let filterActive = false;
+        let filterDebounceTimer = null;
 
         // Canvas
         const canvas = document.getElementById('canvas');
@@ -423,12 +722,13 @@
         // Support multiple images (comma-separated)
         const imageListParam = urlParams.get('images');
         if (imageListParam) {
-            imageList = imageListParam.split(',').map(img => img.trim());
+            allImageList = imageListParam.split(',').map(img => img.trim());
         } else if (relativeImage) {
-            imageList = [relativeImage];
+            allImageList = [relativeImage];
         } else if (imagePath) {
-            imageList = [imagePath];
+            allImageList = [imagePath];
         }
+        imageList = [...allImageList]; // Initialize filtered list
 
         // Load images from folder if folder parameter is provided
         async function loadImagesFromFolder() {
@@ -446,7 +746,8 @@
                 }
 
                 const data = await response.json();
-                imageList = data.images;
+                allImageList = data.images;
+                imageList = [...allImageList]; // Initialize filtered list
 
                 if (imageList.length === 0) {
                     showError(`No images found in folder: ${folderParam}`);
@@ -474,80 +775,753 @@
                 return;
             }
 
+            await loadClassNames();
             setupClassSelector();
+            setupFilterUI();
             setupEventListeners();
             updateNavigationButtons();
             setupImagePreview();
             await loadImage();
         }
 
+        // === FILTER FUNCTIONS ===
+
+        // Debounced version for text input
+        function applyFiltersDebounced() {
+            if (filterDebounceTimer) {
+                clearTimeout(filterDebounceTimer);
+            }
+            filterDebounceTimer = setTimeout(() => {
+                applyFilters();
+            }, 300); // Wait 300ms after user stops typing
+        }
+
+        function setupFilterUI() {
+            // Setup class filter checkboxes
+            const filterClassesDiv = document.getElementById('filterClasses');
+            filterClassesDiv.innerHTML = ''; // Clear any existing content
+
+            CLASSES.forEach((cls, idx) => {
+                const item = document.createElement('div');
+                item.className = 'filter-checkbox-item';
+                item.dataset.className = cls.toLowerCase();
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `filter-class-${idx}`;
+                checkbox.value = idx;
+                checkbox.onchange = () => {
+                    console.log(`Checkbox ${cls} (${idx}) changed to ${checkbox.checked}`);
+                    updateSelectedClassChips();
+                    applyFilters();
+                };
+
+                const label = document.createElement('label');
+                label.htmlFor = `filter-class-${idx}`;
+                label.textContent = cls;
+                label.style.cursor = 'pointer';
+                label.style.color = getClassColor(idx);
+
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                filterClassesDiv.appendChild(item);
+            });
+
+            setupClassSearchInput();
+            updateSelectedClassChips();
+            console.log('Filter UI setup complete. Created checkboxes for:', CLASSES);
+        }
+
+        function setupClassSearchInput() {
+            const classSearchInput = document.getElementById('filterClassSearch');
+            if (!classSearchInput) {
+                return;
+            }
+
+            classSearchInput.oninput = () => {
+                const query = classSearchInput.value.trim().toLowerCase();
+                filterClassListBySearch(query);
+            };
+        }
+
+        function filterClassListBySearch(query) {
+            const filterClassesDiv = document.getElementById('filterClasses');
+            if (!filterClassesDiv) {
+                return;
+            }
+
+            const items = filterClassesDiv.querySelectorAll('.filter-checkbox-item');
+            items.forEach(item => {
+                const matches = !query || item.dataset.className.includes(query);
+                item.style.display = matches ? 'flex' : 'none';
+            });
+        }
+
+        function updateSelectedClassChips() {
+            const classChips = document.getElementById('filterClassChips');
+            if (!classChips) {
+                return;
+            }
+
+            classChips.innerHTML = '';
+            CLASSES.forEach((cls, idx) => {
+                const checkbox = document.getElementById(`filter-class-${idx}`);
+                if (checkbox && checkbox.checked) {
+                    const chip = document.createElement('div');
+                    chip.className = 'filter-class-chip';
+                    chip.style.borderColor = getClassColor(idx);
+                    chip.innerHTML = `${cls} <span>×</span>`;
+                    chip.onclick = () => {
+                        checkbox.checked = false;
+                        updateSelectedClassChips();
+                        applyFilters();
+                    };
+                    classChips.appendChild(chip);
+                }
+            });
+        }
+
+        function getClassColor(index) {
+            if (BASE_COLORS[index]) {
+                return BASE_COLORS[index];
+            }
+            const hue = (index * 47) % 360;
+            return `hsl(${hue}, 70%, 55%)`;
+        }
+
+        async function loadClassNames() {
+            const classBasePath = resolveClassBasePath();
+            if (!classBasePath) {
+                CLASSES = [...DEFAULT_CLASSES];
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/label-editor/classes?basePath=${encodeURIComponent(classBasePath)}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load class names');
+                }
+                const data = await response.json();
+                if (Array.isArray(data.classes) && data.classes.length > 0) {
+                    CLASSES = data.classes;
+                } else {
+                    CLASSES = [...DEFAULT_CLASSES];
+                }
+            } catch (error) {
+                console.warn('Failed to load class names:', error);
+                CLASSES = [...DEFAULT_CLASSES];
+            }
+        }
+
+        function resolveClassBasePath() {
+            if (basePath) {
+                return basePath;
+            }
+            if (imagePath && imagePath.includes('/images/')) {
+                return imagePath.split('/images/')[0];
+            }
+            if (allImageList.length > 0 && allImageList[0].includes('/images/')) {
+                return allImageList[0].split('/images/')[0];
+            }
+            return '';
+        }
+
+        function toggleFilterSection() {
+            const content = document.getElementById('filterContent');
+            const icon = document.getElementById('filterToggleIcon');
+
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                icon.textContent = '▼';
+            } else {
+                content.classList.add('collapsed');
+                icon.textContent = '▶';
+            }
+        }
+
+        // Load metadata from backend for all images (or batch)
+        async function loadMetadataFromBackend(imagePaths) {
+            try {
+                const response = await fetch('/api/label-editor/get-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        basePath: basePath,
+                        images: imagePaths
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load metadata');
+                }
+
+                const data = await response.json();
+
+                // Merge into cache
+                Object.assign(labelCache, data.metadata);
+
+                return data.metadata;
+            } catch (err) {
+                console.error('Error loading metadata:', err);
+                return {};
+            }
+        }
+
+        async function getLabelInfo(imagePath) {
+            // Check cache first
+            if (labelCache[imagePath]) {
+                return labelCache[imagePath];
+            }
+
+            // Load from backend
+            const metadata = await loadMetadataFromBackend([imagePath]);
+            return metadata[imagePath] || { classes: [], count: 0 };
+        }
+
+        async function applyFilters() {
+            try {
+                showStatus('Applying filters...');
+
+                clearFilterWarning();
+
+                // Get filter values
+                const nameFilter = document.getElementById('filterName').value.trim();
+                const classMode = document.getElementById('filterClassMode').value;
+                const classLogic = document.getElementById('filterClassLogic').value;
+                const minLabels = parseInt(document.getElementById('filterMinLabels').value) || 0;
+                const maxLabelsInput = document.getElementById('filterMaxLabels').value.trim();
+                const maxLabels = maxLabelsInput ? parseInt(maxLabelsInput) : null;
+
+                if (maxLabels !== null && minLabels > maxLabels) {
+                    showFilterWarning('Label count min cannot be greater than max');
+                    return;
+                }
+
+                // Get selected classes
+                const selectedClasses = [];
+                CLASSES.forEach((cls, idx) => {
+                    const checkbox = document.getElementById(`filter-class-${idx}`);
+                    if (checkbox && checkbox.checked) {
+                        selectedClasses.push(idx);
+                    }
+                });
+
+                console.log('Filter criteria:', {
+                    nameFilter,
+                    classMode,
+                    classLogic,
+                    minLabels,
+                    maxLabels,
+                    selectedClasses
+                });
+
+                if (classMode === 'only' && selectedClasses.length === 0) {
+                    showFilterWarning('Select classes for "Only Selected" mode');
+                    return;
+                }
+
+                // Check if any filter is active
+                const hasActiveFilter = nameFilter || selectedClasses.length > 0 || minLabels > 0 || maxLabels !== null || classMode !== 'any';
+
+                if (!hasActiveFilter) {
+                    // No filters active, show all
+                    imageList = [...allImageList];
+                    filterActive = false;
+                    updateFilterStats();
+                    currentImageIndex = 0;
+                    await loadImage();
+                    updateNavigationButtons();
+                    updateImagePreview();
+                    showStatus('No filters active');
+                    return;
+                }
+
+                // Call backend to filter images
+                const response = await fetch('/api/label-editor/filter-images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        basePath: basePath,
+                        images: allImageList,
+                        filters: {
+                            nameFilter: nameFilter,
+                            selectedClasses: selectedClasses,
+                            classMode: classMode,
+                            classLogic: classLogic,
+                            minLabels: minLabels,
+                            maxLabels: maxLabels !== null ? maxLabels : undefined
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to filter images');
+                }
+
+                const data = await response.json();
+                const filteredImages = data.filteredImages;
+
+                console.log(`Filtered ${data.totalCount} images down to ${data.filteredCount}`);
+
+                // Update image list
+                imageList = filteredImages;
+                filterActive = true;
+
+                // Update stats
+                updateFilterStats();
+
+                // Reset to first image if current index is out of bounds
+                if (currentImageIndex >= imageList.length) {
+                    currentImageIndex = 0;
+                }
+
+                // Reload UI
+                if (imageList.length > 0) {
+                    await loadImage();
+                    updateNavigationButtons();
+                    updateImagePreview();
+                    showStatus(`Found ${imageList.length} matching images`);
+                } else {
+                    showError('No images match the current filters');
+                }
+
+            } catch (error) {
+                console.error('Error applying filters:', error);
+                showError(`Filter error: ${error.message}`);
+            }
+        }
+
+        function updateFilterStats() {
+            const stats = document.getElementById('filterStats');
+            const previewCount = document.getElementById('imagePreviewCount');
+
+            if (filterActive) {
+                stats.textContent = `Showing ${imageList.length} of ${allImageList.length} images`;
+                stats.style.color = '#007bff';
+                previewCount.innerHTML = `Images (<span style="color: #007bff;">${imageList.length}</span> of ${allImageList.length})`;
+            } else {
+                stats.textContent = `Showing all ${allImageList.length} images`;
+                stats.style.color = '#aaa';
+                previewCount.textContent = `Images (${allImageList.length})`;
+            }
+
+            updatePreviewProgress();
+        }
+
+        function updatePreviewProgress() {
+            const fill = document.getElementById('previewProgressFill');
+            if (!fill || imageList.length === 0) {
+                if (fill) {
+                    fill.style.width = '0%';
+                }
+                return;
+            }
+
+            const current = Math.min(imageList.length, Math.max(1, currentImageIndex + 1));
+            const percent = (current / imageList.length) * 100;
+            fill.style.width = `${percent.toFixed(2)}%`;
+        }
+
+        function showFilterWarning(message) {
+            const warning = document.getElementById('filterWarning');
+            if (!warning) {
+                return;
+            }
+
+            warning.textContent = message;
+            warning.style.display = 'block';
+        }
+
+        function clearFilterWarning() {
+            const warning = document.getElementById('filterWarning');
+            if (!warning) {
+                return;
+            }
+
+            warning.style.display = 'none';
+        }
+
+        function clearFilters() {
+            // Clear all filter inputs
+            document.getElementById('filterName').value = '';
+            document.getElementById('filterClassMode').value = 'any';
+            document.getElementById('filterClassLogic').value = 'any';
+            const classSearchInput = document.getElementById('filterClassSearch');
+            if (classSearchInput) {
+                classSearchInput.value = '';
+                filterClassListBySearch('');
+            }
+            document.getElementById('filterMinLabels').value = '0';
+            document.getElementById('filterMaxLabels').value = '';
+
+            // Uncheck all class filters
+            CLASSES.forEach((cls, idx) => {
+                const checkbox = document.getElementById(`filter-class-${idx}`);
+                if (checkbox) {
+                    checkbox.checked = false;
+                }
+            });
+
+            updateSelectedClassChips();
+
+            // Reset to all images
+            imageList = [...allImageList];
+            filterActive = false;
+            currentImageIndex = 0;
+
+            // Update UI
+            updateFilterStats();
+            clearFilterWarning();
+            loadImage();
+            updateNavigationButtons();
+            updateImagePreview();
+            showStatus('Filters cleared');
+        }
+
+        // === END FILTER FUNCTIONS ===
+
+
         function setupImagePreview() {
-            if (imageList.length > 1) {
+            if (allImageList.length > 1) {
                 document.getElementById('previewBar').classList.add('show');
-                document.getElementById('imagePreviewCount').textContent = imageList.length;
+                updateFilterStats();
             }
         }
 
         async function updateImagePreview() {
-            if (imageList.length <= 1) return;
+            // Show preview bar if there are multiple images in total (even if filtered to 1)
+            if (allImageList.length <= 1) return;
 
             const previewContainer = document.getElementById('imagePreview');
             previewContainer.innerHTML = '';
 
-            for (let i = 0; i < imageList.length; i++) {
-                const previewItem = document.createElement('div');
-                previewItem.className = 'preview-item';
-                if (i === currentImageIndex) {
-                    previewItem.classList.add('active');
-                }
+            // If no images in filtered list, show message
+            if (imageList.length === 0) {
+                previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa;">No matching images</div>';
+                return;
+            }
 
-                // Create image element
-                const img = document.createElement('img');
+            // Create a wrapper for thumbnails to ensure horizontal layout
+            const thumbnailsWrapper = document.createElement('div');
+            thumbnailsWrapper.style.cssText = 'display: flex; gap: 8px;';
 
-                // Check if we have thumbnail cached
-                if (imageThumbnails[i]) {
-                    img.src = imageThumbnails[i];
-                } else {
-                    img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" fill="%23aaa" font-size="12">Loading...</text></svg>';
+            // Only load 25 thumbnails at a time (12 before, current, 12 after)
+            const THUMBNAIL_WINDOW = 25;
+            const halfWindow = Math.floor(THUMBNAIL_WINDOW / 2);
 
-                    // Load thumbnail asynchronously
-                    loadThumbnail(i).then(dataUrl => {
-                        imageThumbnails[i] = dataUrl;
-                        img.src = dataUrl;
-                    });
-                }
+            // Calculate range to display
+            let startIdx = Math.max(0, currentImageIndex - halfWindow);
+            let endIdx = Math.min(imageList.length, currentImageIndex + halfWindow + 1);
 
-                const label = document.createElement('div');
-                label.className = 'preview-label';
-                const filename = imageList[i].split('/').pop();
-                label.textContent = filename.substring(0, 12);
-
-                previewItem.appendChild(img);
-                previewItem.appendChild(label);
-
-                previewItem.onclick = async () => {
-                    if (currentImageIndex !== i) {
-                        await saveLabels(false);
-                        currentImageIndex = i;
-                        await loadImage();
-                        updateNavigationButtons();
-                        updateImagePreview();
-                    }
-                };
-
-                previewContainer.appendChild(previewItem);
-
-                // Auto-scroll to active item
-                if (i === currentImageIndex) {
-                    setTimeout(() => {
-                        previewItem.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'nearest',
-                            inline: 'center'
-                        });
-                    }, 0);
+            // Adjust if we're near the start or end
+            if (endIdx - startIdx < THUMBNAIL_WINDOW) {
+                if (startIdx === 0) {
+                    endIdx = Math.min(imageList.length, THUMBNAIL_WINDOW);
+                } else if (endIdx === imageList.length) {
+                    startIdx = Math.max(0, imageList.length - THUMBNAIL_WINDOW);
                 }
             }
+
+            previewRenderStart = startIdx;
+            previewRenderEnd = endIdx;
+
+            for (let i = startIdx; i < endIdx; i++) {
+                thumbnailsWrapper.appendChild(createPreviewItem(i));
+            }
+
+            // Append thumbnails wrapper to container
+            previewContainer.appendChild(thumbnailsWrapper);
+            setupPreviewDrag();
+            setupPreviewInfiniteScroll();
+            applyPendingPreviewCenter();
+        }
+
+        function createPreviewItem(index) {
+            const imagePath = imageList[index]; // Get the actual image path from filtered list
+
+            const previewItem = document.createElement('div');
+            previewItem.className = 'preview-item';
+            previewItem.dataset.previewIndex = index;
+            if (index === currentImageIndex) {
+                previewItem.classList.add('active');
+            }
+
+            // Create image element
+            const img = document.createElement('img');
+            img.draggable = false;
+
+            // Use image path as cache key instead of index
+            if (imageThumbnails[imagePath]) {
+                img.src = imageThumbnails[imagePath];
+            } else {
+                img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" fill="%23aaa" font-size="12">Loading...</text></svg>';
+
+                // Load thumbnail asynchronously
+                loadThumbnail(index).then(dataUrl => {
+                    imageThumbnails[imagePath] = dataUrl; // Cache by path, not index
+                    img.src = dataUrl;
+                });
+            }
+
+            const label = document.createElement('div');
+            label.className = 'preview-label';
+            const filename = imagePath.split('/').pop();
+
+            // Show filename intelligently - if too long, show end part (usually has unique number)
+            if (filename.length > 15) {
+                label.textContent = '...' + filename.slice(-12);
+                label.title = filename; // Show full name on hover
+            } else {
+                label.textContent = filename;
+            }
+
+            previewItem.appendChild(img);
+            previewItem.appendChild(label);
+
+            previewItem.onclick = async () => {
+                if (previewDragState.moved) {
+                    previewDragState.moved = false;
+                    return;
+                }
+                if (currentImageIndex !== index) {
+                    await saveLabels(false);
+                    currentImageIndex = index;
+                    await loadImage();
+                    updateNavigationButtons();
+                    requestPreviewCenter(index, true);
+                    updateImagePreview();
+                }
+            };
+
+            // Auto-scroll to active item
+            if (index === currentImageIndex) {
+                setTimeout(() => {
+                    if (!pendingPreviewCenter) {
+                        requestPreviewCenter(index, false);
+                    }
+                    applyPendingPreviewCenter();
+                }, 0);
+            }
+
+            return previewItem;
+        }
+
+        function requestPreviewCenter(index, animate) {
+            pendingPreviewCenter = { index, animate };
+        }
+
+        function applyPendingPreviewCenter() {
+            if (!pendingPreviewCenter) {
+                centerPreviewIndex(currentImageIndex, false);
+                return;
+            }
+
+            const { index, animate } = pendingPreviewCenter;
+            pendingPreviewCenter = null;
+            centerPreviewIndex(index, animate);
+        }
+
+        function centerPreviewIndex(index, animate) {
+            const previewContainer = document.getElementById('imagePreview');
+            if (!previewContainer) {
+                return;
+            }
+
+            const target = previewContainer.querySelector(`[data-preview-index="${index}"]`);
+            if (!target) {
+                return;
+            }
+
+            centerPreviewItem(target, animate);
+        }
+
+        function setupPreviewInfiniteScroll() {
+            if (previewScrollInitialized) {
+                return;
+            }
+
+            const previewContainer = document.getElementById('imagePreview');
+            if (!previewContainer) {
+                return;
+            }
+
+            let scrollRaf = null;
+            const threshold = 80;
+            const batchSize = 12;
+
+            const onScroll = () => {
+                if (scrollRaf !== null) {
+                    return;
+                }
+
+                scrollRaf = requestAnimationFrame(() => {
+                    scrollRaf = null;
+                    const maxScroll = previewContainer.scrollWidth - previewContainer.clientWidth;
+                    const wrapper = previewContainer.firstElementChild;
+                    if (!wrapper) {
+                        return;
+                    }
+
+                    if (previewContainer.scrollLeft < threshold && previewRenderStart > 0) {
+                        const previousStart = previewRenderStart;
+                        const newStart = Math.max(0, previewRenderStart - batchSize);
+                        const prevScrollWidth = previewContainer.scrollWidth;
+                        const fragment = document.createDocumentFragment();
+                        for (let i = newStart; i < previousStart; i++) {
+                            fragment.appendChild(createPreviewItem(i));
+                        }
+                        wrapper.insertBefore(fragment, wrapper.firstChild);
+                        const newScrollWidth = previewContainer.scrollWidth;
+                        previewContainer.scrollLeft += newScrollWidth - prevScrollWidth;
+                        previewRenderStart = newStart;
+                    }
+
+                    if (maxScroll - previewContainer.scrollLeft < threshold && previewRenderEnd < imageList.length) {
+                        const newEnd = Math.min(imageList.length, previewRenderEnd + batchSize);
+                        for (let i = previewRenderEnd; i < newEnd; i++) {
+                            wrapper.appendChild(createPreviewItem(i));
+                        }
+                        previewRenderEnd = newEnd;
+                    }
+                });
+            };
+
+            previewContainer.addEventListener('scroll', onScroll);
+            previewScrollInitialized = true;
+        }
+
+        function centerPreviewItem(previewItem, animate) {
+            const previewContainer = document.getElementById('imagePreview');
+            if (!previewContainer || !previewItem) {
+                return;
+            }
+
+            const containerRect = previewContainer.getBoundingClientRect();
+            const itemRect = previewItem.getBoundingClientRect();
+            const currentScroll = previewContainer.scrollLeft;
+            const targetScroll = currentScroll + (itemRect.left - containerRect.left) - (containerRect.width / 2) + (itemRect.width / 2);
+            const maxScroll = previewContainer.scrollWidth - previewContainer.clientWidth;
+            const clampedTarget = Math.max(0, Math.min(maxScroll, targetScroll));
+
+            if (!animate) {
+                previewContainer.scrollLeft = clampedTarget;
+                return;
+            }
+
+            smoothScrollTo(previewContainer, clampedTarget, 250);
+        }
+
+        function smoothScrollTo(container, target, durationMs) {
+            const start = container.scrollLeft;
+            const distance = target - start;
+            const startTime = performance.now();
+
+            const step = (now) => {
+                const elapsed = now - startTime;
+                const t = Math.min(1, elapsed / durationMs);
+                const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                container.scrollLeft = start + distance * eased;
+                if (t < 1) {
+                    requestAnimationFrame(step);
+                }
+            };
+
+            requestAnimationFrame(step);
+        }
+
+        function setupPreviewDrag() {
+            if (previewDragInitialized) {
+                return;
+            }
+
+            const previewContainer = document.getElementById('imagePreview');
+            if (!previewContainer) {
+                return;
+            }
+
+            previewContainer.addEventListener('wheel', (event) => {
+                event.preventDefault();
+                const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+                previewContainer.scrollLeft += delta;
+            }, { passive: false });
+
+            previewContainer.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+            });
+
+            previewContainer.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+
+                previewDragState.isDown = true;
+                previewDragState.moved = false;
+                previewDragState.dragging = false;
+                previewDragState.startX = event.clientX;
+                previewDragState.scrollLeft = previewContainer.scrollLeft;
+                previewDragState.pointerId = event.pointerId;
+                previewDragState.lastDeltaX = 0;
+                previewContainer.classList.add('dragging');
+            });
+
+            previewContainer.addEventListener('pointermove', (event) => {
+                if (!previewDragState.isDown) {
+                    return;
+                }
+
+                const deltaX = event.clientX - previewDragState.startX;
+                if (Math.abs(deltaX) > 5) {
+                    previewDragState.moved = true;
+                    if (!previewDragState.dragging) {
+                        previewDragState.dragging = true;
+                        previewContainer.setPointerCapture(previewDragState.pointerId);
+                    }
+                }
+                previewDragState.lastDeltaX = deltaX;
+                if (previewDragState.rafId === null) {
+                    previewDragState.rafId = requestAnimationFrame(() => {
+                        previewContainer.scrollLeft = previewDragState.scrollLeft - previewDragState.lastDeltaX;
+                        previewDragState.rafId = null;
+                    });
+                }
+            });
+
+            const stopDrag = (event) => {
+                if (!previewDragState.isDown) {
+                    return;
+                }
+
+                previewDragState.isDown = false;
+                previewDragState.dragging = false;
+                if (previewDragState.rafId !== null) {
+                    cancelAnimationFrame(previewDragState.rafId);
+                    previewDragState.rafId = null;
+                }
+                previewContainer.classList.remove('dragging');
+                if (previewDragState.pointerId !== null) {
+                    previewContainer.releasePointerCapture(previewDragState.pointerId);
+                    previewDragState.pointerId = null;
+                }
+            };
+
+            previewContainer.addEventListener('pointerup', stopDrag);
+            previewContainer.addEventListener('pointercancel', stopDrag);
+            previewContainer.addEventListener('pointerleave', () => {
+                if (previewDragState.isDown) {
+                    previewDragState.isDown = false;
+                    previewContainer.classList.remove('dragging');
+                }
+            });
+
+            previewContainer.addEventListener('click', (event) => {
+                if (previewDragState.moved) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    previewDragState.moved = false;
+                }
+            }, true);
+
+            previewDragInitialized = true;
         }
 
         async function loadThumbnail(index) {
@@ -580,6 +1554,8 @@
                 prevBtn.style.display = 'none';
                 nextBtn.style.display = 'none';
             }
+
+            updatePreviewProgress();
         }
 
         async function previousImage() {
@@ -604,11 +1580,12 @@
 
         function setupClassSelector() {
             const selector = document.getElementById('classSelector');
+            selector.innerHTML = '';
             CLASSES.forEach((cls, idx) => {
                 const btn = document.createElement('button');
                 btn.className = 'class-btn';
                 btn.textContent = cls;
-                btn.style.borderColor = COLORS[idx];
+                btn.style.borderColor = getClassColor(idx);
                 btn.onclick = () => selectClass(idx);
                 if (idx === 0) btn.classList.add('active');
                 selector.appendChild(btn);
@@ -683,6 +1660,13 @@
                 labelData = labelResult.labelContent || '';
                 annotations = parseLabelData(labelData);
 
+                // Cache label info for filtering
+                const classes = [...new Set(annotations.map(ann => ann.class))];
+                labelCache[currentImage] = {
+                    classes: classes,
+                    count: annotations.length
+                };
+
                 // Load image directly via URL (browser caching works)
                 image = new Image();
                 image.onload = () => {
@@ -713,23 +1697,31 @@
 
         // Preload next and previous images for instant navigation
         function preloadAdjacentImages() {
+            const PRELOAD_COUNT = 20;
             const preloadIndexes = [];
 
-            // Preload next image
-            if (currentImageIndex < imageList.length - 1) {
-                preloadIndexes.push(currentImageIndex + 1);
+            // Preload images around current position
+            // Prioritize forward navigation (more images ahead than behind)
+            const backwardCount = Math.floor(PRELOAD_COUNT * 0.3); // 30% backward (6 images)
+            const forwardCount = PRELOAD_COUNT - backwardCount;    // 70% forward (14 images)
+
+            // Add backward images
+            for (let i = 1; i <= backwardCount; i++) {
+                const idx = currentImageIndex - i;
+                if (idx >= 0) {
+                    preloadIndexes.push(idx);
+                }
             }
 
-            // Preload previous image
-            if (currentImageIndex > 0) {
-                preloadIndexes.push(currentImageIndex - 1);
+            // Add forward images
+            for (let i = 1; i <= forwardCount; i++) {
+                const idx = currentImageIndex + i;
+                if (idx < imageList.length) {
+                    preloadIndexes.push(idx);
+                }
             }
 
-            // Preload a few more ahead
-            for (let i = 2; i <= 3 && currentImageIndex + i < imageList.length; i++) {
-                preloadIndexes.push(currentImageIndex + i);
-            }
-
+            // Preload all images in the list
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
                 const img = new Image();
@@ -739,7 +1731,15 @@
                 } else {
                     img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}`;
                 }
+
+                // Optional: Add to cache tracking if needed
+                img.onload = () => {
+                    // Image is now in browser cache
+                };
             });
+
+            // Log preloading info (can be removed in production)
+            console.log(`Preloading ${preloadIndexes.length} images around index ${currentImageIndex}`);
         }
 
         function parseLabelData(content) {
@@ -764,17 +1764,23 @@
             canvas.width = image.width;
             canvas.height = image.height;
             document.getElementById('imageSize').textContent = `${image.width} x ${image.height}`;
+            viewScale = 1;
+            viewOffsetX = 0;
+            viewOffsetY = 0;
+            updateCanvasDisplaySize();
             draw();
         }
 
         function draw() {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.setTransform(viewScale, 0, 0, viewScale, viewOffsetX, viewOffsetY);
             ctx.drawImage(image, 0, 0);
 
             // Draw annotations
             annotations.forEach((ann, idx) => {
                 const isSelected = selectedAnnotation === idx;
-                const color = COLORS[ann.class] || '#ffffff';
+                const color = getClassColor(ann.class);
 
                 const x = (ann.x - ann.w / 2) * canvas.width;
                 const y = (ann.y - ann.h / 2) * canvas.height;
@@ -783,21 +1789,23 @@
 
                 // Draw box
                 ctx.strokeStyle = color;
-                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.lineWidth = (isSelected ? 3 : 2) / viewScale;
                 ctx.strokeRect(x, y, w, h);
 
                 // Draw label
                 ctx.fillStyle = color;
-                ctx.font = '14px monospace';
+                ctx.font = `${14 / viewScale}px monospace`;
                 const label = CLASSES[ann.class] || `class_${ann.class}`;
                 const textWidth = ctx.measureText(label).width;
-                ctx.fillRect(x, y - 20, textWidth + 8, 20);
+                const labelHeight = 20 / viewScale;
+                const labelPadding = 8 / viewScale;
+                ctx.fillRect(x, y - labelHeight, textWidth + labelPadding, labelHeight);
                 ctx.fillStyle = '#000';
-                ctx.fillText(label, x + 4, y - 6);
+                ctx.fillText(label, x + (4 / viewScale), y - (6 / viewScale));
 
                 // Draw handles if selected
                 if (isSelected) {
-                    const handleSize = 8;
+                    const handleSize = 8 / viewScale;
                     ctx.fillStyle = color;
                     [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
                         ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
@@ -807,25 +1815,73 @@
 
             // Draw current box being drawn
             if (isDrawing && drawStart && currentBox) {
-                ctx.strokeStyle = COLORS[selectedClass];
-                ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = getClassColor(selectedClass);
+                ctx.lineWidth = 2 / viewScale;
+                ctx.setLineDash([5 / viewScale, 5 / viewScale]);
                 ctx.strokeRect(currentBox.x, currentBox.y, currentBox.w, currentBox.h);
                 ctx.setLineDash([]);
             }
+        }
+
+        function getCanvasPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            return { x, y };
+        }
+
+        // Convert mouse coordinates from display space to canvas space (accounting for pan/zoom)
+        function getCanvasCoordinates(e) {
+            const point = getCanvasPoint(e);
+            return {
+                x: (point.x - viewOffsetX) / viewScale,
+                y: (point.y - viewOffsetY) / viewScale
+            };
         }
 
         function setupEventListeners() {
             canvas.addEventListener('mousedown', handleMouseDown);
             canvas.addEventListener('mousemove', handleMouseMove);
             canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseUp);
+            canvas.addEventListener('wheel', handleCanvasWheel, { passive: false });
+            canvas.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+            });
             document.addEventListener('keydown', handleKeyDown);
         }
 
+        function updateCanvasDisplaySize() {
+            if (!image) {
+                return;
+            }
+
+            canvas.style.width = `${image.width}px`;
+            canvas.style.height = `${image.height}px`;
+        }
+
         function handleMouseDown(e) {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            if (e.button === 2) {
+                const point = getCanvasPoint(e);
+                isPanning = true;
+                panStart = {
+                    x: point.x,
+                    y: point.y,
+                    offsetX: viewOffsetX,
+                    offsetY: viewOffsetY
+                };
+                return;
+            }
+
+            if (e.button !== 0) {
+                return;
+            }
+
+            const { x, y } = getCanvasCoordinates(e);
 
             // Check if clicking on a handle
             if (selectedAnnotation !== null) {
@@ -841,15 +1897,18 @@
             // Check if clicking on an annotation
             const clickedIdx = getAnnotationAt(x, y);
             if (clickedIdx !== null) {
-                selectedAnnotation = clickedIdx;
-                updateUI();
+                pendingSelection = clickedIdx;
+                isDrawing = true;
+                drawStart = { x, y };
+                currentBox = { x, y, w: 0, h: 0 };
                 updateClassSelector();
-                draw();
                 return;
             }
 
             // Start drawing new annotation
             selectedAnnotation = null;
+            lastHitIndices = [];
+            lastHitPoint = null;
             isDrawing = true;
             drawStart = { x, y };
             currentBox = { x, y, w: 0, h: 0 };
@@ -857,9 +1916,15 @@
         }
 
         function handleMouseMove(e) {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            if (isPanning && panStart) {
+                const point = getCanvasPoint(e);
+                viewOffsetX = panStart.offsetX + (point.x - panStart.x);
+                viewOffsetY = panStart.offsetY + (point.y - panStart.y);
+                draw();
+                return;
+            }
+
+            const { x, y } = getCanvasCoordinates(e);
 
             if (isDragging && selectedAnnotation !== null) {
                 const ann = annotations[selectedAnnotation];
@@ -873,14 +1938,18 @@
         }
 
         function handleMouseUp(e) {
+            if (isPanning) {
+                isPanning = false;
+                panStart = null;
+                return;
+            }
+
             if (isDragging) {
                 isDragging = false;
                 dragHandle = null;
                 updateUI();
             } else if (isDrawing) {
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
+                const { x, y } = getCanvasCoordinates(e);
 
                 const w = Math.abs(x - drawStart.x);
                 const h = Math.abs(y - drawStart.y);
@@ -904,16 +1973,75 @@
                     });
 
                     updateUI();
+                    pendingSelection = null;
+                } else if (pendingSelection !== null) {
+                    const hitIndices = getAnnotationsAtAll(x, y);
+                    if (hitIndices.length > 0) {
+                        const pointMatches = lastHitPoint &&
+                            Math.abs(lastHitPoint.x - x) <= 5 &&
+                            Math.abs(lastHitPoint.y - y) <= 5 &&
+                            arraysEqual(hitIndices, lastHitIndices);
+                        if (pointMatches) {
+                            lastHitCycle = (lastHitCycle + 1) % hitIndices.length;
+                        } else {
+                            lastHitCycle = 0;
+                        }
+                        selectedAnnotation = hitIndices[lastHitCycle];
+                        lastHitIndices = hitIndices;
+                        lastHitPoint = { x, y };
+                    } else {
+                        selectedAnnotation = pendingSelection;
+                    }
+                    updateUI();
+                    updateClassSelector();
                 }
 
                 isDrawing = false;
                 drawStart = null;
                 currentBox = null;
+                pendingSelection = null;
                 draw();
             }
         }
 
+        function handleCanvasWheel(e) {
+            e.preventDefault();
+
+            const zoomFactor = Math.exp(-e.deltaY * 0.0015);
+            const nextScale = Math.min(5, Math.max(0.2, viewScale * zoomFactor));
+            if (nextScale === viewScale) {
+                return;
+            }
+
+            const point = getCanvasPoint(e);
+            const worldX = (point.x - viewOffsetX) / viewScale;
+            const worldY = (point.y - viewOffsetY) / viewScale;
+
+            viewScale = nextScale;
+            viewOffsetX = point.x - worldX * viewScale;
+            viewOffsetY = point.y - worldY * viewScale;
+            draw();
+        }
+
         function handleKeyDown(e) {
+            // Disable hotkeys when typing in input fields
+            const activeElement = document.activeElement;
+            const isTyping = activeElement && (
+                activeElement.tagName === 'INPUT' ||
+                activeElement.tagName === 'TEXTAREA' ||
+                activeElement.isContentEditable
+            );
+
+            // Allow Delete/Backspace in inputs
+            if (isTyping && (e.key === 'Delete' || e.key === 'Backspace')) {
+                return; // Let the input handle it
+            }
+
+            // Disable all other hotkeys when typing
+            if (isTyping) {
+                return;
+            }
+
             // Delete annotation
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selectedAnnotation !== null) {
@@ -980,6 +2108,34 @@
             return null;
         }
 
+        function getAnnotationsAtAll(x, y) {
+            const hits = [];
+            for (let i = annotations.length - 1; i >= 0; i--) {
+                const ann = annotations[i];
+                const ax = (ann.x - ann.w / 2) * canvas.width;
+                const ay = (ann.y - ann.h / 2) * canvas.height;
+                const aw = ann.w * canvas.width;
+                const ah = ann.h * canvas.height;
+
+                if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
+                    hits.push(i);
+                }
+            }
+            return hits;
+        }
+
+        function arraysEqual(a, b) {
+            if (a.length !== b.length) {
+                return false;
+            }
+            for (let i = 0; i < a.length; i++) {
+                if (a[i] !== b[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         function getHandleAt(ann, x, y) {
             const ax = (ann.x - ann.w / 2) * canvas.width;
             const ay = (ann.y - ann.h / 2) * canvas.height;
@@ -993,7 +2149,7 @@
                 { name: 'br', x: ax + aw, y: ay + ah }
             ];
 
-            const handleSize = 16;
+            const handleSize = 16 / viewScale;
             for (const handle of handles) {
                 if (Math.abs(x - handle.x) < handleSize && Math.abs(y - handle.y) < handleSize) {
                     return handle.name;
@@ -1073,7 +2229,7 @@
                 const className = document.createElement('div');
                 className.className = 'annotation-class';
                 className.textContent = CLASSES[ann.class] || `class_${ann.class}`;
-                className.style.color = COLORS[ann.class];
+                className.style.color = getClassColor(ann.class);
 
                 const coords = document.createElement('div');
                 coords.className = 'annotation-coords';
@@ -1152,6 +2308,14 @@
                     showStatus('Labels saved successfully!');
                     setTimeout(() => showStatus('Ready'), 2000);
                 }
+
+                // Update label cache for current image
+                const currentImage = imageList[currentImageIndex];
+                const classes = [...new Set(annotations.map(ann => ann.class))];
+                labelCache[currentImage] = {
+                    classes: classes,
+                    count: annotations.length
+                };
 
             } catch (error) {
                 showError(error.message);
