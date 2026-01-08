@@ -1,0 +1,35 @@
+{
+  "dataset": "asb11_1208_5351",
+  "timestamp": "20260108_021516",
+  "deletion_mode": "full",
+  "total_entries": 3,
+  "entries": [
+    {
+      "timestamp": "2026-01-08T02:15:16.248349",
+      "sample_id": "695f1316452d1e60d02e938e",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_000546.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_000546.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:16.255248",
+      "sample_id": "695f1318452d1e60d02e9a8d",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_000610.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_000610.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:16.256299",
+      "sample_id": "695f1318452d1e60d02e9bf5",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_000633.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_000633.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    }
+  ]
+}

@@ -23,6 +23,7 @@ services:
       - ${DATASET_BASE_PATH}:${DATASET_BASE_PATH}:rw
       - ./instances.json:/app/instances.json
       - pm2-logs:/root/.pm2/logs
+      - ./deletion_logs:/app/deletion_logs:rw
     environment:
       - DATASET_BASE_PATH=${DATASET_BASE_PATH}
       - PORT_START=${PORT_START}

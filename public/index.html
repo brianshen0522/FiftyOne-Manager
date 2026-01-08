@@ -81,7 +81,7 @@
             color: #0a111f;
         }
 
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn:disabled { opacity: 0.5; cursor: help; }
         .btn:hover:not(:disabled) { transform: translateY(-1px); }
         .btn:active:not(:disabled) { transform: translateY(0); }
 
@@ -164,6 +164,13 @@
             gap: 10px;
             color: var(--text);
             font-weight: 700;
+        }
+
+        .instance-select-checkbox {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--accent);
+            cursor: pointer;
         }
 
         .status-pill {
@@ -685,14 +692,16 @@
                 <div class="subtitle">Status refresh every 5s</div>
             </div>
             <div class="top-actions">
-                <button class="btn success" onclick="startAllInstances()">Start All (Up)</button>
-                <button class="btn danger" onclick="stopAllInstances()">Stop All (Down)</button>
+                <button id="startSelectedBtn" class="btn success" onclick="startSelectedInstances()" disabled>Start Selected</button>
+                <button id="stopSelectedBtn" class="btn danger" onclick="stopSelectedInstances()" disabled>Stop Selected</button>
+                <button id="removeSelectedBtn" class="btn danger" onclick="removeSelectedInstances()" disabled>Remove Selected</button>
                 <button class="btn ghost" onclick="showAddModal()">Add Instance</button>
             </div>
         </header>
 
         <section class="section">
             <div class="section-title">
+                <input type="checkbox" id="selectAllCheckbox" class="instance-select-checkbox" onchange="toggleSelectAll()" style="margin-right: 8px;">
                 Instances
                 <small>Base path: <span id="basePath">-</span> · Ports: <span id="portRange">-</span></small>
             </div>
@@ -826,6 +835,7 @@
         let followLogs = true;
         const LOG_POLL_MS = 2000;
         const SCROLL_THRESHOLD = 40;
+        let selectedInstances = new Set();
 
         function showProcessing(text = 'Processing...') {
             const overlay = document.getElementById('processingOverlay');
@@ -943,10 +953,31 @@
             // Auto-update dataset path only if requested (skip when editing existing instance)
             if (updatePathField) {
                 document.getElementById('datasetPath').value = fullPath;
-            }
 
-            // Load class files for this path
-            loadClassFiles(fullPath || config.datasetBasePath);
+                // Auto-populate instance name from last folder name (only when adding new instance)
+                const instanceNameField = document.getElementById('instanceName');
+                if (instanceNameField && !editingInstance) {
+                    if (path) {
+                        const pathParts = path.split('/').filter(p => p);
+                        if (pathParts.length > 0) {
+                            const lastFolder = pathParts[pathParts.length - 1];
+                            instanceNameField.value = lastFolder;
+                            // Trigger validation
+                            validateInstanceName();
+                        }
+                    } else {
+                        // Clear instance name when at root
+                        instanceNameField.value = '';
+                        hideInstanceNameError();
+                    }
+                }
+
+                // Only auto-navigate class file browser if no class file is currently selected
+                const classFileInput = document.getElementById('classFile');
+                if (!classFileInput || !classFileInput.value) {
+                    loadClassFiles(fullPath || config.datasetBasePath);
+                }
+            }
         }
 
         function renderBreadcrumb(path) {
@@ -1196,7 +1227,17 @@
                 const response = await fetch(`${API_BASE}/api/instances`);
                 const instances = await response.json();
                 latestInstances = instances;
+
+                // Clean up selectedInstances - remove any instances that no longer exist
+                const instanceNames = new Set(instances.map(i => i.name));
+                for (const name of selectedInstances) {
+                    if (!instanceNames.has(name)) {
+                        selectedInstances.delete(name);
+                    }
+                }
+
                 renderInstances(instances);
+                updateSelectionButtons();
             } catch (err) {
                 console.error('Failed to load instances:', err);
             }
@@ -1218,6 +1259,12 @@
 
         function renderInstances(instances) {
             const container = document.getElementById('instancesContainer');
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+            // Show/hide select all checkbox based on instance count
+            if (selectAllCheckbox) {
+                selectAllCheckbox.style.display = instances.length > 0 ? 'inline-block' : 'none';
+            }
 
             if (!instances.length) {
                 container.innerHTML = `
@@ -1238,6 +1285,11 @@
                 <div class="instance-card">
                     <div class="instance-header">
                         <div class="instance-id">
+                            <input type="checkbox"
+                                   class="instance-select-checkbox"
+                                   id="checkbox-${instance.name}"
+                                   onchange="toggleInstanceSelection('${instance.name}')"
+                                   ${selectedInstances.has(instance.name) ? 'checked' : ''}>
                             <span>${instance.name || 'Instance'}</span>
                         </div>
                         <div class="status-group">
@@ -1335,28 +1387,126 @@
             }
         }
 
-        async function startAllInstances() {
-            if (!latestInstances.length) return;
-            for (const instance of latestInstances) {
-                if (instance.status !== 'online') {
-                    await startInstance(instance.name);
+        function toggleInstanceSelection(name) {
+            if (selectedInstances.has(name)) {
+                selectedInstances.delete(name);
+            } else {
+                selectedInstances.add(name);
+            }
+            updateSelectionButtons();
+        }
+
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (!selectAllCheckbox) return;
+
+            if (selectAllCheckbox.checked) {
+                // Select all instances
+                latestInstances.forEach(instance => {
+                    selectedInstances.add(instance.name);
+                });
+            } else {
+                // Deselect all instances
+                selectedInstances.clear();
+            }
+
+            // Re-render to update individual checkboxes
+            renderInstances(latestInstances);
+            updateSelectionButtons();
+        }
+
+        function updateSelectionButtons() {
+            const hasSelection = selectedInstances.size > 0;
+            const startBtn = document.getElementById('startSelectedBtn');
+            const stopBtn = document.getElementById('stopSelectedBtn');
+            const removeBtn = document.getElementById('removeSelectedBtn');
+
+            if (startBtn) {
+                startBtn.disabled = !hasSelection;
+                startBtn.title = hasSelection ? 'Start selected instances' : 'Select instances to start';
+            }
+            if (stopBtn) {
+                stopBtn.disabled = !hasSelection;
+                stopBtn.title = hasSelection ? 'Stop selected instances' : 'Select instances to stop';
+            }
+
+            // Check if any selected instances are running
+            if (removeBtn) {
+                const selectedArray = Array.from(selectedInstances);
+                const hasRunningInstances = selectedArray.some(name => {
+                    const instance = latestInstances.find(i => i.name === name);
+                    return instance && instance.status === 'online';
+                });
+
+                if (!hasSelection) {
+                    removeBtn.disabled = true;
+                    removeBtn.title = 'Select instances to remove';
+                } else if (hasRunningInstances) {
+                    removeBtn.disabled = true;
+                    removeBtn.title = 'Cannot remove running instances. Please stop them first.';
+                } else {
+                    removeBtn.disabled = false;
+                    removeBtn.title = 'Remove selected instances';
+                }
+            }
+
+            // Update select all checkbox state
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (selectAllCheckbox) {
+                if (latestInstances.length > 0) {
+                    const allSelected = latestInstances.every(instance => selectedInstances.has(instance.name));
+                    const someSelected = selectedInstances.size > 0;
+                    selectAllCheckbox.checked = allSelected;
+                    selectAllCheckbox.indeterminate = someSelected && !allSelected;
+                } else {
+                    selectAllCheckbox.checked = false;
+                    selectAllCheckbox.indeterminate = false;
+                }
+            }
+        }
+
+        async function startSelectedInstances() {
+            if (selectedInstances.size === 0) return;
+            const selected = Array.from(selectedInstances);
+            for (const name of selected) {
+                const instance = latestInstances.find(i => i.name === name);
+                if (instance && instance.status !== 'online') {
+                    await startInstance(name);
                 }
             }
             refreshInstances();
         }
 
-        async function stopAllInstances() {
-            if (!latestInstances.length) return;
-            for (const instance of latestInstances) {
-                if (instance.status === 'online') {
-                    await stopInstance(instance.name);
+        async function stopSelectedInstances() {
+            if (selectedInstances.size === 0) return;
+            const selected = Array.from(selectedInstances);
+            for (const name of selected) {
+                const instance = latestInstances.find(i => i.name === name);
+                if (instance && instance.status === 'online') {
+                    await stopInstance(name);
                 }
             }
             refreshInstances();
         }
 
-        async function deleteInstance(name) {
-            if (!confirm(`Are you sure you want to delete instance "${name}"?`)) {
+        async function removeSelectedInstances() {
+            if (selectedInstances.size === 0) return;
+
+            const count = selectedInstances.size;
+            if (!confirm(`Are you sure you want to delete ${count} instance(s)?`)) {
+                return;
+            }
+
+            const selected = Array.from(selectedInstances);
+            for (const name of selected) {
+                await deleteInstance(name, true);
+            }
+            updateSelectionButtons();
+            refreshInstances();
+        }
+
+        async function deleteInstance(name, skipConfirm = false) {
+            if (!skipConfirm && !confirm(`Are you sure you want to delete instance "${name}"?`)) {
                 return;
             }
             try {
@@ -1366,7 +1516,10 @@
                     alert(`Failed to delete instance: ${error.error}`);
                     return;
                 }
-                refreshInstances();
+                selectedInstances.delete(name);
+                if (!skipConfirm) {
+                    refreshInstances();
+                }
             } catch (err) {
                 alert(`Failed to delete instance: ${err.message}`);
             }

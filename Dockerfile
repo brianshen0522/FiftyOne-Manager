@@ -52,6 +52,9 @@ RUN if [ ! -f .env ]; then cp .env.example .env; fi
 # Ensure dataset directory exists inside the image
 RUN mkdir -p /data/datasets
 
+# Create deletion logs directory for FiftyOne custom operator
+RUN mkdir -p /app/deletion_logs
+
 EXPOSE 3000
 
 CMD ["node", "server.js"]

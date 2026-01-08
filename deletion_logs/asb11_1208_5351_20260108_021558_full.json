@@ -1,0 +1,278 @@
+{
+  "dataset": "asb11_1208_5351",
+  "timestamp": "20260108_021558",
+  "deletion_mode": "full",
+  "total_entries": 30,
+  "entries": [
+    {
+      "timestamp": "2026-01-08T02:15:58.252610",
+      "sample_id": "695f1318452d1e60d02e9b56",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001548.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001548.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.256112",
+      "sample_id": "695f1317452d1e60d02e9820",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001610.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001610.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.258574",
+      "sample_id": "695f1317452d1e60d02e96fa",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001634.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001634.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.259588",
+      "sample_id": "695f1317452d1e60d02e965f",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001658.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001658.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.260588",
+      "sample_id": "695f1318452d1e60d02e9b20",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001722.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001722.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.262115",
+      "sample_id": "695f1318452d1e60d02e9b82",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001744.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001744.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.263031",
+      "sample_id": "695f1317452d1e60d02e992f",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001809.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001809.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.264023",
+      "sample_id": "695f1316452d1e60d02e911f",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001833.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001833.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.267220",
+      "sample_id": "695f1317452d1e60d02e96ff",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001855.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001855.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.268224",
+      "sample_id": "695f1317452d1e60d02e99bd",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001919.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001919.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.269114",
+      "sample_id": "695f1318452d1e60d02e9beb",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_001944.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_001944.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.270143",
+      "sample_id": "695f1316452d1e60d02e91f3",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002020.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002020.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.271231",
+      "sample_id": "695f1317452d1e60d02e9414",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002044.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002044.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.272218",
+      "sample_id": "695f1317452d1e60d02e979e",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002108.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002108.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.273211",
+      "sample_id": "695f1317452d1e60d02e994f",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002130.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002130.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.274068",
+      "sample_id": "695f1317452d1e60d02e94f4",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002304.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002304.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.277798",
+      "sample_id": "695f1318452d1e60d02e9bb8",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002329.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002329.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.278828",
+      "sample_id": "695f1316452d1e60d02e9399",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002353.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002353.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.279673",
+      "sample_id": "695f1316452d1e60d02e9290",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002417.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002417.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.282423",
+      "sample_id": "695f1318452d1e60d02e9ab4",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002438.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002438.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.283328",
+      "sample_id": "695f1317452d1e60d02e9895",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002503.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002503.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.284154",
+      "sample_id": "695f1316452d1e60d02e9332",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002527.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002527.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.284985",
+      "sample_id": "695f1317452d1e60d02e9731",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002549.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002549.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.285793",
+      "sample_id": "695f1317452d1e60d02e98f6",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002613.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002613.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.286593",
+      "sample_id": "695f1317452d1e60d02e97ad",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002650.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002650.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.287651",
+      "sample_id": "695f1316452d1e60d02e91fb",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002714.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002714.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.288524",
+      "sample_id": "695f1317452d1e60d02e94db",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002738.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002738.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.289338",
+      "sample_id": "695f1317452d1e60d02e9464",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002800.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002800.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.290176",
+      "sample_id": "695f1316452d1e60d02e93b7",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002824.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002824.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    },
+    {
+      "timestamp": "2026-01-08T02:15:58.290964",
+      "sample_id": "695f1318452d1e60d02e9b9d",
+      "image_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_002848.jpg",
+      "label_path": "/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_002848.txt",
+      "image_deleted": true,
+      "label_deleted": true,
+      "errors": []
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+timestamp,sample_id,image_path,label_path,image_deleted,label_deleted,errors
+2026-01-08T02:15:16.248349,695f1316452d1e60d02e938e,/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_000546.jpg,/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_000546.txt,True,True,
+2026-01-08T02:15:16.255248,695f1318452d1e60d02e9a8d,/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_000610.jpg,/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_000610.txt,True,True,
+2026-01-08T02:15:16.256299,695f1318452d1e60d02e9bf5,/home/studio/remote_label_data/dataset_test/dice/asb11_1208/images/front_251208_000633.jpg,/home/studio/remote_label_data/dataset_test/dice/asb11_1208/labels/front_251208_000633.txt,True,True,

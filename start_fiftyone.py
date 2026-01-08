@@ -1,5 +1,6 @@
 import argparse
 import os
+import logging
 from collections import defaultdict
 from typing import List, Tuple, Sequence
 from datetime import datetime
@@ -7,6 +8,9 @@ from datetime import datetime
 import fiftyone as fo
 from pymongo import MongoClient
 
+# Reduce FiftyOne logging verbosity to prevent PM2 log overflow
+logging.getLogger("fiftyone").setLevel(logging.WARNING)
+logging.getLogger("eta").setLevel(logging.WARNING)
 
 fo.config.show_progress_bars = True
 
@@ -91,38 +95,64 @@ def create_cvat_project(dataset, dataset_name, class_names):
             print(f"Warning: Could not check/delete existing project: {e}")
             print("Continuing with project creation...")
 
-        # Upload all samples to CVAT
-        if len(dataset) > 0:
-            init_view = dataset
-            print(f"Uploading all {len(dataset)} samples to CVAT...")
-        else:
+        # Upload all samples to CVAT automatically in batches
+        # Creates one project with multiple tasks to avoid server timeout errors
+        batch_size = 500  # Images per task (safe for most CVAT servers)
+        total_samples = len(dataset)
+
+        if total_samples == 0:
             print("Warning: No samples in dataset, creating empty project")
-            init_view = dataset.view()
+            return
 
-        # Create CVAT project with the schema
-        # This uses FiftyOne's annotation API to create the project
-        anno_key = f"cvat_project_init_{dataset_name}"
+        print(f"Uploading all {total_samples} samples to CVAT project '{project_name}'...")
+        print(f"Note: Creating multiple tasks of {batch_size} images each to avoid server errors")
 
-        print(f"Creating CVAT project...")
-        init_view.annotate(
-            anno_key,
-            backend="cvat",
-            label_field="ground_truth",
-            label_type="detections",
-            classes=class_names,
-            project_name=project_name,
-            # Explicitly pass CVAT credentials
-            url=cvat_url,
-            username=os.getenv('FIFTYONE_CVAT_USERNAME'),
-            password=os.getenv('FIFTYONE_CVAT_PASSWORD'),
-            # Don't launch editor, we're just creating the project
-            launch_editor=False,
-        )
+        # Calculate number of batches needed
+        num_batches = (total_samples + batch_size - 1) // batch_size
+        print(f"Creating {num_batches} task(s) under project '{project_name}'...\n")
 
+        uploaded_count = 0
+        for batch_num in range(num_batches):
+            start_idx = batch_num * batch_size
+            end_idx = min(start_idx + batch_size, total_samples)
+            batch_count = end_idx - start_idx
+
+            print(f"[Task {batch_num + 1}/{num_batches}] Uploading samples {start_idx + 1}-{end_idx}...")
+
+            # Create view for this batch
+            batch_view = dataset.skip(start_idx).limit(batch_count)
+            anno_key = f"cvat_batch_{batch_num + 1}_{dataset_name}"
+
+            try:
+                batch_view.annotate(
+                    anno_key,
+                    backend="cvat",
+                    label_field="ground_truth",
+                    label_type="detections",
+                    classes=class_names,
+                    project_name=project_name,  # All tasks go under same project
+                    segment_size=100,  # Create segments for job assignment
+                    # Explicitly pass CVAT credentials
+                    url=cvat_url,
+                    username=os.getenv('FIFTYONE_CVAT_USERNAME'),
+                    password=os.getenv('FIFTYONE_CVAT_PASSWORD'),
+                    launch_editor=False,
+                )
+                uploaded_count += batch_count
+                print(f"  ✓ Task {batch_num + 1} uploaded successfully ({batch_count} images)\n")
+
+            except Exception as e:
+                print(f"  ✗ Task {batch_num + 1} failed: {e}")
+                print(f"  Continuing with next batch...\n")
+
+        print(f"{'='*60}")
         print(f"✓ CVAT project '{project_name}' created successfully!")
-        print(f"✓ Uploaded {len(init_view)} samples to CVAT")
-        print(f"✓ Annotation run key: '{anno_key}'")
-        print(f"✓ To load annotations back: dataset.load_annotations('{anno_key}')")
+        print(f"✓ Uploaded {uploaded_count} of {total_samples} samples across {num_batches} task(s)")
+        print(f"✓ All tasks are grouped under project: {project_name}")
+        print(f"✓ To load annotations back:")
+        for batch_num in range(num_batches):
+            anno_key = f"cvat_batch_{batch_num + 1}_{dataset_name}"
+            print(f"  dataset.load_annotations('{anno_key}')")
 
         print(f"{'='*60}\n")
 
