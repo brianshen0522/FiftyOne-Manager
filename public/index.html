@@ -843,6 +843,7 @@
         const LOG_POLL_MS = 2000;
         const SCROLL_THRESHOLD = 40;
         let selectedInstances = new Set();
+        const lastHealthByInstance = new Map();
 
         function showProcessing(text = 'Processing...') {
             const overlay = document.getElementById('processingOverlay');
@@ -1250,6 +1251,23 @@
                     }
                 }
 
+                // Auto-open when service goes from down -> up
+                instances.forEach(instance => {
+                    const name = instance.name || '';
+                    const health = (instance.serviceHealth || '').toLowerCase();
+                    const prevHealth = lastHealthByInstance.get(name);
+                    if (instance.status === 'online' && health === 'healthy' && prevHealth === 'unhealthy') {
+                        openInstance(instance.port);
+                    }
+                    lastHealthByInstance.set(name, health || 'n/a');
+                });
+
+                for (const name of Array.from(lastHealthByInstance.keys())) {
+                    if (!instanceNames.has(name)) {
+                        lastHealthByInstance.delete(name);
+                    }
+                }
+
                 renderInstances(instances);
                 updateSelectionButtons();
             } catch (err) {
@@ -1294,6 +1312,7 @@
                 const meta = statusMeta(instance);
                 const health = healthMeta(instance);
                 const hasError = instance.status && instance.status.toLowerCase() === 'error';
+                const serviceDown = (instance.serviceHealth || '').toLowerCase() === 'unhealthy';
 
                 return `
                 <div class="instance-card">
@@ -1341,7 +1360,7 @@
                         ${instance.status === 'online'
                             ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">Restart</button>
                                <button class="btn danger" onclick="stopInstance('${instance.name}')">Stop</button>
-                               <button class="btn secondary" onclick="openInstance(${instance.port})">Open</button>`
+                               <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? 'disabled title="Service down"' : ''}>Open</button>`
                             : `<button class="btn success" onclick="startInstance('${instance.name}')">Start</button>
                                <button class="btn ghost" onclick="editInstance('${instance.name}')">Edit</button>
                                <button class="btn danger" onclick="deleteInstance('${instance.name}')">Remove</button>`
