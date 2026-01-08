@@ -1,6 +1,7 @@
 import argparse
 import os
 import logging
+import math
 from collections import defaultdict
 from typing import List, Tuple, Sequence
 from datetime import datetime
@@ -221,6 +222,34 @@ def parse_yolo_labels(image_path: str) -> List[Tuple[int, float, float, float, f
                 continue
 
     return labels
+
+
+def order_points_clockwise_from_top_left(points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    cx = sum(p[0] for p in points) / len(points)
+    cy = sum(p[1] for p in points) / len(points)
+
+    with_angle = []
+    for x, y in points:
+        angle = math.atan2(y - cy, x - cx)
+        with_angle.append((x, y, angle))
+
+    with_angle.sort(key=lambda p: p[2], reverse=True)
+
+    start_idx = 0
+    for i in range(1, len(with_angle)):
+        y = with_angle[i][1]
+        x = with_angle[i][0]
+        y0 = with_angle[start_idx][1]
+        x0 = with_angle[start_idx][0]
+        if y < y0 or (y == y0 and x < x0):
+            start_idx = i
+
+    ordered = []
+    for i in range(len(with_angle)):
+        idx = (start_idx + i) % len(with_angle)
+        ordered.append((with_angle[idx][0], with_angle[idx][1]))
+
+    return ordered
 
 
 def calculate_iou(box1: Tuple[float, float, float, float],
@@ -597,7 +626,7 @@ def main() -> None:
         if not os.path.exists(txt_path):
             continue
 
-        detections = []
+        polylines = []
         with open(txt_path, "r") as f:
             for line in f:
                 parts = line.strip().split()
@@ -610,17 +639,31 @@ def main() -> None:
                     label = names[cls_idx]
                 else:
                     label = f"class_{cls_idx}"
-                x, y, w, h = map(float, parts[1:5])
-                detections.append(
-                    fo.Detection(
+                if len(parts) >= 9:
+                    coords = list(map(float, parts[1:9]))
+                    points = [(coords[i], coords[i + 1]) for i in range(0, 8, 2)]
+                    points = order_points_clockwise_from_top_left(points)
+                else:
+                    x, y, w, h = map(float, parts[1:5])
+                    points = [
+                        (x - w / 2, y - h / 2),
+                        (x + w / 2, y - h / 2),
+                        (x + w / 2, y + h / 2),
+                        (x - w / 2, y + h / 2),
+                    ]
+
+                polylines.append(
+                    fo.Polyline(
                         label=label,
-                        bounding_box=[x - w / 2, y - h / 2, w, h],
+                        points=[points],
+                        closed=True,
+                        filled=False,
                     )
                 )
 
         sample = fo.Sample(filepath=img_path)
         sample["filename"] = fname
-        sample["ground_truth"] = fo.Detections(detections=detections)
+        sample["ground_truth"] = fo.Polylines(polylines=polylines)
         samples.append(sample)
 
     print(f"Collected {len(samples)} samples")
@@ -641,7 +684,7 @@ def main() -> None:
     dataset.add_sample_field("filename", fo.StringField)
     dataset.add_sample_field("filename_order", fo.IntField)
     dataset.add_sample_field(
-        "ground_truth", fo.EmbeddedDocumentField, embedded_doc_type=fo.Detections
+        "ground_truth", fo.EmbeddedDocumentField, embedded_doc_type=fo.Polylines
     )
 
     dataset.add_samples(samples)

@@ -785,12 +785,19 @@
                     </div>
                     <small>Group duplicates into separate folders</small>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="cvatSyncGroup">
                     <div class="checkbox-group">
                         <input type="checkbox" id="cvatSync">
                         <label for="cvatSync">CVAT Sync</label>
                     </div>
                     <small>Enable synchronization with CVAT annotation backend</small>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="pentagonFormat">
+                        <label for="pentagonFormat">OBB Format</label>
+                    </div>
+                    <small>Convert YOLO bounding boxes to OBB format (4 points, clockwise from top-left)</small>
                 </div>
                 <div class="form-group">
                     <button type="submit" id="saveInstanceBtn" class="btn success" style="width: 100%;">Save Instance</button>
@@ -857,6 +864,13 @@
                 config = await response.json();
                 document.getElementById('basePath').textContent = config.datasetBasePath;
                 document.getElementById('portRange').textContent = `${config.portRange.start}-${config.portRange.end}`;
+
+                // Show/hide CVAT sync option based on config
+                const cvatSyncGroup = document.getElementById('cvatSyncGroup');
+                if (cvatSyncGroup) {
+                    cvatSyncGroup.style.display = config.cvat?.enabled ? 'block' : 'none';
+                }
+
                 await loadDatasets();
             } catch (err) {
                 console.error('Failed to load config:', err);
@@ -1634,6 +1648,7 @@
             document.getElementById('threshold').value = config.defaultThreshold;
             document.getElementById('debugMode').checked = config.defaultDebug;
             document.getElementById('cvatSync').checked = false;
+            document.getElementById('pentagonFormat').checked = false;
             document.getElementById('instanceName').disabled = false;
             hideInstanceNameError();
             document.getElementById('modalError').style.display = 'none';
@@ -1677,10 +1692,14 @@
                 document.getElementById('threshold').value = instance.threshold;
                 document.getElementById('debugMode').checked = instance.debug;
                 document.getElementById('cvatSync').checked = instance.cvatSync || false;
+                document.getElementById('pentagonFormat').checked = instance.pentagonFormat || false;
                 document.getElementById('classFile').value = instance.classFile || '';
                 hideInstanceNameError();
                 document.getElementById('modalError').style.display = 'none';
                 document.getElementById('instanceModal').classList.add('active');
+
+                // Check dataset format and auto-check if already in OBB format
+                checkAndUpdatePentagonFormat(name);
                 if (instance.classFile) {
                     previewClassFile(instance.classFile);
                 } else {
@@ -1742,6 +1761,49 @@
             document.getElementById('instanceModal').classList.remove('active');
         }
 
+        async function checkAndUpdatePentagonFormat(instanceName) {
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/${instanceName}/check-format`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (data.format === 'obb' || data.format === 'pentagon') {
+                    // Auto-check the format checkbox if dataset is already in OBB format
+                    document.getElementById('pentagonFormat').checked = true;
+                }
+            } catch (err) {
+                console.error('Error checking dataset format:', err);
+            }
+        }
+
+        async function handlePentagonFormatChange(instanceName, shouldConvert) {
+            if (!shouldConvert) return; // User unchecked, no action needed
+
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/${instanceName}/convert-pentagon`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(`Error: ${data.error}`);
+                    document.getElementById('pentagonFormat').checked = false;
+                    return;
+                }
+
+                if (data.alreadyConverted) {
+                    alert(`Dataset is already in OBB format`);
+                } else {
+                    alert(`Converted ${data.convertedCount} files to OBB format`);
+                }
+            } catch (err) {
+                console.error('Error converting to OBB format:', err);
+                alert(`Failed to convert: ${err.message}`);
+                document.getElementById('pentagonFormat').checked = false;
+            }
+        }
+
         async function saveInstance(event) {
             event.preventDefault();
 
@@ -1751,13 +1813,14 @@
             const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
             const debug = document.getElementById('debugMode').checked;
             const cvatSync = document.getElementById('cvatSync').checked;
+            const pentagonFormat = document.getElementById('pentagonFormat').checked;
             const classFile = document.getElementById('classFile').value || null;
 
             if (!validateInstanceName()) {
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, debug, cvatSync, classFile };
+            const data = { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile };
 
             try {
                 if (!config.portRange) {
@@ -1788,6 +1851,11 @@
                     document.getElementById('modalError').textContent = error.error;
                     document.getElementById('modalError').style.display = 'block';
                     return;
+                }
+
+                // Handle OBB format conversion if checked
+                if (pentagonFormat) {
+                    await handlePentagonFormatChange(name, true);
                 }
 
                 closeModal();

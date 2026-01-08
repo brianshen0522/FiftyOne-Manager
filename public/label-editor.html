@@ -686,6 +686,9 @@
         let image = null;
         let labelData = null;
         let annotations = [];
+        let defaultAnnotationType = 'bbox';
+        let isRotating = false;
+        let rotateState = null;
         let selectedClass = 0;
         let selectedAnnotation = null;
         let isDrawing = false;
@@ -1751,6 +1754,7 @@
                 const labelResult = await labelResponse.json();
                 labelData = labelResult.labelContent || '';
                 annotations = parseLabelData(labelData);
+                defaultAnnotationType = annotations.some(ann => ann.type === 'obb') ? 'obb' : 'bbox';
 
                 // Cache label info for filtering
                 const classes = [...new Set(annotations.map(ann => ann.class))];
@@ -1834,6 +1838,58 @@
             console.log(`Preloading ${preloadIndexes.length} images around index ${currentImageIndex}`);
         }
 
+        function orderPointsClockwiseFromTopLeft(points) {
+            const cx = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+            const cy = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+
+            const withAngle = points.map(p => ({
+                x: p.x,
+                y: p.y,
+                angle: Math.atan2(p.y - cy, p.x - cx)
+            }));
+
+            // Sort clockwise
+            withAngle.sort((a, b) => b.angle - a.angle);
+
+            // Rotate so the first point is top-left (min y, then min x)
+            let startIndex = 0;
+            for (let i = 1; i < withAngle.length; i++) {
+                if (
+                    withAngle[i].y < withAngle[startIndex].y ||
+                    (withAngle[i].y === withAngle[startIndex].y && withAngle[i].x < withAngle[startIndex].x)
+                ) {
+                    startIndex = i;
+                }
+            }
+
+            const ordered = [];
+            for (let i = 0; i < withAngle.length; i++) {
+                const idx = (startIndex + i) % withAngle.length;
+                ordered.push({ x: withAngle[idx].x, y: withAngle[idx].y });
+            }
+
+            return ordered;
+        }
+
+        function getObbCenter(points) {
+            const cx = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+            const cy = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+            return { x: cx, y: cy };
+        }
+
+        function rotatePoints(points, center, angleDelta) {
+            const cosA = Math.cos(angleDelta);
+            const sinA = Math.sin(angleDelta);
+            return points.map(p => {
+                const dx = p.x - center.x;
+                const dy = p.y - center.y;
+                return {
+                    x: center.x + dx * cosA - dy * sinA,
+                    y: center.y + dx * sinA + dy * cosA
+                };
+            });
+        }
+
         function parseLabelData(content) {
             if (!content || content.trim() === '') return [];
 
@@ -1842,7 +1898,21 @@
                 const parts = line.trim().split(/\s+/);
                 if (parts.length < 5) return null;
 
+                if (parts.length >= 9) {
+                    const points = [];
+                    for (let i = 1; i < 9; i += 2) {
+                        points.push({ x: parseFloat(parts[i]), y: parseFloat(parts[i + 1]) });
+                    }
+                    const ordered = orderPointsClockwiseFromTopLeft(points);
+                    return {
+                        type: 'obb',
+                        class: parseInt(parts[0]),
+                        points: ordered
+                    };
+                }
+
                 return {
+                    type: 'bbox',
                     class: parseInt(parts[0]),
                     x: parseFloat(parts[1]),
                     y: parseFloat(parts[2]),
@@ -1891,34 +1961,112 @@
                 const isSelected = selectedAnnotation === idx;
                 const color = getClassColor(ann.class);
 
-                const x = (ann.x - ann.w / 2) * image.width;
-                const y = (ann.y - ann.h / 2) * image.height;
-                const w = ann.w * image.width;
-                const h = ann.h * image.height;
+                if (ann.type === 'obb') {
+                    const ordered = orderPointsClockwiseFromTopLeft(ann.points);
+                    const points = ordered.map(p => ({
+                        x: p.x * image.width,
+                        y: p.y * image.height
+                    }));
 
-                // Draw box (scale line width inversely to keep constant visual size)
-                ctx.strokeStyle = color;
-                ctx.lineWidth = (isSelected ? 3 : 2) / totalScale;
-                ctx.strokeRect(x, y, w, h);
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = (isSelected ? 3 : 2) / totalScale;
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) {
+                        ctx.lineTo(points[i].x, points[i].y);
+                    }
+                    ctx.closePath();
+                    ctx.stroke();
 
-                // Draw label
-                ctx.fillStyle = color;
-                ctx.font = `${14 / totalScale}px monospace`;
-                const label = CLASSES[ann.class] || `class_${ann.class}`;
-                const textWidth = ctx.measureText(label).width;
-                const labelHeight = 20 / totalScale;
-                const labelPadding = 8 / totalScale;
-                ctx.fillRect(x, y - labelHeight, textWidth + labelPadding, labelHeight);
-                ctx.fillStyle = '#000';
-                ctx.fillText(label, x + 4 / totalScale, y - 6 / totalScale);
-
-                // Draw handles if selected
-                if (isSelected) {
-                    const handleSize = 8 / totalScale;
+                    // Draw label
+                    const label = CLASSES[ann.class] || `class_${ann.class}`;
+                    const labelPoint = points.reduce((acc, p) => {
+                        if (p.y < acc.y || (p.y === acc.y && p.x < acc.x)) return p;
+                        return acc;
+                    }, points[0]);
                     ctx.fillStyle = color;
-                    [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
-                        ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
-                    });
+                    ctx.font = `${14 / totalScale}px monospace`;
+                    const textWidth = ctx.measureText(label).width;
+                    const labelHeight = 20 / totalScale;
+                    const labelPadding = 8 / totalScale;
+                    ctx.fillRect(labelPoint.x, labelPoint.y - labelHeight, textWidth + labelPadding, labelHeight);
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(label, labelPoint.x + 4 / totalScale, labelPoint.y - 6 / totalScale);
+
+                    if (isSelected) {
+                        const handleSize = 8 / totalScale;
+                        ctx.fillStyle = color;
+                        points.forEach((p) => {
+                            ctx.fillRect(p.x - handleSize / 2, p.y - handleSize / 2, handleSize, handleSize);
+                        });
+
+                        const topMid = {
+                            x: (points[0].x + points[1].x) / 2,
+                            y: (points[0].y + points[1].y) / 2
+                        };
+                        const edgeDx = points[1].x - points[0].x;
+                        const edgeDy = points[1].y - points[0].y;
+                        let normal = { x: edgeDy, y: -edgeDx };
+                        const center = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+                        center.x /= points.length;
+                        center.y /= points.length;
+                        const toCenter = { x: center.x - topMid.x, y: center.y - topMid.y };
+                        if (normal.x * toCenter.x + normal.y * toCenter.y > 0) {
+                            normal.x *= -1;
+                            normal.y *= -1;
+                        }
+                        const normalLen = Math.hypot(normal.x, normal.y) || 1;
+                        normal.x /= normalLen;
+                        normal.y /= normalLen;
+                        const handleOffset = 24 / totalScale;
+                        const rotHandle = {
+                            x: topMid.x + normal.x * handleOffset,
+                            y: topMid.y + normal.y * handleOffset
+                        };
+
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 2 / totalScale;
+                        ctx.beginPath();
+                        ctx.moveTo(topMid.x, topMid.y);
+                        ctx.lineTo(rotHandle.x, rotHandle.y);
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(rotHandle.x, rotHandle.y, 6 / totalScale, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                } else {
+                    const x = (ann.x - ann.w / 2) * image.width;
+                    const y = (ann.y - ann.h / 2) * image.height;
+                    const w = ann.w * image.width;
+                    const h = ann.h * image.height;
+
+                    // Draw box (scale line width inversely to keep constant visual size)
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = (isSelected ? 3 : 2) / totalScale;
+                    ctx.strokeRect(x, y, w, h);
+
+                    // Draw label
+                    ctx.fillStyle = color;
+                    ctx.font = `${14 / totalScale}px monospace`;
+                    const label = CLASSES[ann.class] || `class_${ann.class}`;
+                    const textWidth = ctx.measureText(label).width;
+                    const labelHeight = 20 / totalScale;
+                    const labelPadding = 8 / totalScale;
+                    ctx.fillRect(x, y - labelHeight, textWidth + labelPadding, labelHeight);
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(label, x + 4 / totalScale, y - 6 / totalScale);
+
+                    // Draw handles if selected
+                    if (isSelected) {
+                        const handleSize = 8 / totalScale;
+                        ctx.fillStyle = color;
+                        [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].forEach(([hx, hy]) => {
+                            ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
+                        });
+                    }
                 }
             });
 
@@ -2016,8 +2164,18 @@
                 const ann = annotations[selectedAnnotation];
                 const handle = getHandleAt(ann, x, y);
                 if (handle) {
-                    isDragging = true;
-                    dragHandle = handle;
+                    if (handle.type === 'obb-rotate') {
+                        isRotating = true;
+                        const center = handle.center;
+                        rotateState = {
+                            center,
+                            startAngle: Math.atan2(y - center.y, x - center.x),
+                            startPoints: ann.points.map(p => ({ x: p.x, y: p.y }))
+                        };
+                    } else {
+                        isDragging = true;
+                        dragHandle = handle;
+                    }
                     return;
                 }
             }
@@ -2054,7 +2212,14 @@
 
             const { x, y } = getCanvasCoordinates(e);
 
-            if (isDragging && selectedAnnotation !== null) {
+            if (isRotating && selectedAnnotation !== null && rotateState) {
+                const ann = annotations[selectedAnnotation];
+                const angle = Math.atan2(y - rotateState.center.y, x - rotateState.center.x);
+                const delta = angle - rotateState.startAngle;
+                const centerNorm = { x: rotateState.center.x / image.width, y: rotateState.center.y / image.height };
+                ann.points = rotatePoints(rotateState.startPoints, centerNorm, delta);
+                draw();
+            } else if (isDragging && selectedAnnotation !== null) {
                 const ann = annotations[selectedAnnotation];
                 resizeAnnotation(ann, dragHandle, x, y);
                 draw();
@@ -2072,7 +2237,11 @@
                 return;
             }
 
-            if (isDragging) {
+            if (isRotating) {
+                isRotating = false;
+                rotateState = null;
+                updateUI();
+            } else if (isDragging) {
                 isDragging = false;
                 dragHandle = null;
                 updateUI();
@@ -2087,18 +2256,33 @@
                     const x1 = Math.min(drawStart.x, x);
                     const y1 = Math.min(drawStart.y, y);
 
-                    const centerX = (x1 + w / 2) / image.width;
-                    const centerY = (y1 + h / 2) / image.height;
-                    const normW = w / image.width;
-                    const normH = h / image.height;
+                    if (defaultAnnotationType === 'obb') {
+                        const points = [
+                            { x: x1 / image.width, y: y1 / image.height },
+                            { x: (x1 + w) / image.width, y: y1 / image.height },
+                            { x: (x1 + w) / image.width, y: (y1 + h) / image.height },
+                            { x: x1 / image.width, y: (y1 + h) / image.height }
+                        ];
+                        annotations.push({
+                            type: 'obb',
+                            class: selectedClass,
+                            points: orderPointsClockwiseFromTopLeft(points)
+                        });
+                    } else {
+                        const centerX = (x1 + w / 2) / image.width;
+                        const centerY = (y1 + h / 2) / image.height;
+                        const normW = w / image.width;
+                        const normH = h / image.height;
 
-                    annotations.push({
-                        class: selectedClass,
-                        x: centerX,
-                        y: centerY,
-                        w: normW,
-                        h: normH
-                    });
+                        annotations.push({
+                            type: 'bbox',
+                            class: selectedClass,
+                            x: centerX,
+                            y: centerY,
+                            w: normW,
+                            h: normH
+                        });
+                    }
 
                     updateUI();
                     pendingSelection = null;
@@ -2240,16 +2424,39 @@
             }
         }
 
+        function isPointInPolygon(point, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i].x, yi = polygon[i].y;
+                const xj = polygon[j].x, yj = polygon[j].y;
+
+                const intersect = ((yi > point.y) !== (yj > point.y)) &&
+                    (point.x < (xj - xi) * (point.y - yi) / (yj - yi + 1e-12) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
         function getAnnotationAt(x, y) {
             for (let i = annotations.length - 1; i >= 0; i--) {
                 const ann = annotations[i];
-                const ax = (ann.x - ann.w / 2) * image.width;
-                const ay = (ann.y - ann.h / 2) * image.height;
-                const aw = ann.w * image.width;
-                const ah = ann.h * image.height;
+                if (ann.type === 'obb') {
+                    const polygon = ann.points.map(p => ({
+                        x: p.x * image.width,
+                        y: p.y * image.height
+                    }));
+                    if (isPointInPolygon({ x, y }, polygon)) {
+                        return i;
+                    }
+                } else {
+                    const ax = (ann.x - ann.w / 2) * image.width;
+                    const ay = (ann.y - ann.h / 2) * image.height;
+                    const aw = ann.w * image.width;
+                    const ah = ann.h * image.height;
 
-                if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
-                    return i;
+                    if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
+                        return i;
+                    }
                 }
             }
             return null;
@@ -2259,13 +2466,23 @@
             const hits = [];
             for (let i = annotations.length - 1; i >= 0; i--) {
                 const ann = annotations[i];
-                const ax = (ann.x - ann.w / 2) * image.width;
-                const ay = (ann.y - ann.h / 2) * image.height;
-                const aw = ann.w * image.width;
-                const ah = ann.h * image.height;
+                if (ann.type === 'obb') {
+                    const polygon = ann.points.map(p => ({
+                        x: p.x * image.width,
+                        y: p.y * image.height
+                    }));
+                    if (isPointInPolygon({ x, y }, polygon)) {
+                        hits.push(i);
+                    }
+                } else {
+                    const ax = (ann.x - ann.w / 2) * image.width;
+                    const ay = (ann.y - ann.h / 2) * image.height;
+                    const aw = ann.w * image.width;
+                    const ah = ann.h * image.height;
 
-                if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
-                    hits.push(i);
+                    if (x >= ax && x <= ax + aw && y >= ay && y <= ay + ah) {
+                        hits.push(i);
+                    }
                 }
             }
             return hits;
@@ -2284,6 +2501,54 @@
         }
 
         function getHandleAt(ann, x, y) {
+            const totalScale = baseScale * viewScale;
+            const handleSize = 16 / totalScale;
+
+            if (ann.type === 'obb') {
+                const ordered = orderPointsClockwiseFromTopLeft(ann.points);
+                const points = ordered.map(p => ({
+                    x: p.x * image.width,
+                    y: p.y * image.height
+                }));
+                const topMid = {
+                    x: (points[0].x + points[1].x) / 2,
+                    y: (points[0].y + points[1].y) / 2
+                };
+                const edgeDx = points[1].x - points[0].x;
+                const edgeDy = points[1].y - points[0].y;
+                let normal = { x: edgeDy, y: -edgeDx };
+                const center = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+                center.x /= points.length;
+                center.y /= points.length;
+                const toCenter = { x: center.x - topMid.x, y: center.y - topMid.y };
+                if (normal.x * toCenter.x + normal.y * toCenter.y > 0) {
+                    normal.x *= -1;
+                    normal.y *= -1;
+                }
+                const normalLen = Math.hypot(normal.x, normal.y) || 1;
+                normal.x /= normalLen;
+                normal.y /= normalLen;
+                const handleOffset = 24 / totalScale;
+                const rotHandle = {
+                    x: topMid.x + normal.x * handleOffset,
+                    y: topMid.y + normal.y * handleOffset
+                };
+                if (Math.hypot(x - rotHandle.x, y - rotHandle.y) < handleSize) {
+                    const centerNorm = getObbCenter(ann.points);
+                    return {
+                        type: 'obb-rotate',
+                        center: { x: centerNorm.x * image.width, y: centerNorm.y * image.height }
+                    };
+                }
+                for (let i = 0; i < points.length; i++) {
+                    const p = points[i];
+                    if (Math.abs(x - p.x) < handleSize && Math.abs(y - p.y) < handleSize) {
+                        return { type: 'obb', index: i };
+                    }
+                }
+                return null;
+            }
+
             const ax = (ann.x - ann.w / 2) * image.width;
             const ay = (ann.y - ann.h / 2) * image.height;
             const aw = ann.w * image.width;
@@ -2296,17 +2561,27 @@
                 { name: 'br', x: ax + aw, y: ay + ah }
             ];
 
-            const totalScale = baseScale * viewScale;
-            const handleSize = 16 / totalScale;
             for (const handle of handles) {
                 if (Math.abs(x - handle.x) < handleSize && Math.abs(y - handle.y) < handleSize) {
-                    return handle.name;
+                    return { type: 'bbox', name: handle.name };
                 }
             }
             return null;
         }
 
         function resizeAnnotation(ann, handle, mouseX, mouseY) {
+            if (ann.type === 'obb' && handle && handle.type === 'obb') {
+                const idx = handle.index;
+                const nextPoints = ann.points.map(p => ({ x: p.x, y: p.y }));
+                nextPoints[idx] = { x: mouseX / image.width, y: mouseY / image.height };
+                ann.points = nextPoints;
+                return;
+            }
+
+            if (!handle || handle.type !== 'bbox') {
+                return;
+            }
+
             const centerX = ann.x * image.width;
             const centerY = ann.y * image.height;
             const halfW = ann.w * image.width / 2;
@@ -2317,7 +2592,7 @@
             let x2 = centerX + halfW;
             let y2 = centerY + halfH;
 
-            switch (handle) {
+            switch (handle.name) {
                 case 'tl':
                     x1 = mouseX;
                     y1 = mouseY;
@@ -2381,7 +2656,14 @@
 
                 const coords = document.createElement('div');
                 coords.className = 'annotation-coords';
-                coords.textContent = `x:${ann.x.toFixed(3)} y:${ann.y.toFixed(3)} w:${ann.w.toFixed(3)} h:${ann.h.toFixed(3)}`;
+                if (ann.type === 'obb') {
+                    const coordText = ann.points
+                        .map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`)
+                        .join(' ');
+                    coords.textContent = `obb: ${coordText}`;
+                } else {
+                    coords.textContent = `x:${ann.x.toFixed(3)} y:${ann.y.toFixed(3)} w:${ann.w.toFixed(3)} h:${ann.h.toFixed(3)}`;
+                }
 
                 info.appendChild(className);
                 info.appendChild(coords);
@@ -2425,6 +2707,13 @@
 
                 // Convert annotations to YOLO format
                 const yoloContent = annotations.map(ann => {
+                    if (ann.type === 'obb') {
+                        const ordered = orderPointsClockwiseFromTopLeft(ann.points);
+                        const coords = ordered
+                            .map(p => `${p.x.toFixed(6)} ${p.y.toFixed(6)}`)
+                            .join(' ');
+                        return `${ann.class} ${coords}`;
+                    }
                     return `${ann.class} ${ann.x.toFixed(6)} ${ann.y.toFixed(6)} ${ann.w.toFixed(6)} ${ann.h.toFixed(6)}`;
                 }).join('\n');
 

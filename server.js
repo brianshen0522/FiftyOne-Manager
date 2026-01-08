@@ -29,6 +29,7 @@ const CONFIG = {
   healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '5000'),
   healthCheckTimeout: parseInt(process.env.HEALTH_CHECK_TIMEOUT || '3000'),
   cvat: {
+    enabled: process.env.CVAT_ENABLED === 'true',
     url: process.env.CVAT_URL || '',
     username: process.env.CVAT_USERNAME || '',
     password: process.env.CVAT_PASSWORD || '',
@@ -367,7 +368,7 @@ app.get('/api/instances', async (req, res) => {
 // Add new instance
 app.post('/api/instances', (req, res) => {
   try {
-    const { name, port, datasetPath, threshold, debug, cvatSync, classFile } = req.body;
+    const { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile } = req.body;
 
     // Validation
     if (!name || !port || !datasetPath) {
@@ -400,7 +401,8 @@ app.post('/api/instances', (req, res) => {
       datasetPath,
       threshold: threshold !== undefined ? threshold : CONFIG.defaultIouThreshold,
       debug: debug !== undefined ? debug : CONFIG.defaultDebug,
-      cvatSync: cvatSync !== undefined ? cvatSync : false,
+      cvatSync: CONFIG.cvat.enabled && cvatSync !== undefined ? cvatSync : false,
+      pentagonFormat: pentagonFormat || false,
       classFile: classFile || null,
       status: 'stopped',
       createdAt: new Date().toISOString()
@@ -419,7 +421,7 @@ app.post('/api/instances', (req, res) => {
 app.put('/api/instances/:name', (req, res) => {
   try {
     const { name } = req.params;
-    const { port, datasetPath, threshold, debug, cvatSync, classFile } = req.body;
+    const { port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile } = req.body;
 
     const instances = loadInstances();
     const index = instances.findIndex(i => i.name === name);
@@ -449,13 +451,283 @@ app.put('/api/instances/:name', (req, res) => {
     if (datasetPath !== undefined) instances[index].datasetPath = datasetPath;
     if (threshold !== undefined) instances[index].threshold = threshold;
     if (debug !== undefined) instances[index].debug = debug;
-    if (cvatSync !== undefined) instances[index].cvatSync = cvatSync;
+    if (cvatSync !== undefined) instances[index].cvatSync = CONFIG.cvat.enabled ? cvatSync : false;
+    if (pentagonFormat !== undefined) instances[index].pentagonFormat = pentagonFormat;
     if (classFile !== undefined) instances[index].classFile = classFile || null;
     instances[index].updatedAt = new Date().toISOString();
 
     saveInstances(instances);
     res.json(instances[index]);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// OBB format helper functions
+function detectLabelFormat(labelLine) {
+  const parts = labelLine.trim().split(/\s+/);
+  // OBB format: class_id x1 y1 x2 y2 x3 y3 x4 y4 (9 values)
+  // Legacy pentagon format: class_id x1 y1 x2 y2 x3 y3 x4 y4 x5 y5 (11 values)
+  // Bounding box format: class_id x_center y_center width height (5 values)
+  if (parts.length === 9) return 'obb';
+  if (parts.length === 11) return 'pentagon';
+  if (parts.length === 5) return 'bbox';
+  return 'unknown';
+}
+
+function orderPointsClockwiseFromTopLeft(points) {
+  const cx = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+  const cy = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+
+  const withAngle = points.map(p => ({
+    x: p.x,
+    y: p.y,
+    angle: Math.atan2(p.y - cy, p.x - cx)
+  }));
+
+  // Sort clockwise
+  withAngle.sort((a, b) => b.angle - a.angle);
+
+  // Rotate so the first point is top-left (min y, then min x)
+  let startIndex = 0;
+  for (let i = 1; i < withAngle.length; i++) {
+    if (
+      withAngle[i].y < withAngle[startIndex].y ||
+      (withAngle[i].y === withAngle[startIndex].y && withAngle[i].x < withAngle[startIndex].x)
+    ) {
+      startIndex = i;
+    }
+  }
+
+  const ordered = [];
+  for (let i = 0; i < withAngle.length; i++) {
+    const idx = (startIndex + i) % withAngle.length;
+    ordered.push({ x: withAngle[idx].x, y: withAngle[idx].y });
+  }
+
+  return ordered;
+}
+
+function formatObbLine(classId, points) {
+  const coords = points.map(p => `${p.x} ${p.y}`).join(' ');
+  return `${classId} ${coords}`;
+}
+
+function convertBBoxToObb(classId, xCenter, yCenter, width, height) {
+  const points = [
+    { x: xCenter - width / 2, y: yCenter - height / 2 }, // top-left
+    { x: xCenter + width / 2, y: yCenter - height / 2 }, // top-right
+    { x: xCenter + width / 2, y: yCenter + height / 2 }, // bottom-right
+    { x: xCenter - width / 2, y: yCenter + height / 2 }  // bottom-left
+  ];
+
+  const ordered = orderPointsClockwiseFromTopLeft(points);
+  return formatObbLine(classId, ordered);
+}
+
+function convertLegacyPentagonToObb(classId, coords) {
+  const points = [];
+  for (let i = 0; i < 8; i += 2) {
+    points.push({ x: coords[i], y: coords[i + 1] });
+  }
+  const ordered = orderPointsClockwiseFromTopLeft(points);
+  return formatObbLine(classId, ordered);
+}
+
+function convertObbLineToOrderedObb(classId, coords) {
+  const points = [];
+  for (let i = 0; i < 8; i += 2) {
+    points.push({ x: coords[i], y: coords[i + 1] });
+  }
+  const ordered = orderPointsClockwiseFromTopLeft(points);
+  return formatObbLine(classId, ordered);
+}
+
+async function convertDatasetToPentagonFormat(datasetPath) {
+  const labelsDir = path.join(datasetPath, 'labels');
+
+  if (!fs.existsSync(labelsDir)) {
+    throw new Error('Labels directory not found');
+  }
+
+  const labelFiles = fs.readdirSync(labelsDir).filter(f => f.endsWith('.txt'));
+  let convertedCount = 0;
+  let alreadyPentagonCount = 0;
+  let errorCount = 0;
+
+  for (const labelFile of labelFiles) {
+    const labelPath = path.join(labelsDir, labelFile);
+
+    try {
+      const content = fs.readFileSync(labelPath, 'utf8');
+      const lines = content.trim().split('\n').filter(line => line.trim());
+
+      if (lines.length === 0) continue;
+
+      // Check if already in OBB format
+      const firstLine = lines[0];
+      const detected = detectLabelFormat(firstLine);
+      if (detected === 'obb') {
+        alreadyPentagonCount++;
+        continue;
+      }
+
+      // Convert each line to OBB format
+      const convertedLines = lines.map(line => {
+        const parts = line.trim().split(/\s+/);
+        const detectedLine = detectLabelFormat(line);
+
+        if (detectedLine === 'bbox') {
+          const [classId, xCenter, yCenter, width, height] = parts.map(parseFloat);
+          return convertBBoxToObb(classId, xCenter, yCenter, width, height);
+        }
+
+        if (detectedLine === 'pentagon') {
+          const numbers = parts.map(parseFloat);
+          const classId = numbers[0];
+          const coords = numbers.slice(1, 9);
+          return convertLegacyPentagonToObb(classId, coords);
+        }
+
+        if (detectedLine === 'obb') {
+          const numbers = parts.map(parseFloat);
+          const classId = numbers[0];
+          const coords = numbers.slice(1, 9);
+          return convertObbLineToOrderedObb(classId, coords);
+        }
+
+        throw new Error(`Invalid format in ${labelFile}: expected 5, 9, or 11 values, got ${parts.length}`);
+      });
+
+      // Overwrite the file
+      fs.writeFileSync(labelPath, convertedLines.join('\n') + '\n', 'utf8');
+      convertedCount++;
+    } catch (err) {
+      console.error(`Error converting ${labelFile}:`, err.message);
+      errorCount++;
+    }
+  }
+
+  return { convertedCount, alreadyPentagonCount, errorCount, totalFiles: labelFiles.length };
+}
+
+async function checkDatasetFormat(datasetPath) {
+  const labelsDir = path.join(datasetPath, 'labels');
+
+  if (!fs.existsSync(labelsDir)) {
+    return { format: 'unknown', reason: 'Labels directory not found' };
+  }
+
+  const labelFiles = fs.readdirSync(labelsDir).filter(f => f.endsWith('.txt'));
+
+  if (labelFiles.length === 0) {
+    return { format: 'unknown', reason: 'No label files found' };
+  }
+
+  // Check first non-empty label file
+  for (const labelFile of labelFiles.slice(0, 10)) { // Check up to 10 files
+    const labelPath = path.join(labelsDir, labelFile);
+    const content = fs.readFileSync(labelPath, 'utf8');
+    const lines = content.trim().split('\n').filter(line => line.trim());
+
+    if (lines.length > 0) {
+      const firstLine = lines[0];
+      const detected = detectLabelFormat(firstLine);
+      if (detected === 'obb') {
+        return { format: 'obb', fileName: labelFile };
+      }
+      if (detected === 'pentagon') {
+        return { format: 'pentagon', fileName: labelFile };
+      }
+      if (detected === 'bbox') {
+        return { format: 'bbox', fileName: labelFile };
+      }
+      return { format: 'unknown', reason: 'Unsupported label format detected' };
+    }
+  }
+
+  return { format: 'unknown', reason: 'All label files are empty' };
+}
+
+// Convert instance to OBB format
+app.post('/api/instances/:name/convert-pentagon', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const instances = loadInstances();
+    const index = instances.findIndex(i => i.name === name);
+
+    if (index === -1) {
+      return res.status(404).json({ error: 'Instance not found' });
+    }
+
+    const instance = instances[index];
+    const datasetPath = path.resolve(instance.datasetPath);
+
+    // Check if dataset exists
+    if (!fs.existsSync(datasetPath)) {
+      return res.status(400).json({ error: 'Dataset path does not exist' });
+    }
+
+    // Check current format
+    const formatCheck = await checkDatasetFormat(datasetPath);
+
+    if (formatCheck.format === 'obb') {
+      // Already in OBB format, just update the flag
+      instances[index].pentagonFormat = true;
+      saveInstances(instances);
+      return res.json({
+        message: 'Dataset is already in OBB format',
+        alreadyConverted: true,
+        formatCheck
+      });
+    }
+
+    if (formatCheck.format === 'unknown') {
+      return res.status(400).json({
+        error: 'Could not determine dataset format',
+        reason: formatCheck.reason
+      });
+    }
+
+    // Convert the dataset
+    const result = await convertDatasetToPentagonFormat(datasetPath);
+
+    // Update instance flag
+    instances[index].pentagonFormat = true;
+    saveInstances(instances);
+
+    res.json({
+      message: 'Dataset converted to OBB format successfully',
+      ...result,
+      formatCheck
+    });
+  } catch (err) {
+    console.error('Error converting to OBB format:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Check dataset format
+app.get('/api/instances/:name/check-format', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const instances = loadInstances();
+    const instance = instances.find(i => i.name === name);
+
+    if (!instance) {
+      return res.status(404).json({ error: 'Instance not found' });
+    }
+
+    const datasetPath = path.resolve(instance.datasetPath);
+
+    if (!fs.existsSync(datasetPath)) {
+      return res.status(400).json({ error: 'Dataset path does not exist' });
+    }
+
+    const formatCheck = await checkDatasetFormat(datasetPath);
+    res.json(formatCheck);
+  } catch (err) {
+    console.error('Error checking format:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -541,8 +813,8 @@ app.post('/api/instances/:name/start', async (req, res) => {
       PUBLIC_ADDRESS: CONFIG.publicAddress
     };
 
-    // Add CVAT configuration if sync is enabled
-    if (instance.cvatSync) {
+    // Add CVAT configuration if sync is enabled and CVAT is globally enabled
+    if (CONFIG.cvat.enabled && instance.cvatSync) {
       if (CONFIG.cvat.url) envVars.FIFTYONE_CVAT_URL = CONFIG.cvat.url;
       if (CONFIG.cvat.username) envVars.FIFTYONE_CVAT_USERNAME = CONFIG.cvat.username;
       if (CONFIG.cvat.password) envVars.FIFTYONE_CVAT_PASSWORD = CONFIG.cvat.password;

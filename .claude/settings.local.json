@@ -23,7 +23,14 @@
       "WebFetch(domain:api.labelstud.io)",
       "WebFetch(domain:github.com)",
       "Bash(test:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(pm2 list:*)",
+      "Bash(sudo readlink:*)",
+      "Bash(sudo ls:*)",
+      "Bash(sudo cat:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose up:*)"
     ],
     "deny": [],
     "ask": []
