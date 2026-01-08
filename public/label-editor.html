@@ -237,6 +237,26 @@
             transition: width 0.2s ease;
         }
 
+        .preview-search-input {
+            padding: 4px 8px;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            color: #ffffff;
+            font-size: 12px;
+            width: 200px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .preview-search-input:focus {
+            border-color: #007bff;
+        }
+
+        .preview-search-input::placeholder {
+            color: #6c757d;
+        }
+
         .image-preview {
             display: flex;
             gap: 8px;
@@ -636,8 +656,15 @@
     </div>
 
     <div class="preview-bar" id="previewBar">
-        <div style="color: #aaa; font-size: 12px; margin-bottom: 5px;" id="imagePreviewCount">
-            Images
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <div style="color: #aaa; font-size: 12px;" id="imagePreviewCount">
+                Images
+            </div>
+            <input type="text"
+                   id="previewSearch"
+                   class="preview-search-input"
+                   placeholder="Search filename..."
+                   oninput="handlePreviewSearch()">
         </div>
         <div class="preview-progress">
             <div class="preview-progress-fill" id="previewProgressFill"></div>
@@ -689,6 +716,7 @@
         let previewRenderStart = 0;
         let previewRenderEnd = 0;
         let pendingPreviewCenter = null;
+        let previewSearchQuery = ''; // Search query for preview filtering
         let previewDragState = {
             isDown: false,
             moved: false,
@@ -1155,6 +1183,13 @@
             document.getElementById('filterMinLabels').value = '0';
             document.getElementById('filterMaxLabels').value = '';
 
+            // Clear preview search
+            const previewSearchInput = document.getElementById('previewSearch');
+            if (previewSearchInput) {
+                previewSearchInput.value = '';
+                previewSearchQuery = '';
+            }
+
             // Uncheck all class filters
             CLASSES.forEach((cls, idx) => {
                 const checkbox = document.getElementById(`filter-class-${idx}`);
@@ -1186,6 +1221,47 @@
             if (allImageList.length > 1) {
                 document.getElementById('previewBar').classList.add('show');
                 updateFilterStats();
+            }
+        }
+
+        function handlePreviewSearch() {
+            const searchInput = document.getElementById('previewSearch');
+            previewSearchQuery = searchInput.value.toLowerCase().trim();
+
+            // Apply the search filter to preview items
+            const previewContainer = document.getElementById('imagePreview');
+            const previewItems = previewContainer.querySelectorAll('.preview-item');
+
+            let visibleCount = 0;
+            previewItems.forEach(item => {
+                const index = parseInt(item.dataset.previewIndex);
+                const imagePath = imageList[index];
+                const filename = imagePath.split('/').pop().toLowerCase();
+
+                if (previewSearchQuery === '' || filename.includes(previewSearchQuery)) {
+                    item.style.display = 'flex';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Update count display
+            const countDisplay = document.getElementById('imagePreviewCount');
+            if (previewSearchQuery) {
+                const totalInFilter = imageList.length;
+                if (filterActive) {
+                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${visibleCount}</span> of <span style="color: #007bff;">${totalInFilter}</span> of ${allImageList.length})`;
+                } else {
+                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${visibleCount}</span> of ${totalInFilter})`;
+                }
+            } else {
+                // No search, restore normal display
+                if (filterActive) {
+                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${imageList.length}</span> of ${allImageList.length})`;
+                } else {
+                    countDisplay.textContent = `Images (${allImageList.length})`;
+                }
             }
         }
 
@@ -1235,6 +1311,11 @@
             setupPreviewDrag();
             setupPreviewInfiniteScroll();
             applyPendingPreviewCenter();
+
+            // Reapply search filter if there is one
+            if (previewSearchQuery) {
+                handlePreviewSearch();
+            }
         }
 
         function createPreviewItem(index) {
@@ -1375,6 +1456,11 @@
                         const newScrollWidth = previewContainer.scrollWidth;
                         previewContainer.scrollLeft += newScrollWidth - prevScrollWidth;
                         previewRenderStart = newStart;
+
+                        // Apply search filter to new items
+                        if (previewSearchQuery) {
+                            handlePreviewSearch();
+                        }
                     }
 
                     if (maxScroll - previewContainer.scrollLeft < threshold && previewRenderEnd < imageList.length) {
@@ -1383,6 +1469,11 @@
                             wrapper.appendChild(createPreviewItem(i));
                         }
                         previewRenderEnd = newEnd;
+
+                        // Apply search filter to new items
+                        if (previewSearchQuery) {
+                            handlePreviewSearch();
+                        }
                     }
                 });
             };
