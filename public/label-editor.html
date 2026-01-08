@@ -2363,6 +2363,12 @@
                 activeElement.isContentEditable
             );
 
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                saveLabels(true);
+                return;
+            }
+
             // Allow Delete/Backspace in inputs
             if (isTyping && (e.key === 'Delete' || e.key === 'Backspace')) {
                 return; // Let the input handle it
