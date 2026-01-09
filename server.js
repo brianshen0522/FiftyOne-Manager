@@ -503,7 +503,7 @@ app.post('/api/instances', (req, res) => {
       cvatSync: CONFIG.cvat.enabled && cvatSync !== undefined ? cvatSync : false,
       pentagonFormat: pentagonFormat || false,
       classFile: classFile || null,
-      autoSync: autoSync || false,
+      autoSync: autoSync !== undefined ? autoSync : true,
       status: 'stopped',
       createdAt: new Date().toISOString()
     };
@@ -1100,6 +1100,32 @@ app.post('/api/label-editor/save', async (req, res) => {
 
     res.json({ success: true, message: 'Labels saved successfully' });
 
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/label-editor/last-image', (req, res) => {
+  try {
+    const { basePath, imagePath } = req.body;
+    if (!basePath || !imagePath) {
+      return res.status(400).json({ error: 'Missing basePath or imagePath' });
+    }
+
+    const instances = loadInstances();
+    const fullImagePath = path.resolve(path.join(basePath, imagePath));
+    const instance = instances.find(i => {
+      const datasetRoot = path.resolve(i.datasetPath);
+      return fullImagePath.startsWith(`${datasetRoot}${path.sep}`) || fullImagePath === datasetRoot;
+    });
+    if (!instance) {
+      return res.status(404).json({ error: 'Instance not found' });
+    }
+
+    instance.lastImagePath = imagePath;
+    instance.updatedAt = new Date().toISOString();
+    saveInstances(instances);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

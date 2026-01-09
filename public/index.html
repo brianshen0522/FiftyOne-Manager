@@ -1369,11 +1369,11 @@
                             ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">Restart</button>
                                <button class="btn danger" onclick="stopInstance('${instance.name}')">Stop</button>
                                <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? 'disabled title="Service down"' : ''}>Open</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
                             : `<button class="btn success" onclick="startInstance('${instance.name}')">Start</button>
                                <button class="btn ghost" onclick="editInstance('${instance.name}')">Edit</button>
                                <button class="btn danger" onclick="deleteInstance('${instance.name}')">Remove</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
                         }
                         <button class="btn ghost" onclick="showLogs('${instance.name}')">Logs</button>
                     </div>
@@ -1572,7 +1572,7 @@
             window.open(`http://${window.location.hostname}:${port}`, '_blank');
         }
 
-        function openLabelEditor(encodedDatasetPath) {
+        function openLabelEditor(encodedDatasetPath, encodedLastImagePath) {
             const datasetPath = decodeURIComponent(encodedDatasetPath || '');
             if (!datasetPath) {
                 alert('Dataset path is missing.');
@@ -1597,7 +1597,9 @@
             const folderPath = normalizedRelative.endsWith('/images') || normalizedRelative === 'images'
                 ? normalizedRelative
                 : `${normalizedRelative}/images`;
-            const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}`;
+            const lastImagePath = decodeURIComponent(encodedLastImagePath || '');
+            const startParam = lastImagePath ? `&start=${encodeURIComponent(lastImagePath)}` : '';
+            const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}`;
             window.open(editorUrl, '_blank');
         }
 
@@ -1710,7 +1712,7 @@
             document.getElementById('threshold').value = config.defaultThreshold;
             document.getElementById('debugMode').checked = config.defaultDebug;
             document.getElementById('cvatSync').checked = false;
-            document.getElementById('autoSync').checked = false;
+            document.getElementById('autoSync').checked = true;
             document.getElementById('pentagonFormat').checked = false;
             document.getElementById('instanceName').disabled = false;
             hideInstanceNameError();

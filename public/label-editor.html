@@ -788,6 +788,7 @@
         const relativeImage = urlParams.get('img');
         const relativeLabel = urlParams.get('lbl');
         const folderParam = urlParams.get('folder');
+        const startImageParam = urlParams.get('start');
 
         // Support multiple images (comma-separated)
         const imageListParam = urlParams.get('images');
@@ -819,6 +820,11 @@
                 allImageList = data.images;
                 imageMetaByPath = data.imageMeta || {};
                 imageList = [...allImageList]; // Initialize filtered list
+                if (startImageParam && imageList.includes(startImageParam)) {
+                    currentImageIndex = imageList.indexOf(startImageParam);
+                } else {
+                    currentImageIndex = 0;
+                }
 
                 if (imageList.length === 0) {
                     showError(`No images found in folder: ${folderParam}`);
@@ -847,6 +853,9 @@
                 return;
             }
 
+            if (startImageParam && imageList.includes(startImageParam)) {
+                currentImageIndex = imageList.indexOf(startImageParam);
+            }
             applyPreviewSort(false);
             await loadClassNames();
             setupClassSelector();
@@ -1827,6 +1836,7 @@
 
                 // Store current label path for saving
                 currentLabelPath = currentLabel;
+                saveLastImageSelection(currentImage);
 
                 // Build image URL for direct loading (much faster than base64)
                 let imageUrl;
@@ -3162,6 +3172,20 @@
 
             document.getElementById('statusBar').textContent = `Error: ${message}`;
             document.getElementById('statusBar').style.color = '#dc3545';
+        }
+
+        function saveLastImageSelection(imagePath) {
+            if (!basePath || !imagePath) {
+                return;
+            }
+            fetch('/api/label-editor/last-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    basePath: basePath,
+                    imagePath: imagePath
+                })
+            }).catch(() => {});
         }
 
         // Initialize on load
