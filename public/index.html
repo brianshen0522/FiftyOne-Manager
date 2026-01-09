@@ -795,6 +795,13 @@
                 </div>
                 <div class="form-group">
                     <div class="checkbox-group">
+                        <input type="checkbox" id="autoSync">
+                        <label for="autoSync">Auto Sync Labels</label>
+                    </div>
+                    <small>Refresh FiftyOne labels on every save from the label editor</small>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
                         <input type="checkbox" id="pentagonFormat">
                         <label for="pentagonFormat">OBB Format (Polygon)</label>
                     </div>
@@ -1703,6 +1710,7 @@
             document.getElementById('threshold').value = config.defaultThreshold;
             document.getElementById('debugMode').checked = config.defaultDebug;
             document.getElementById('cvatSync').checked = false;
+            document.getElementById('autoSync').checked = false;
             document.getElementById('pentagonFormat').checked = false;
             document.getElementById('instanceName').disabled = false;
             hideInstanceNameError();
@@ -1747,6 +1755,7 @@
                 document.getElementById('threshold').value = instance.threshold;
                 document.getElementById('debugMode').checked = instance.debug;
                 document.getElementById('cvatSync').checked = instance.cvatSync || false;
+                document.getElementById('autoSync').checked = instance.autoSync || false;
                 document.getElementById('pentagonFormat').checked = instance.pentagonFormat || false;
                 document.getElementById('classFile').value = instance.classFile || '';
                 hideInstanceNameError();
@@ -1868,6 +1877,7 @@
             const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
             const debug = document.getElementById('debugMode').checked;
             const cvatSync = document.getElementById('cvatSync').checked;
+            const autoSync = document.getElementById('autoSync').checked;
             const pentagonFormat = document.getElementById('pentagonFormat').checked;
             const classFile = document.getElementById('classFile').value || null;
 
@@ -1875,7 +1885,7 @@
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile };
+            const data = { name, port, datasetPath, threshold, debug, cvatSync, autoSync, pentagonFormat, classFile };
 
             try {
                 if (!config.portRange) {

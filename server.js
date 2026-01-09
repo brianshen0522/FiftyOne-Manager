@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const util = require('util');
 const http = require('http');
 
@@ -87,6 +87,100 @@ function isPortInUse(instances, port, excludeName = null) {
 
 function isNameInUse(instances, name, excludeName = null) {
   return instances.some(i => i.name === name && i.name !== excludeName);
+}
+
+function getInstanceDbName(instance) {
+  const datasetName = path.basename(instance.datasetPath || '');
+  return `${datasetName || 'datasets'}_${instance.port}`;
+}
+
+function findInstanceForLabel({ basePath, fullLabelPath }) {
+  const instances = loadInstances();
+  if (basePath) {
+    const normalizedBase = path.resolve(basePath);
+    return instances.find(i => path.resolve(i.datasetPath) === normalizedBase) || null;
+  }
+  if (fullLabelPath) {
+    const normalizedLabelPath = path.resolve(fullLabelPath);
+    return instances.find(i => {
+      const datasetRoot = path.resolve(i.datasetPath);
+      return normalizedLabelPath.startsWith(`${datasetRoot}${path.sep}`);
+    }) || null;
+  }
+  return null;
+}
+
+function resolveImagePath(instance, relativeLabelPath, fullLabelPath) {
+  const basePath = instance.datasetPath;
+  let relativePath = relativeLabelPath;
+  if (!relativePath && fullLabelPath && basePath) {
+    relativePath = path.relative(basePath, fullLabelPath).replace(/\\/g, '/');
+  }
+  if (!relativePath) {
+    return '';
+  }
+
+  const stem = relativePath
+    .replace(/^labels\//, 'images/')
+    .replace(/\.txt$/i, '');
+  const extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
+  for (const ext of extensions) {
+    const candidate = path.join(basePath, `${stem}${ext}`);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return '';
+}
+
+function triggerLabelSync(instance, imagePath, labelPath) {
+  if (!instance || !imagePath || !labelPath) {
+    return;
+  }
+
+  const pythonPath = getPythonBin();
+  const scriptPath = path.join(__dirname, 'sync_label.py');
+  const datasetName = getInstanceDbName(instance);
+  const env = {
+    ...process.env,
+    FIFTYONE_DATABASE_URI: process.env.FIFTYONE_DATABASE_URI || 'mongodb://mongodb:27017',
+    FIFTYONE_DATABASE_NAME: datasetName
+  };
+
+  const args = [
+    scriptPath,
+    '--dataset-name', datasetName,
+    '--image-path', imagePath,
+    '--label-path', labelPath
+  ];
+  if (instance.classFile) {
+    args.push('--class-file', instance.classFile);
+  }
+
+  execFile(pythonPath, args, { env }, (err, stdout, stderr) => {
+    if (err) {
+      console.error('Label sync failed:', err.message);
+      if (stderr) {
+        console.error(stderr.toString());
+      }
+      return;
+    }
+    if (stdout) {
+      console.log(stdout.toString().trim());
+    }
+  });
+}
+
+function getPythonBin() {
+  const explicit = process.env.PYTHON_BIN || process.env.FIFTYONE_PYTHON;
+  if (explicit && fs.existsSync(explicit)) {
+    return explicit;
+  }
+  const venvPython = '/opt/venv/bin/python';
+  if (fs.existsSync(venvPython)) {
+    return venvPython;
+  }
+  return 'python3';
 }
 
 // Health check function to test if FiftyOne service is responding
@@ -368,7 +462,7 @@ app.get('/api/instances', async (req, res) => {
 // Add new instance
 app.post('/api/instances', (req, res) => {
   try {
-    const { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile } = req.body;
+    const { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile, autoSync } = req.body;
 
     // Validation
     if (!name || !port || !datasetPath) {
@@ -404,6 +498,7 @@ app.post('/api/instances', (req, res) => {
       cvatSync: CONFIG.cvat.enabled && cvatSync !== undefined ? cvatSync : false,
       pentagonFormat: pentagonFormat || false,
       classFile: classFile || null,
+      autoSync: autoSync || false,
       status: 'stopped',
       createdAt: new Date().toISOString()
     };
@@ -421,7 +516,7 @@ app.post('/api/instances', (req, res) => {
 app.put('/api/instances/:name', (req, res) => {
   try {
     const { name } = req.params;
-    const { port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile } = req.body;
+    const { port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile, autoSync } = req.body;
 
     const instances = loadInstances();
     const index = instances.findIndex(i => i.name === name);
@@ -454,6 +549,7 @@ app.put('/api/instances/:name', (req, res) => {
     if (cvatSync !== undefined) instances[index].cvatSync = CONFIG.cvat.enabled ? cvatSync : false;
     if (pentagonFormat !== undefined) instances[index].pentagonFormat = pentagonFormat;
     if (classFile !== undefined) instances[index].classFile = classFile || null;
+    if (autoSync !== undefined) instances[index].autoSync = autoSync;
     instances[index].updatedAt = new Date().toISOString();
 
     saveInstances(instances);
@@ -980,6 +1076,19 @@ app.post('/api/label-editor/save', async (req, res) => {
 
     // Write label file
     fs.writeFileSync(fullLabelPath, content || '', 'utf-8');
+
+    const instance = findInstanceForLabel({ basePath, fullLabelPath });
+    if (instance && instance.autoSync) {
+      const relativePath = relativeLabelPath
+        ? relativeLabelPath.replace(/\\/g, '/')
+        : path.relative(instance.datasetPath, fullLabelPath).replace(/\\/g, '/');
+      const imagePath = resolveImagePath(instance, relativePath, fullLabelPath);
+      if (imagePath) {
+        triggerLabelSync(instance, imagePath, fullLabelPath);
+      } else {
+        console.warn('Label sync skipped: image path not found for', fullLabelPath);
+      }
+    }
 
     res.json({ success: true, message: 'Labels saved successfully' });
 
