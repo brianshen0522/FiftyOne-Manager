@@ -1241,6 +1241,7 @@ app.get('/api/label-editor/list-folder', async (req, res) => {
     // Read all files in directory recursively
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'];
     const images = [];
+    const imageMeta = {};
 
     function scanDirectory(dir, baseDir) {
       const items = fs.readdirSync(dir);
@@ -1256,7 +1257,12 @@ app.get('/api/label-editor/list-folder', async (req, res) => {
           if (imageExtensions.includes(ext)) {
             // Get relative path from folder root
             const relativePath = path.relative(baseDir, fullItemPath);
-            images.push(path.join(folder, relativePath).replace(/\\/g, '/'));
+            const imagePath = path.join(folder, relativePath).replace(/\\/g, '/');
+            images.push(imagePath);
+            imageMeta[imagePath] = {
+              ctimeMs: stat.birthtimeMs || stat.ctimeMs,
+              mtimeMs: stat.mtimeMs
+            };
           }
         }
       }
@@ -1265,7 +1271,7 @@ app.get('/api/label-editor/list-folder', async (req, res) => {
     scanDirectory(fullPath, fullPath);
     images.sort(); // Sort alphabetically
 
-    res.json({ images, count: images.length });
+    res.json({ images, count: images.length, imageMeta });
 
   } catch (err) {
     res.status(500).json({ error: err.message });

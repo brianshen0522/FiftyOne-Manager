@@ -257,6 +257,21 @@
             color: #6c757d;
         }
 
+        .preview-sort-select {
+            padding: 4px 8px;
+            background: #1a1a1a;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+            color: #ffffff;
+            font-size: 12px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .preview-sort-select:focus {
+            border-color: #007bff;
+        }
+
         .image-preview {
             display: flex;
             gap: 8px;
@@ -660,11 +675,17 @@
             <div style="color: #aaa; font-size: 12px;" id="imagePreviewCount">
                 Images
             </div>
-            <input type="text"
-                   id="previewSearch"
-                   class="preview-search-input"
-                   placeholder="Search filename..."
-                   oninput="handlePreviewSearch()">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <select id="previewSort" class="preview-sort-select" onchange="handlePreviewSortChange()">
+                    <option value="name">Name</option>
+                    <option value="created">Created (newest)</option>
+                </select>
+                <input type="text"
+                       id="previewSearch"
+                       class="preview-search-input"
+                       placeholder="Search filename..."
+                       oninput="handlePreviewSearch()">
+            </div>
         </div>
         <div class="preview-progress">
             <div class="preview-progress-fill" id="previewProgressFill"></div>
@@ -714,10 +735,13 @@
         let basePath = '';
         let imageThumbnails = {}; // Store thumbnails for preview
         let currentLabelPath = ''; // Current label path for saving
+        let imageMetaByPath = {};
         let previewDragInitialized = false;
         let previewScrollInitialized = false;
         let previewRenderStart = 0;
         let previewRenderEnd = 0;
+        let previewSortMode = 'name';
+        let hasUnsavedChanges = false;
         let pendingPreviewCenter = null;
         let previewSearchQuery = ''; // Search query for preview filtering
         let previewDragState = {
@@ -779,6 +803,7 @@
 
                 const data = await response.json();
                 allImageList = data.images;
+                imageMetaByPath = data.imageMeta || {};
                 imageList = [...allImageList]; // Initialize filtered list
 
                 if (imageList.length === 0) {
@@ -786,6 +811,7 @@
                     return false;
                 }
 
+                applyPreviewSort(false);
                 showStatus(`Loaded ${imageList.length} images from folder`);
                 return true;
             } catch (err) {
@@ -807,6 +833,7 @@
                 return;
             }
 
+            applyPreviewSort(false);
             await loadClassNames();
             setupClassSelector();
             setupFilterUI();
@@ -1057,7 +1084,7 @@
 
                 if (!hasActiveFilter) {
                     // No filters active, show all
-                    imageList = [...allImageList];
+                    imageList = sortImageList(allImageList);
                     filterActive = false;
                     updateFilterStats();
                     currentImageIndex = 0;
@@ -1096,14 +1123,18 @@
                 console.log(`Filtered ${data.totalCount} images down to ${data.filteredCount}`);
 
                 // Update image list
+                const previousImage = imageList[currentImageIndex];
                 imageList = filteredImages;
+                imageList = sortImageList(imageList);
                 filterActive = true;
 
                 // Update stats
                 updateFilterStats();
 
                 // Reset to first image if current index is out of bounds
-                if (currentImageIndex >= imageList.length) {
+                if (previousImage && imageList.includes(previousImage)) {
+                    currentImageIndex = imageList.indexOf(previousImage);
+                } else if (currentImageIndex >= imageList.length) {
                     currentImageIndex = 0;
                 }
 
@@ -1204,7 +1235,7 @@
             updateSelectedClassChips();
 
             // Reset to all images
-            imageList = [...allImageList];
+            imageList = sortImageList(allImageList);
             filterActive = false;
             currentImageIndex = 0;
 
@@ -1225,6 +1256,49 @@
                 document.getElementById('previewBar').classList.add('show');
                 updateFilterStats();
             }
+            const sortSelect = document.getElementById('previewSort');
+            if (sortSelect) {
+                sortSelect.value = previewSortMode;
+            }
+        }
+
+        function sortImageList(list) {
+            const sorted = [...list];
+            if (previewSortMode === 'created') {
+                sorted.sort((a, b) => {
+                    const aMeta = imageMetaByPath[a];
+                    const bMeta = imageMetaByPath[b];
+                    const aTime = aMeta ? aMeta.ctimeMs : null;
+                    const bTime = bMeta ? bMeta.ctimeMs : null;
+                    if (aTime !== null && bTime !== null && aTime !== bTime) {
+                        return bTime - aTime;
+                    }
+                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                });
+                return sorted;
+            }
+
+            sorted.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+            return sorted;
+        }
+
+        function applyPreviewSort(keepSelection = true) {
+            const currentImage = imageList[currentImageIndex];
+            allImageList = sortImageList(allImageList);
+            imageList = sortImageList(imageList);
+            if (keepSelection && currentImage && imageList.includes(currentImage)) {
+                currentImageIndex = imageList.indexOf(currentImage);
+            } else if (currentImageIndex >= imageList.length) {
+                currentImageIndex = 0;
+            }
+        }
+
+        function handlePreviewSortChange() {
+            const select = document.getElementById('previewSort');
+            previewSortMode = select.value;
+            applyPreviewSort(true);
+            updateNavigationButtons();
+            updateImagePreview();
         }
 
         function handlePreviewSearch() {
@@ -1702,6 +1776,7 @@
             // If an annotation is selected, change its class
             if (selectedAnnotation !== null) {
                 annotations[selectedAnnotation].class = classIdx;
+                setUnsavedChanges(true);
                 updateUI();
                 draw();
             }
@@ -1755,6 +1830,7 @@
                 labelData = labelResult.labelContent || '';
                 annotations = parseLabelData(labelData);
                 defaultAnnotationType = annotations.some(ann => ann.type === 'obb') ? 'obb' : 'bbox';
+                setUnsavedChanges(false);
 
                 // Cache label info for filtering
                 const classes = [...new Set(annotations.map(ann => ann.class))];
@@ -1888,6 +1964,10 @@
                     y: center.y + dx * sinA + dy * cosA
                 };
             });
+        }
+
+        function setUnsavedChanges(value) {
+            hasUnsavedChanges = value;
         }
 
         function parseLabelData(content) {
@@ -2122,6 +2202,14 @@
                 updateCanvasDisplaySize();
                 draw();
             });
+
+            window.addEventListener('beforeunload', (event) => {
+                if (!hasUnsavedChanges) {
+                    return;
+                }
+                event.preventDefault();
+                event.returnValue = '';
+            });
         }
 
         function updateCanvasDisplaySize() {
@@ -2240,10 +2328,12 @@
             if (isRotating) {
                 isRotating = false;
                 rotateState = null;
+                setUnsavedChanges(true);
                 updateUI();
             } else if (isDragging) {
                 isDragging = false;
                 dragHandle = null;
+                setUnsavedChanges(true);
                 updateUI();
             } else if (isDrawing) {
                 const { x, y } = getCanvasCoordinates(e);
@@ -2284,6 +2374,7 @@
                         });
                     }
 
+                    setUnsavedChanges(true);
                     updateUI();
                     pendingSelection = null;
                 } else if (pendingSelection !== null) {
@@ -2395,6 +2486,7 @@
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass - 1 + CLASSES.length) % CLASSES.length;
                     annotations[selectedAnnotation].class = newClass;
+                    setUnsavedChanges(true);
                     updateUI();
                     updateClassSelector();
                     draw();
@@ -2410,6 +2502,7 @@
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass + 1) % CLASSES.length;
                     annotations[selectedAnnotation].class = newClass;
+                    setUnsavedChanges(true);
                     updateUI();
                     updateClassSelector();
                     draw();
@@ -2631,12 +2724,14 @@
         function deleteAnnotation(idx) {
             annotations.splice(idx, 1);
             selectedAnnotation = null;
+            setUnsavedChanges(true);
             updateUI();
             draw();
         }
 
         function changeAnnotationClass(idx, newClass) {
             annotations[idx].class = newClass;
+            setUnsavedChanges(true);
             updateUI();
             draw();
         }
@@ -2759,6 +2854,7 @@
                     classes: classes,
                     count: annotations.length
                 };
+                setUnsavedChanges(false);
 
             } catch (error) {
                 showError(error.message);
