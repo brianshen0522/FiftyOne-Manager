@@ -660,6 +660,7 @@
                     <ul>
                         <li>Select a class above</li>
                         <li>Click and drag to create box</li>
+                        <li>Polygon mode: click 4 points to create box</li>
                         <li>Click box to select/edit</li>
                         <li>Delete key to remove</li>
                         <li>Drag corners to resize</li>
@@ -747,6 +748,11 @@
         let hasUnsavedChanges = false;
         let pendingPreviewCenter = null;
         let previewSearchQuery = ''; // Search query for preview filtering
+        let isCreatingObb = false;
+        let obbCreatePoints = [];
+        let obbPreviewPoint = null;
+        let mouseCanvasPoint = null;
+        let showCrosshair = false;
         let previewDragState = {
             isDown: false,
             moved: false,
@@ -2062,8 +2068,7 @@
                 const color = getClassColor(ann.class);
 
                 if (ann.type === 'obb') {
-                    const ordered = orderPointsClockwiseFromTopLeft(ann.points);
-                    const points = ordered.map(p => ({
+                    const points = ann.points.map(p => ({
                         x: p.x * image.width,
                         y: p.y * image.height
                     }));
@@ -2178,6 +2183,45 @@
                 ctx.strokeRect(currentBox.x, currentBox.y, currentBox.w, currentBox.h);
                 ctx.setLineDash([]);
             }
+
+            if (isCreatingObb && obbCreatePoints.length > 0) {
+                const color = getClassColor(selectedClass);
+                const points = obbCreatePoints.map(p => ({
+                    x: p.x * image.width,
+                    y: p.y * image.height
+                }));
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2 / totalScale;
+                ctx.setLineDash([6 / totalScale, 6 / totalScale]);
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
+                if (obbPreviewPoint) {
+                    ctx.lineTo(obbPreviewPoint.x * image.width, obbPreviewPoint.y * image.height);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = color;
+                const handleSize = 8 / totalScale;
+                points.forEach((p) => {
+                    ctx.fillRect(p.x - handleSize / 2, p.y - handleSize / 2, handleSize, handleSize);
+                });
+            }
+
+            if (showCrosshair && mouseCanvasPoint) {
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(mouseCanvasPoint.x, 0);
+                ctx.lineTo(mouseCanvasPoint.x, canvas.height);
+                ctx.moveTo(0, mouseCanvasPoint.y);
+                ctx.lineTo(canvas.width, mouseCanvasPoint.y);
+                ctx.stroke();
+            }
         }
 
         function getCanvasPoint(e) {
@@ -2211,6 +2255,14 @@
             canvas.addEventListener('mousemove', handleMouseMove);
             canvas.addEventListener('mouseup', handleMouseUp);
             canvas.addEventListener('mouseleave', handleMouseUp);
+            canvas.addEventListener('mouseenter', () => {
+                showCrosshair = true;
+            });
+            canvas.addEventListener('mouseleave', () => {
+                showCrosshair = false;
+                mouseCanvasPoint = null;
+                draw();
+            });
             canvas.addEventListener('wheel', handleCanvasWheel, { passive: false });
             canvas.addEventListener('contextmenu', (event) => {
                 event.preventDefault();
@@ -2289,6 +2341,20 @@
                 }
             }
 
+            if (defaultAnnotationType === 'obb') {
+                const clickedIdx = getAnnotationAt(x, y);
+                if (clickedIdx !== null) {
+                    selectedAnnotation = clickedIdx;
+                    updateUI();
+                    updateClassSelector();
+                    draw();
+                    return;
+                }
+
+                addObbPoint(x, y);
+                return;
+            }
+
             // Check if clicking on an annotation
             const clickedIdx = getAnnotationAt(x, y);
             if (clickedIdx !== null) {
@@ -2315,11 +2381,13 @@
                 const point = getCanvasPoint(e);
                 viewOffsetX = panStart.offsetX + (point.x - panStart.x);
                 viewOffsetY = panStart.offsetY + (point.y - panStart.y);
+                mouseCanvasPoint = point;
                 draw();
                 return;
             }
 
             const { x, y } = getCanvasCoordinates(e);
+            mouseCanvasPoint = getCanvasPoint(e);
 
             if (isRotating && selectedAnnotation !== null && rotateState) {
                 const ann = annotations[selectedAnnotation];
@@ -2331,6 +2399,9 @@
             } else if (isDragging && selectedAnnotation !== null) {
                 const ann = annotations[selectedAnnotation];
                 resizeAnnotation(ann, dragHandle, x, y);
+                draw();
+            } else if (isCreatingObb) {
+                obbPreviewPoint = { x: x / image.width, y: y / image.height };
                 draw();
             } else if (isDrawing) {
                 currentBox.w = x - drawStart.x;
@@ -2497,6 +2568,13 @@
                 return;
             }
 
+            if (e.key === 'Escape' && isCreatingObb) {
+                e.preventDefault();
+                clearObbCreation();
+                draw();
+                return;
+            }
+
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
                 e.preventDefault();
                 if (e.shiftKey) {
@@ -2633,8 +2711,7 @@
             const handleSize = 16 / totalScale;
 
             if (ann.type === 'obb') {
-                const ordered = orderPointsClockwiseFromTopLeft(ann.points);
-                const points = ordered.map(p => ({
+                const points = ann.points.map(p => ({
                     x: p.x * image.width,
                     y: p.y * image.height
                 }));
@@ -2767,6 +2844,39 @@
             setUnsavedChanges(true);
             updateUI();
             draw();
+        }
+
+        function addObbPoint(x, y) {
+            if (!image) {
+                return;
+            }
+            const point = { x: x / image.width, y: y / image.height };
+            if (obbCreatePoints.length === 0) {
+                isCreatingObb = true;
+            }
+            obbCreatePoints.push(point);
+            obbPreviewPoint = null;
+
+            if (obbCreatePoints.length === 4) {
+                const prevState = captureState();
+                const ordered = orderPointsClockwiseFromTopLeft(obbCreatePoints);
+                annotations.push({
+                    type: 'obb',
+                    class: selectedClass,
+                    points: ordered
+                });
+                recordHistory(prevState);
+                setUnsavedChanges(true);
+                updateUI();
+                clearObbCreation();
+            }
+            draw();
+        }
+
+        function clearObbCreation() {
+            isCreatingObb = false;
+            obbCreatePoints = [];
+            obbPreviewPoint = null;
         }
 
         function updateUI() {
