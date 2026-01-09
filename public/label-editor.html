@@ -664,6 +664,7 @@
                         <li>Delete key to remove</li>
                         <li>Drag corners to resize</li>
                         <li><strong>← → or A D keys</strong> to switch images</li>
+                        <li><strong>Ctrl Z / Ctrl Shift Z</strong> to undo/redo</li>
                     </ul>
                 </div>
             </div>
@@ -756,6 +757,10 @@
             rafId: null,
             lastDeltaX: 0
         };
+        const HISTORY_LIMIT = 100;
+        let undoStack = [];
+        let redoStack = [];
+        let historySnapshot = null;
 
         // Filter support
         let labelCache = {}; // Cache label info for filtering: { imagePath: { classes: [0,1,2], count: 3 } }
@@ -1790,10 +1795,7 @@
         function selectClass(classIdx) {
             // If an annotation is selected, change its class
             if (selectedAnnotation !== null) {
-                annotations[selectedAnnotation].class = classIdx;
-                setUnsavedChanges(true);
-                updateUI();
-                draw();
+                changeAnnotationClass(selectedAnnotation, classIdx);
             }
 
             // Update selected class for new annotations
@@ -1846,6 +1848,9 @@
                 annotations = parseLabelData(labelData);
                 defaultAnnotationType = annotations.some(ann => ann.type === 'obb') ? 'obb' : 'bbox';
                 setUnsavedChanges(false);
+                undoStack = [];
+                redoStack = [];
+                historySnapshot = null;
 
                 // Cache label info for filtering
                 const classes = [...new Set(annotations.map(ann => ann.class))];
@@ -2267,6 +2272,7 @@
                 const ann = annotations[selectedAnnotation];
                 const handle = getHandleAt(ann, x, y);
                 if (handle) {
+                    historySnapshot = captureState();
                     if (handle.type === 'obb-rotate') {
                         isRotating = true;
                         const center = handle.center;
@@ -2343,11 +2349,15 @@
             if (isRotating) {
                 isRotating = false;
                 rotateState = null;
+                recordHistory(historySnapshot);
+                historySnapshot = null;
                 setUnsavedChanges(true);
                 updateUI();
             } else if (isDragging) {
                 isDragging = false;
                 dragHandle = null;
+                recordHistory(historySnapshot);
+                historySnapshot = null;
                 setUnsavedChanges(true);
                 updateUI();
             } else if (isDrawing) {
@@ -2358,6 +2368,7 @@
 
                 // Only create if box is big enough
                 if (w > 10 && h > 10) {
+                    const prevState = captureState();
                     const x1 = Math.min(drawStart.x, x);
                     const y1 = Math.min(drawStart.y, y);
 
@@ -2389,6 +2400,7 @@
                         });
                     }
 
+                    recordHistory(prevState);
                     setUnsavedChanges(true);
                     updateUI();
                     pendingSelection = null;
@@ -2485,6 +2497,16 @@
                 return;
             }
 
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    redoAction();
+                } else {
+                    undoAction();
+                }
+                return;
+            }
+
             // Delete annotation
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selectedAnnotation !== null) {
@@ -2500,11 +2522,7 @@
                     // Change class of selected annotation
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass - 1 + CLASSES.length) % CLASSES.length;
-                    annotations[selectedAnnotation].class = newClass;
-                    setUnsavedChanges(true);
-                    updateUI();
-                    updateClassSelector();
-                    draw();
+                    changeAnnotationClass(selectedAnnotation, newClass);
                 } else {
                     // Change selected class for new annotations
                     selectedClass = (selectedClass - 1 + CLASSES.length) % CLASSES.length;
@@ -2516,11 +2534,7 @@
                     // Change class of selected annotation
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass + 1) % CLASSES.length;
-                    annotations[selectedAnnotation].class = newClass;
-                    setUnsavedChanges(true);
-                    updateUI();
-                    updateClassSelector();
-                    draw();
+                    changeAnnotationClass(selectedAnnotation, newClass);
                 } else {
                     // Change selected class for new annotations
                     selectedClass = (selectedClass + 1) % CLASSES.length;
@@ -2737,7 +2751,9 @@
         }
 
         function deleteAnnotation(idx) {
+            const prevState = captureState();
             annotations.splice(idx, 1);
+            recordHistory(prevState);
             selectedAnnotation = null;
             setUnsavedChanges(true);
             updateUI();
@@ -2745,7 +2761,9 @@
         }
 
         function changeAnnotationClass(idx, newClass) {
+            const prevState = captureState();
             annotations[idx].class = newClass;
+            recordHistory(prevState);
             setUnsavedChanges(true);
             updateUI();
             draw();
@@ -2812,6 +2830,115 @@
 
             document.getElementById('annotationCount').textContent = annotations.length;
             updateClassSelector();
+        }
+
+        function cloneAnnotations(source) {
+            return source.map(ann => {
+                if (ann.type === 'obb') {
+                    return {
+                        type: 'obb',
+                        class: ann.class,
+                        points: ann.points.map(p => ({ x: p.x, y: p.y }))
+                    };
+                }
+                return {
+                    type: 'bbox',
+                    class: ann.class,
+                    x: ann.x,
+                    y: ann.y,
+                    w: ann.w,
+                    h: ann.h
+                };
+            });
+        }
+
+        function captureState() {
+            return {
+                annotations: cloneAnnotations(annotations),
+                selectedAnnotation,
+                selectedClass
+            };
+        }
+
+        function restoreState(state) {
+            annotations = cloneAnnotations(state.annotations);
+            selectedAnnotation = state.selectedAnnotation;
+            selectedClass = state.selectedClass;
+            if (selectedAnnotation !== null && selectedAnnotation >= annotations.length) {
+                selectedAnnotation = null;
+            }
+            setUnsavedChanges(true);
+            updateUI();
+            draw();
+        }
+
+        function annotationsEqual(a, b) {
+            if (a.length !== b.length) {
+                return false;
+            }
+            for (let i = 0; i < a.length; i++) {
+                const annA = a[i];
+                const annB = b[i];
+                if (annA.type !== annB.type || annA.class !== annB.class) {
+                    return false;
+                }
+                if (annA.type === 'obb') {
+                    if (annA.points.length !== annB.points.length) {
+                        return false;
+                    }
+                    for (let j = 0; j < annA.points.length; j++) {
+                        if (annA.points[j].x !== annB.points[j].x || annA.points[j].y !== annB.points[j].y) {
+                            return false;
+                        }
+                    }
+                } else {
+                    if (
+                        annA.x !== annB.x ||
+                        annA.y !== annB.y ||
+                        annA.w !== annB.w ||
+                        annA.h !== annB.h
+                    ) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function recordHistory(prevState) {
+            if (!prevState) {
+                return;
+            }
+            if (annotationsEqual(prevState.annotations, annotations)) {
+                return;
+            }
+            undoStack.push(prevState);
+            if (undoStack.length > HISTORY_LIMIT) {
+                undoStack.shift();
+            }
+            redoStack = [];
+        }
+
+        function undoAction() {
+            if (undoStack.length === 0) {
+                return;
+            }
+            const currentState = captureState();
+            const prevState = undoStack.pop();
+            redoStack.push(currentState);
+            restoreState(prevState);
+            showStatus('Undo');
+        }
+
+        function redoAction() {
+            if (redoStack.length === 0) {
+                return;
+            }
+            const currentState = captureState();
+            const nextState = redoStack.pop();
+            undoStack.push(currentState);
+            restoreState(nextState);
+            showStatus('Redo');
         }
 
         async function saveLabels(showMessage = true) {
