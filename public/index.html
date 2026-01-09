@@ -1360,10 +1360,12 @@
                         ${instance.status === 'online'
                             ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">Restart</button>
                                <button class="btn danger" onclick="stopInstance('${instance.name}')">Stop</button>
-                               <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? 'disabled title="Service down"' : ''}>Open</button>`
+                               <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? 'disabled title="Service down"' : ''}>Open</button>
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
                             : `<button class="btn success" onclick="startInstance('${instance.name}')">Start</button>
                                <button class="btn ghost" onclick="editInstance('${instance.name}')">Edit</button>
-                               <button class="btn danger" onclick="deleteInstance('${instance.name}')">Remove</button>`
+                               <button class="btn danger" onclick="deleteInstance('${instance.name}')">Remove</button>
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
                         }
                         <button class="btn ghost" onclick="showLogs('${instance.name}')">Logs</button>
                     </div>
@@ -1560,6 +1562,35 @@
 
         function openInstance(port) {
             window.open(`http://${window.location.hostname}:${port}`, '_blank');
+        }
+
+        function openLabelEditor(encodedDatasetPath) {
+            const datasetPath = decodeURIComponent(encodedDatasetPath || '');
+            if (!datasetPath) {
+                alert('Dataset path is missing.');
+                return;
+            }
+
+            const rawBasePath = config.datasetBasePath || '/data/datasets';
+            const basePath = rawBasePath.replace(/\/+$/, '');
+            const matchesBase = datasetPath === basePath || datasetPath.startsWith(`${basePath}/`);
+            if (!matchesBase) {
+                alert('Dataset path must be inside the configured base path.');
+                return;
+            }
+
+            const relativePath = datasetPath.slice(basePath.length).replace(/^\/+/, '');
+            if (!relativePath) {
+                alert('Dataset folder is required to open the label editor.');
+                return;
+            }
+
+            const normalizedRelative = relativePath.replace(/\/+$/, '');
+            const folderPath = normalizedRelative.endsWith('/images') || normalizedRelative === 'images'
+                ? normalizedRelative
+                : `${normalizedRelative}/images`;
+            const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}`;
+            window.open(editorUrl, '_blank');
         }
 
         function findSmallestAvailablePort() {
