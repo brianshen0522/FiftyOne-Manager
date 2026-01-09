@@ -695,6 +695,7 @@
                 <button id="startSelectedBtn" class="btn success" onclick="startSelectedInstances()" disabled>Start Selected</button>
                 <button id="stopSelectedBtn" class="btn danger" onclick="stopSelectedInstances()" disabled>Stop Selected</button>
                 <button id="removeSelectedBtn" class="btn danger" onclick="removeSelectedInstances()" disabled>Remove Selected</button>
+                <button class="btn secondary" onclick="openLabelEditorMain()">Label Editor</button>
                 <button class="btn ghost" onclick="showAddModal()">Add Instance</button>
             </div>
         </header>
@@ -1591,6 +1592,10 @@
                 : `${normalizedRelative}/images`;
             const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}`;
             window.open(editorUrl, '_blank');
+        }
+
+        function openLabelEditorMain() {
+            window.open(`${window.location.origin}/label-editor-main.html`, '_blank');
         }
 
         function findSmallestAvailablePort() {
