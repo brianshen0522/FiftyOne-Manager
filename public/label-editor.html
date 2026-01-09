@@ -677,8 +677,10 @@
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <select id="previewSort" class="preview-sort-select" onchange="handlePreviewSortChange()">
-                    <option value="name">Name</option>
-                    <option value="created">Created (newest)</option>
+                    <option value="name-asc">Name (A-Z)</option>
+                    <option value="name-desc">Name (Z-A)</option>
+                    <option value="created-desc">Created (newest)</option>
+                    <option value="created-asc">Created (oldest)</option>
                 </select>
                 <input type="text"
                        id="previewSearch"
@@ -740,7 +742,7 @@
         let previewScrollInitialized = false;
         let previewRenderStart = 0;
         let previewRenderEnd = 0;
-        let previewSortMode = 'name';
+        let previewSortMode = 'name-asc';
         let hasUnsavedChanges = false;
         let pendingPreviewCenter = null;
         let previewSearchQuery = ''; // Search query for preview filtering
@@ -1264,21 +1266,34 @@
 
         function sortImageList(list) {
             const sorted = [...list];
-            if (previewSortMode === 'created') {
-                sorted.sort((a, b) => {
-                    const aMeta = imageMetaByPath[a];
-                    const bMeta = imageMetaByPath[b];
-                    const aTime = aMeta ? aMeta.ctimeMs : null;
-                    const bTime = bMeta ? bMeta.ctimeMs : null;
-                    if (aTime !== null && bTime !== null && aTime !== bTime) {
-                        return bTime - aTime;
-                    }
-                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-                });
+            const nameCompare = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            const createdCompare = (a, b) => {
+                const aMeta = imageMetaByPath[a];
+                const bMeta = imageMetaByPath[b];
+                const aTime = aMeta ? aMeta.ctimeMs : null;
+                const bTime = bMeta ? bMeta.ctimeMs : null;
+                if (aTime !== null && bTime !== null && aTime !== bTime) {
+                    return aTime - bTime;
+                }
+                return nameCompare(a, b);
+            };
+
+            if (previewSortMode === 'created-desc') {
+                sorted.sort((a, b) => createdCompare(b, a));
                 return sorted;
             }
 
-            sorted.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+            if (previewSortMode === 'created-asc') {
+                sorted.sort((a, b) => createdCompare(a, b));
+                return sorted;
+            }
+
+            if (previewSortMode === 'name-desc') {
+                sorted.sort((a, b) => nameCompare(b, a));
+                return sorted;
+            }
+
+            sorted.sort((a, b) => nameCompare(a, b));
             return sorted;
         }
 
