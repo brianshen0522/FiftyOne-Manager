@@ -789,6 +789,7 @@
         const relativeLabel = urlParams.get('lbl');
         const folderParam = urlParams.get('folder');
         const startImageParam = urlParams.get('start');
+        let lastKnownImageParam = startImageParam || '';
 
         // Support multiple images (comma-separated)
         const imageListParam = urlParams.get('images');
@@ -856,7 +857,8 @@
             if (startImageParam && imageList.includes(startImageParam)) {
                 currentImageIndex = imageList.indexOf(startImageParam);
             }
-            applyPreviewSort(false);
+            await applyLastImageSelection();
+            applyPreviewSort(true);
             await loadClassNames();
             setupClassSelector();
             setupFilterUI();
@@ -1327,6 +1329,44 @@
             } else if (currentImageIndex >= imageList.length) {
                 currentImageIndex = 0;
             }
+        }
+
+        async function applyLastImageSelection() {
+            if (!folderParam || !basePath) {
+                return;
+            }
+            try {
+                const response = await fetch(`/api/label-editor/last-image?basePath=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderParam)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.lastImagePath) {
+                        lastKnownImageParam = data.lastImagePath;
+                    }
+                }
+            } catch (err) {
+                // Ignore fetch errors and fall back to start param.
+            }
+            if (lastKnownImageParam) {
+                const normalizedStart = normalizeStartImagePathForList(lastKnownImageParam);
+                if (normalizedStart && imageList.includes(normalizedStart)) {
+                    currentImageIndex = imageList.indexOf(normalizedStart);
+                }
+            }
+        }
+
+        function normalizeStartImagePathForList(imagePath) {
+            if (!imagePath) {
+                return '';
+            }
+            const normalizedFolder = folderParam.replace(/\/+$/, '');
+            if (imagePath.startsWith(`${normalizedFolder}/`)) {
+                return imagePath;
+            }
+            if (imagePath.startsWith('images/') && normalizedFolder.endsWith('/images') && normalizedFolder !== 'images') {
+                const datasetPrefix = normalizedFolder.replace(/\/images$/, '');
+                return `${datasetPrefix}/${imagePath}`;
+            }
+            return imagePath;
         }
 
         function handlePreviewSortChange() {

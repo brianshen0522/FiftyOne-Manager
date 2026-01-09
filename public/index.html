@@ -1572,7 +1572,7 @@
             window.open(`http://${window.location.hostname}:${port}`, '_blank');
         }
 
-        function openLabelEditor(encodedDatasetPath, encodedLastImagePath) {
+        async function openLabelEditor(encodedDatasetPath, encodedLastImagePath) {
             const datasetPath = decodeURIComponent(encodedDatasetPath || '');
             if (!datasetPath) {
                 alert('Dataset path is missing.');
@@ -1597,10 +1597,36 @@
             const folderPath = normalizedRelative.endsWith('/images') || normalizedRelative === 'images'
                 ? normalizedRelative
                 : `${normalizedRelative}/images`;
-            const lastImagePath = decodeURIComponent(encodedLastImagePath || '');
-            const startParam = lastImagePath ? `&start=${encodeURIComponent(lastImagePath)}` : '';
+            let lastImagePath = decodeURIComponent(encodedLastImagePath || '');
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/last-image?datasetPath=${encodeURIComponent(datasetPath)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.lastImagePath) {
+                        lastImagePath = data.lastImagePath;
+                    }
+                }
+            } catch (err) {
+                // Ignore fetch errors and fall back to cached data
+            }
+            const normalizedStart = normalizeStartImagePath(lastImagePath, folderPath);
+            const startParam = normalizedStart ? `&start=${encodeURIComponent(normalizedStart)}` : '';
             const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}`;
             window.open(editorUrl, '_blank');
+        }
+
+        function normalizeStartImagePath(lastImagePath, folderPath) {
+            if (!lastImagePath) {
+                return '';
+            }
+            if (lastImagePath.startsWith(`${folderPath}/`)) {
+                return lastImagePath;
+            }
+            if (lastImagePath.startsWith('images/') && folderPath.endsWith('/images') && folderPath !== 'images') {
+                const datasetPrefix = folderPath.replace(/\/images$/, '');
+                return `${datasetPrefix}/${lastImagePath}`;
+            }
+            return lastImagePath;
         }
 
         function openLabelEditorMain() {

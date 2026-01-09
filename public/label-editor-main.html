@@ -158,6 +158,7 @@
     <script>
         const API_BASE = window.location.origin;
         let instances = [];
+        let config = {};
 
         function setStatus(text) {
             const status = document.getElementById('statusText');
@@ -170,28 +171,56 @@
             return (datasetPath || '').replace(/\/+$/, '');
         }
 
-        function buildEditorUrl(datasetPath) {
+        function buildEditorUrl(datasetPath, lastImagePath) {
             const normalized = normalizeDatasetPath(datasetPath);
             if (!normalized) {
                 return '';
             }
-            let basePath = normalized;
-            let folderPath = 'images';
-            if (normalized.endsWith('/images')) {
-                basePath = normalized.slice(0, -'/images'.length);
-                folderPath = 'images';
-            }
-            return `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}`;
+            const basePath = config.datasetBasePath || '/data/datasets';
+            const relativePath = normalized.startsWith(basePath)
+                ? normalized.slice(basePath.length).replace(/^\/+/, '')
+                : '';
+            const folderPath = relativePath ? `${relativePath}/images` : 'images';
+            const normalizedStart = normalizeStartImagePath(lastImagePath, folderPath);
+            const startParam = normalizedStart ? `&start=${encodeURIComponent(normalizedStart)}` : '';
+            return `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}`;
         }
 
-        function openLabelEditor(datasetPath) {
+        async function openLabelEditor(datasetPath, lastImagePath) {
             const decodedPath = decodeURIComponent(datasetPath || '');
-            const url = buildEditorUrl(decodedPath);
+            const decodedLast = decodeURIComponent(lastImagePath || '');
+            let latestLast = decodedLast;
+            try {
+                const response = await fetch(`${API_BASE}/api/instances/last-image?datasetPath=${encodeURIComponent(decodedPath)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.lastImagePath) {
+                        latestLast = data.lastImagePath;
+                    }
+                }
+            } catch (err) {
+                // Ignore fetch errors and fall back to cached data
+            }
+            const url = buildEditorUrl(decodedPath, latestLast);
             if (!url) {
                 alert('Dataset path is missing.');
                 return;
             }
             window.open(url, '_blank');
+        }
+
+        function normalizeStartImagePath(lastImagePath, folderPath) {
+            if (!lastImagePath) {
+                return '';
+            }
+            if (lastImagePath.startsWith(`${folderPath}/`)) {
+                return lastImagePath;
+            }
+            if (lastImagePath.startsWith('images/') && folderPath.endsWith('/images') && folderPath !== 'images') {
+                const datasetPrefix = folderPath.replace(/\/images$/, '');
+                return `${datasetPrefix}/${lastImagePath}`;
+            }
+            return lastImagePath;
         }
 
         async function copyEditorUrl(url) {
@@ -242,7 +271,8 @@
             setStatus(`${instances.length} instance${instances.length === 1 ? '' : 's'} loaded.`);
             grid.innerHTML = instances.map(instance => {
                 const datasetPath = instance.datasetPath || '';
-                const editorUrl = buildEditorUrl(datasetPath);
+                const lastImagePath = instance.lastImagePath || '';
+                const editorUrl = buildEditorUrl(datasetPath, lastImagePath);
                 const isDisabled = !datasetPath;
                 return `
                     <div class="card">
@@ -255,7 +285,7 @@
                             <div><strong>Port:</strong> ${instance.port || '-'}</div>
                         </div>
                         <div class="actions">
-                            <button class="btn" onclick="openLabelEditor('${encodeURIComponent(datasetPath)}')" ${isDisabled ? 'disabled' : ''}>
+                            <button class="btn" onclick="openLabelEditor('${encodeURIComponent(datasetPath)}', '${encodeURIComponent(lastImagePath)}')" ${isDisabled ? 'disabled' : ''}>
                                 Open Label Editor
                             </button>
                             <button class="btn secondary" onclick="copyEditorUrl('${editorUrl}')" ${editorUrl ? '' : 'disabled'}>
@@ -284,7 +314,18 @@
             renderInstances();
         }
 
-        refreshInstances();
+        async function loadConfig() {
+            try {
+                const response = await fetch(`${API_BASE}/api/config`);
+                if (response.ok) {
+                    config = await response.json();
+                }
+            } catch (err) {
+                config = {};
+            }
+        }
+
+        loadConfig().then(refreshInstances);
     </script>
 </body>
 </html>

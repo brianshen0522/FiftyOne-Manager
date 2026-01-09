@@ -1131,6 +1131,57 @@ app.post('/api/label-editor/last-image', (req, res) => {
   }
 });
 
+app.get('/api/label-editor/last-image', (req, res) => {
+  try {
+    const { basePath, folder } = req.query;
+    if (!basePath) {
+      return res.status(400).json({ error: 'Missing basePath' });
+    }
+
+    const instances = loadInstances();
+    let instance = null;
+    const normalizedBase = path.resolve(basePath);
+
+    if (folder) {
+      const normalizedFolder = folder.replace(/\\/g, '/').replace(/\/+$/, '');
+      const datasetSuffix = normalizedFolder.replace(/\/images$/, '').replace(/^images$/, '');
+      const datasetRoot = datasetSuffix ? path.resolve(path.join(basePath, datasetSuffix)) : normalizedBase;
+      instance = instances.find(i => path.resolve(i.datasetPath) === datasetRoot) || null;
+    }
+
+    if (!instance) {
+      instance = instances.find(i => path.resolve(i.datasetPath) === normalizedBase) || null;
+    }
+
+    if (!instance) {
+      return res.status(404).json({ error: 'Instance not found' });
+    }
+
+    res.json({ lastImagePath: instance.lastImagePath || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/instances/last-image', (req, res) => {
+  try {
+    const { datasetPath } = req.query;
+    if (!datasetPath) {
+      return res.status(400).json({ error: 'Missing datasetPath' });
+    }
+    const instances = loadInstances();
+    const normalizedPath = path.resolve(datasetPath);
+    const instance = instances.find(i => path.resolve(i.datasetPath) === normalizedPath);
+    if (!instance) {
+      return res.status(404).json({ error: 'Instance not found' });
+    }
+    res.json({ lastImagePath: instance.lastImagePath || '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Get label metadata for images (for filtering)
 app.post('/api/label-editor/get-metadata', async (req, res) => {
   try {
