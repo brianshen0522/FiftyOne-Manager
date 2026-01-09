@@ -1805,6 +1805,7 @@
 
         async function previousImage() {
             if (currentImageIndex > 0) {
+                clearObbCreation();
                 await saveLabels(false); // Save current before switching
                 currentImageIndex--;
                 await loadImage();
@@ -1815,6 +1816,7 @@
 
         async function nextImage() {
             if (currentImageIndex < imageList.length - 1) {
+                clearObbCreation();
                 await saveLabels(false); // Save current before switching
                 currentImageIndex++;
                 await loadImage();
