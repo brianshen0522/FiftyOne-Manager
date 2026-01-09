@@ -98,7 +98,10 @@ function findInstanceForLabel({ basePath, fullLabelPath }) {
   const instances = loadInstances();
   if (basePath) {
     const normalizedBase = path.resolve(basePath);
-    return instances.find(i => path.resolve(i.datasetPath) === normalizedBase) || null;
+    const matched = instances.find(i => path.resolve(i.datasetPath) === normalizedBase) || null;
+    if (matched) {
+      return matched;
+    }
   }
   if (fullLabelPath) {
     const normalizedLabelPath = path.resolve(fullLabelPath);
@@ -182,6 +185,8 @@ function getPythonBin() {
   }
   return 'python3';
 }
+
+ 
 
 // Health check function to test if FiftyOne service is responding
 async function checkServiceHealth(port) {
@@ -1079,9 +1084,12 @@ app.post('/api/label-editor/save', async (req, res) => {
 
     const instance = findInstanceForLabel({ basePath, fullLabelPath });
     if (instance && instance.autoSync) {
-      const relativePath = relativeLabelPath
+      let relativePath = relativeLabelPath
         ? relativeLabelPath.replace(/\\/g, '/')
         : path.relative(instance.datasetPath, fullLabelPath).replace(/\\/g, '/');
+      if (relativePath && !relativePath.startsWith('labels/') && fullLabelPath) {
+        relativePath = path.relative(instance.datasetPath, fullLabelPath).replace(/\\/g, '/');
+      }
       const imagePath = resolveImagePath(instance, relativePath, fullLabelPath);
       if (imagePath) {
         triggerLabelSync(instance, imagePath, fullLabelPath);

@@ -753,6 +753,7 @@
         let obbPreviewPoint = null;
         let mouseCanvasPoint = null;
         let showCrosshair = false;
+        let lastMouseClient = null;
         let previewDragState = {
             isDown: false,
             moved: false,
@@ -2043,6 +2044,7 @@
             viewScale = 1;
             viewOffsetX = 0;
             viewOffsetY = 0;
+            updateMouseCanvasPointFromClient();
             draw();
         }
 
@@ -2257,6 +2259,8 @@
             canvas.addEventListener('mouseleave', handleMouseUp);
             canvas.addEventListener('mouseenter', () => {
                 showCrosshair = true;
+                updateMouseCanvasPointFromClient();
+                draw();
             });
             canvas.addEventListener('mouseleave', () => {
                 showCrosshair = false;
@@ -2268,10 +2272,14 @@
                 event.preventDefault();
             });
             document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('mousemove', (event) => {
+                lastMouseClient = { x: event.clientX, y: event.clientY };
+            });
 
             // Handle window resize to keep image filling the container
             window.addEventListener('resize', () => {
                 updateCanvasDisplaySize();
+                updateMouseCanvasPointFromClient();
                 draw();
             });
 
@@ -2298,6 +2306,28 @@
             const scaleX = canvas.width / image.width;
             const scaleY = canvas.height / image.height;
             baseScale = Math.min(scaleX, scaleY);
+        }
+
+        function updateMouseCanvasPointFromClient() {
+            if (!lastMouseClient) {
+                return;
+            }
+            const rect = canvas.getBoundingClientRect();
+            const inside = lastMouseClient.x >= rect.left &&
+                lastMouseClient.x <= rect.right &&
+                lastMouseClient.y >= rect.top &&
+                lastMouseClient.y <= rect.bottom;
+            showCrosshair = inside;
+            if (!inside) {
+                mouseCanvasPoint = null;
+                return;
+            }
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            mouseCanvasPoint = {
+                x: (lastMouseClient.x - rect.left) * scaleX,
+                y: (lastMouseClient.y - rect.top) * scaleY
+            };
         }
 
         function handleMouseDown(e) {
