@@ -1884,9 +1884,7 @@
                     return;
                 }
 
-                if (data.alreadyConverted) {
-                    alert(`Dataset is already in OBB format`);
-                } else {
+                if (!data.alreadyConverted) {
                     alert(`Converted ${data.convertedCount} files to OBB format`);
                 }
             } catch (err) {
