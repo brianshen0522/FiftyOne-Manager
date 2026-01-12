@@ -719,8 +719,11 @@
         let obbCreationMode = 'rectangle';
         let isRotating = false;
         let rotateState = null;
+        let isGroupRotating = false;
+        let groupRotateState = null;
         let selectedClass = 0;
         let selectedAnnotation = null;
+        let selectedAnnotations = []; // Multi-selection support (array of indices)
         let isDrawing = false;
         let drawStart = null;
         let currentBox = null;
@@ -759,6 +762,9 @@
         let isCreatingTwoPoint = false; // For 2-point rectangle creation
         let twoPointFirst = null; // First corner point
         let twoPointPreview = null; // Preview second corner
+        let isSelectingBox = false; // For drag selection box
+        let selectionBoxStart = null; // Selection box start point
+        let selectionBoxCurrent = null; // Selection box current point
         let mouseCanvasPoint = null;
         let showCrosshair = false;
         let lastMouseClient = null;
@@ -1074,8 +1080,14 @@
 
             instructions += `
                 <li>Click annotation to select/edit</li>
-                <li>Delete key to remove selected</li>
-                <li>Drag corners to resize</li>
+                <li><strong>Shift+Drag</strong> to select multiple with box</li>
+                <li><strong>Ctrl+Click</strong> to multi-select</li>
+                <li><strong>Ctrl+A</strong> to select all</li>
+                <li><strong>Drag group box</strong> to move all selected</li>
+                <li><strong>Drag group corners</strong> to resize all proportionally</li>
+                <li><strong>Delete</strong> key to remove selected</li>
+                <li><strong>Escape</strong> to clear selection</li>
+                <li>Drag corners to resize single annotation</li>
                 <li><strong>← → or A D keys</strong> to switch images</li>
                 <li><strong>Ctrl Z / Ctrl Shift Z</strong> to undo/redo</li>
             `;
@@ -2119,6 +2131,17 @@
             });
         }
 
+        function rotatePoint(point, center, angleDelta) {
+            const cosA = Math.cos(angleDelta);
+            const sinA = Math.sin(angleDelta);
+            const dx = point.x - center.x;
+            const dy = point.y - center.y;
+            return {
+                x: center.x + dx * cosA - dy * sinA,
+                y: center.y + dx * sinA + dy * cosA
+            };
+        }
+
         function setUnsavedChanges(value) {
             hasUnsavedChanges = value;
         }
@@ -2192,7 +2215,7 @@
 
             // Draw annotations (now in image coordinate space)
             annotations.forEach((ann, idx) => {
-                const isSelected = selectedAnnotation === idx;
+                const isSelected = selectedAnnotations.includes(idx);
                 const color = getClassColor(ann.class);
 
                 if (ann.type === 'obb') {
@@ -2303,6 +2326,56 @@
                 }
             });
 
+            // Draw group bounding box for multiple selections
+            if (selectedAnnotations.length > 1) {
+                const groupBox = getGroupBoundingBox();
+                if (groupBox) {
+                    ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)';
+                    ctx.lineWidth = 3 / totalScale;
+                    ctx.setLineDash([8 / totalScale, 4 / totalScale]);
+                    ctx.strokeRect(groupBox.x, groupBox.y, groupBox.w, groupBox.h);
+                    ctx.setLineDash([]);
+
+                    // Draw corner handles for group resize
+                    const handleSize = 10 / totalScale;
+                    ctx.fillStyle = 'rgba(0, 123, 255, 0.9)';
+                    const corners = [
+                        { x: groupBox.x, y: groupBox.y }, // top-left
+                        { x: groupBox.x + groupBox.w, y: groupBox.y }, // top-right
+                        { x: groupBox.x + groupBox.w, y: groupBox.y + groupBox.h }, // bottom-right
+                        { x: groupBox.x, y: groupBox.y + groupBox.h } // bottom-left
+                    ];
+                    corners.forEach(corner => {
+                        ctx.fillRect(corner.x - handleSize / 2, corner.y - handleSize / 2, handleSize, handleSize);
+                    });
+
+                    // Draw group rotate handle
+                    const groupRotateInfo = getGroupRotateHandleInfo(groupBox, totalScale);
+                    ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)';
+                    ctx.lineWidth = 2 / totalScale;
+                    ctx.beginPath();
+                    ctx.moveTo(groupRotateInfo.topMid.x, groupRotateInfo.topMid.y);
+                    ctx.lineTo(groupRotateInfo.handle.x, groupRotateInfo.handle.y);
+                    ctx.stroke();
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(groupRotateInfo.handle.x, groupRotateInfo.handle.y, 6 / totalScale, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Draw label
+                    ctx.fillStyle = 'rgba(0, 123, 255, 0.9)';
+                    ctx.font = `${14 / totalScale}px monospace`;
+                    const label = `${selectedAnnotations.length} selected`;
+                    const textWidth = ctx.measureText(label).width;
+                    const labelHeight = 20 / totalScale;
+                    const labelPadding = 8 / totalScale;
+                    ctx.fillRect(groupBox.x, groupBox.y - labelHeight, textWidth + labelPadding, labelHeight);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(label, groupBox.x + 4 / totalScale, groupBox.y - 6 / totalScale);
+                }
+            }
+
             // Draw current box being drawn
             if (isDrawing && drawStart && currentBox) {
                 ctx.strokeStyle = getClassColor(selectedClass);
@@ -2359,6 +2432,24 @@
                 ctx.fillStyle = color;
                 const markerSize = 8 / totalScale;
                 ctx.fillRect(twoPointFirst.x - markerSize / 2, twoPointFirst.y - markerSize / 2, markerSize, markerSize);
+            }
+
+            // Draw selection box
+            if (isSelectingBox && selectionBoxStart && selectionBoxCurrent) {
+                const x1 = Math.min(selectionBoxStart.x, selectionBoxCurrent.x);
+                const y1 = Math.min(selectionBoxStart.y, selectionBoxCurrent.y);
+                const x2 = Math.max(selectionBoxStart.x, selectionBoxCurrent.x);
+                const y2 = Math.max(selectionBoxStart.y, selectionBoxCurrent.y);
+                const w = x2 - x1;
+                const h = y2 - y1;
+
+                ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)';
+                ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
+                ctx.lineWidth = 2 / totalScale;
+                ctx.setLineDash([6 / totalScale, 6 / totalScale]);
+                ctx.fillRect(x1, y1, w, h);
+                ctx.strokeRect(x1, y1, w, h);
+                ctx.setLineDash([]);
             }
 
             if (showCrosshair && mouseCanvasPoint) {
@@ -2498,7 +2589,7 @@
             const { x, y } = getCanvasCoordinates(e);
 
             // Check if clicking on a handle
-            if (selectedAnnotation !== null) {
+            if (selectedAnnotation !== null && selectedAnnotations.length <= 1) {
                 const ann = annotations[selectedAnnotation];
                 const handle = getHandleAt(ann, x, y);
                 if (handle) {
@@ -2575,10 +2666,91 @@
                 return;
             }
 
+            // Handle group operations for multiple selections
+            if (selectedAnnotations.length > 1) {
+                const groupBox = getGroupBoundingBox();
+                if (groupBox) {
+                    // Check if clicking on group box handles or inside group box
+                    const handle = getGroupHandleAt(x, y, groupBox);
+                    if (handle) {
+                        if (handle.type === 'rotate') {
+                            historySnapshot = captureState();
+                            isGroupRotating = true;
+                            const center = handle.center;
+                            groupRotateState = {
+                                center,
+                                startAngle: Math.atan2(y - center.y, x - center.x),
+                                annotations: selectedAnnotations.map(idx => {
+                                    const ann = annotations[idx];
+                                    if (ann.type === 'obb') {
+                                        return { type: 'obb', points: ann.points.map(p => ({ ...p })) };
+                                    }
+                                    return { type: 'bbox', x: ann.x, y: ann.y, w: ann.w, h: ann.h };
+                                })
+                            };
+                            return;
+                        }
+
+                        // Start group resize
+                        isDragging = true;
+                        dragHandle = handle.name;
+                        historySnapshot = captureState();
+                        moveStart = {
+                            x,
+                            y,
+                            groupBox: { ...groupBox },
+                            annotations: selectedAnnotations.map(idx => {
+                                const ann = annotations[idx];
+                                if (ann.type === 'obb') {
+                                    return { ...ann, points: ann.points.map(p => ({ ...p })) };
+                                } else {
+                                    return { ...ann };
+                                }
+                            })
+                        };
+                        return;
+                    } else if (isPointInRect(x, y, groupBox)) {
+                        // Start group move
+                        historySnapshot = captureState();
+                        isMoving = true;
+                        moveMoved = false;
+                        moveStart = {
+                            x,
+                            y,
+                            groupBox: { ...groupBox },
+                            annotations: selectedAnnotations.map(idx => ({ ...annotations[idx] }))
+                        };
+                        return;
+                    }
+                }
+            }
+
             const clickedIdx = getAnnotationAt(x, y);
             if (clickedIdx !== null) {
                 clearAllCreation();
+
+                // Multi-selection with Ctrl/Cmd key
+                if (e.ctrlKey || e.metaKey) {
+                    // Toggle selection
+                    const idx = selectedAnnotations.indexOf(clickedIdx);
+                    if (idx === -1) {
+                        // Add to selection
+                        selectedAnnotations.push(clickedIdx);
+                        selectedAnnotation = clickedIdx; // Keep track of last selected
+                    } else {
+                        // Remove from selection
+                        selectedAnnotations.splice(idx, 1);
+                        selectedAnnotation = selectedAnnotations.length > 0 ? selectedAnnotations[selectedAnnotations.length - 1] : null;
+                    }
+                    updateUI();
+                    updateClassSelector();
+                    draw();
+                    return;
+                }
+
+                // Single selection (normal click)
                 selectedAnnotation = clickedIdx;
+                selectedAnnotations = [clickedIdx];
                 updateUI();
                 updateClassSelector();
                 historySnapshot = captureState();
@@ -2599,8 +2771,17 @@
                 return;
             }
 
+            // Start selection box with Shift key (drag to select multiple)
+            if (e.shiftKey) {
+                isSelectingBox = true;
+                selectionBoxStart = { x, y };
+                selectionBoxCurrent = { x, y };
+                return;
+            }
+
             // Start drawing new annotation (bbox or OBB rectangle mode)
             selectedAnnotation = null;
+            selectedAnnotations = [];
             lastHitIndices = [];
             lastHitPoint = null;
             isDrawing = true;
@@ -2622,36 +2803,88 @@
             const { x, y } = getCanvasCoordinates(e);
             mouseCanvasPoint = getCanvasPoint(e);
 
-            if (isRotating && selectedAnnotation !== null && rotateState) {
+            if (isGroupRotating && groupRotateState) {
+                const center = groupRotateState.center;
+                const angle = Math.atan2(y - center.y, x - center.x);
+                const delta = angle - groupRotateState.startAngle;
+                const centerNorm = { x: center.x / image.width, y: center.y / image.height };
+
+                selectedAnnotations.forEach((idx, i) => {
+                    const ann = annotations[idx];
+                    const original = groupRotateState.annotations[i];
+                    if (ann.type === 'obb' && original.type === 'obb') {
+                        ann.points = rotatePoints(original.points, centerNorm, delta);
+                    } else if (original.type === 'bbox') {
+                        const rotatedCenter = rotatePoint({ x: original.x, y: original.y }, centerNorm, delta);
+                        ann.x = rotatedCenter.x;
+                        ann.y = rotatedCenter.y;
+                        ann.w = original.w;
+                        ann.h = original.h;
+                    }
+                });
+                draw();
+            } else if (isRotating && selectedAnnotation !== null && rotateState) {
                 const ann = annotations[selectedAnnotation];
                 const angle = Math.atan2(y - rotateState.center.y, x - rotateState.center.x);
                 const delta = angle - rotateState.startAngle;
                 const centerNorm = { x: rotateState.center.x / image.width, y: rotateState.center.y / image.height };
                 ann.points = rotatePoints(rotateState.startPoints, centerNorm, delta);
                 draw();
-            } else if (isDragging && selectedAnnotation !== null) {
-                const ann = annotations[selectedAnnotation];
-                resizeAnnotation(ann, dragHandle, x, y);
+            } else if (isDragging && dragHandle) {
+                if (selectedAnnotations.length > 1 && moveStart && moveStart.groupBox) {
+                    // Group resize
+                    resizeGroup(moveStart.groupBox, dragHandle, x, y);
+                } else if (selectedAnnotation !== null) {
+                    // Single annotation resize
+                    const ann = annotations[selectedAnnotation];
+                    resizeAnnotation(ann, dragHandle, x, y);
+                }
                 draw();
-            } else if (isMoving && selectedAnnotation !== null && moveStart) {
+            } else if (isMoving && moveStart) {
                 const dx = x - moveStart.x;
                 const dy = y - moveStart.y;
-                const deltaX = dx / image.width;
-                const deltaY = dy / image.height;
                 moveMoved = moveMoved || Math.abs(dx) > 1 || Math.abs(dy) > 1;
-                const ann = annotations[selectedAnnotation];
-                if (ann.type === 'obb') {
-                    ann.points = moveStart.ann.points.map(p => ({
-                        x: p.x + deltaX,
-                        y: p.y + deltaY
-                    }));
-                } else {
-                    ann.x = moveStart.ann.x + deltaX;
-                    ann.y = moveStart.ann.y + deltaY;
+
+                if (selectedAnnotations.length > 1 && moveStart.groupBox) {
+                    // Group move - move all selected annotations
+                    const deltaX = dx / image.width;
+                    const deltaY = dy / image.height;
+
+                    selectedAnnotations.forEach((idx, i) => {
+                        const ann = annotations[idx];
+                        const original = moveStart.annotations[i];
+
+                        if (ann.type === 'obb') {
+                            ann.points = original.points.map(p => ({
+                                x: p.x + deltaX,
+                                y: p.y + deltaY
+                            }));
+                        } else {
+                            ann.x = original.x + deltaX;
+                            ann.y = original.y + deltaY;
+                        }
+                    });
+                } else if (selectedAnnotation !== null) {
+                    // Single annotation move
+                    const deltaX = dx / image.width;
+                    const deltaY = dy / image.height;
+                    const ann = annotations[selectedAnnotation];
+                    if (ann.type === 'obb') {
+                        ann.points = moveStart.ann.points.map(p => ({
+                            x: p.x + deltaX,
+                            y: p.y + deltaY
+                        }));
+                    } else {
+                        ann.x = moveStart.ann.x + deltaX;
+                        ann.y = moveStart.ann.y + deltaY;
+                    }
                 }
                 draw();
             } else if (isCreatingObb) {
                 obbPreviewPoint = { x: x / image.width, y: y / image.height };
+                draw();
+            } else if (isSelectingBox && selectionBoxStart) {
+                selectionBoxCurrent = { x, y };
                 draw();
             } else if (isCreatingTwoPoint) {
                 twoPointPreview = { x, y };
@@ -2674,7 +2907,51 @@
 
             const { x, y } = getCanvasCoordinates(e);
 
-            if (isRotating) {
+            if (isSelectingBox && selectionBoxStart) {
+                // Complete selection box
+                const x1 = Math.min(selectionBoxStart.x, x);
+                const y1 = Math.min(selectionBoxStart.y, y);
+                const x2 = Math.max(selectionBoxStart.x, x);
+                const y2 = Math.max(selectionBoxStart.y, y);
+
+                // Find all annotations inside the selection box
+                const selectedIndices = [];
+                annotations.forEach((ann, idx) => {
+                    if (isAnnotationInBox(ann, x1, y1, x2, y2)) {
+                        selectedIndices.push(idx);
+                    }
+                });
+
+                // Update selection
+                if (e.ctrlKey || e.metaKey) {
+                    // Add to existing selection
+                    selectedIndices.forEach(idx => {
+                        if (!selectedAnnotations.includes(idx)) {
+                            selectedAnnotations.push(idx);
+                        }
+                    });
+                } else {
+                    // Replace selection
+                    selectedAnnotations = selectedIndices;
+                }
+
+                selectedAnnotation = selectedAnnotations.length > 0 ? selectedAnnotations[selectedAnnotations.length - 1] : null;
+                isSelectingBox = false;
+                selectionBoxStart = null;
+                selectionBoxCurrent = null;
+                updateUI();
+                draw();
+                return;
+            }
+
+            if (isGroupRotating) {
+                isGroupRotating = false;
+                groupRotateState = null;
+                recordHistory(historySnapshot);
+                historySnapshot = null;
+                setUnsavedChanges(true);
+                updateUI();
+            } else if (isRotating) {
                 isRotating = false;
                 rotateState = null;
                 recordHistory(historySnapshot);
@@ -2866,12 +3143,34 @@
             }
 
             if (e.key === 'Escape') {
-                if (isCreatingObb || isCreatingTwoPoint) {
+                if (isCreatingObb || isCreatingTwoPoint || isSelectingBox) {
                     e.preventDefault();
                     clearAllCreation();
+                    isSelectingBox = false;
+                    selectionBoxStart = null;
+                    selectionBoxCurrent = null;
                     draw();
                     return;
                 }
+                // Clear selection if annotations are selected
+                if (selectedAnnotations.length > 0) {
+                    e.preventDefault();
+                    selectedAnnotation = null;
+                    selectedAnnotations = [];
+                    updateUI();
+                    draw();
+                    return;
+                }
+            }
+
+            // Select all annotations
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+                e.preventDefault();
+                selectedAnnotations = annotations.map((_, idx) => idx);
+                selectedAnnotation = selectedAnnotations.length > 0 ? selectedAnnotations[selectedAnnotations.length - 1] : null;
+                updateUI();
+                draw();
+                return;
             }
 
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -2884,11 +3183,11 @@
                 return;
             }
 
-            // Delete annotation
+            // Delete annotation(s)
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (selectedAnnotation !== null) {
+                if (selectedAnnotations.length > 0) {
                     e.preventDefault();
-                    deleteAnnotation(selectedAnnotation);
+                    deleteSelectedAnnotations();
                 }
             }
 
@@ -3131,9 +3430,207 @@
             annotations.splice(idx, 1);
             recordHistory(prevState);
             selectedAnnotation = null;
+            selectedAnnotations = [];
             setUnsavedChanges(true);
             updateUI();
             draw();
+        }
+
+        function deleteSelectedAnnotations() {
+            if (selectedAnnotations.length === 0) return;
+
+            const prevState = captureState();
+            // Sort indices in descending order to delete from end to start
+            // This prevents index shifting issues
+            const sortedIndices = [...selectedAnnotations].sort((a, b) => b - a);
+
+            sortedIndices.forEach(idx => {
+                annotations.splice(idx, 1);
+            });
+
+            recordHistory(prevState);
+            selectedAnnotation = null;
+            selectedAnnotations = [];
+            setUnsavedChanges(true);
+            updateUI();
+            draw();
+        }
+
+        function isAnnotationInBox(ann, x1, y1, x2, y2) {
+            if (!image) return false;
+
+            if (ann.type === 'obb') {
+                // Check if any point of the OBB is inside the box
+                return ann.points.some(p => {
+                    const px = p.x * image.width;
+                    const py = p.y * image.height;
+                    return px >= x1 && px <= x2 && py >= y1 && py <= y2;
+                });
+            } else {
+                // Bbox - check if center is inside the box
+                const centerX = ann.x * image.width;
+                const centerY = ann.y * image.height;
+                return centerX >= x1 && centerX <= x2 && centerY >= y1 && centerY <= y2;
+            }
+        }
+
+        function getGroupBoundingBox() {
+            if (!image || selectedAnnotations.length === 0) return null;
+
+            let minX = Infinity, minY = Infinity;
+            let maxX = -Infinity, maxY = -Infinity;
+
+            selectedAnnotations.forEach(idx => {
+                const ann = annotations[idx];
+                if (ann.type === 'obb') {
+                    ann.points.forEach(p => {
+                        const px = p.x * image.width;
+                        const py = p.y * image.height;
+                        minX = Math.min(minX, px);
+                        minY = Math.min(minY, py);
+                        maxX = Math.max(maxX, px);
+                        maxY = Math.max(maxY, py);
+                    });
+                } else {
+                    const halfW = (ann.w * image.width) / 2;
+                    const halfH = (ann.h * image.height) / 2;
+                    const centerX = ann.x * image.width;
+                    const centerY = ann.y * image.height;
+                    minX = Math.min(minX, centerX - halfW);
+                    minY = Math.min(minY, centerY - halfH);
+                    maxX = Math.max(maxX, centerX + halfW);
+                    maxY = Math.max(maxY, centerY + halfH);
+                }
+            });
+
+            return {
+                x: minX,
+                y: minY,
+                w: maxX - minX,
+                h: maxY - minY
+            };
+        }
+
+        function getGroupRotateHandleInfo(groupBox, totalScale) {
+            const topMid = {
+                x: groupBox.x + groupBox.w / 2,
+                y: groupBox.y
+            };
+            const handleOffset = 24 / totalScale;
+            return {
+                topMid,
+                handle: {
+                    x: topMid.x,
+                    y: topMid.y - handleOffset
+                }
+            };
+        }
+
+        function getGroupHandleAt(mouseX, mouseY, groupBox) {
+            const totalScale = baseScale * viewScale;
+            const handleSize = 10 / totalScale;
+            const rotateInfo = getGroupRotateHandleInfo(groupBox, totalScale);
+            if (Math.hypot(mouseX - rotateInfo.handle.x, mouseY - rotateInfo.handle.y) <= handleSize) {
+                return {
+                    type: 'rotate',
+                    center: {
+                        x: groupBox.x + groupBox.w / 2,
+                        y: groupBox.y + groupBox.h / 2
+                    }
+                };
+            }
+            const corners = [
+                { x: groupBox.x, y: groupBox.y, name: 'tl' },
+                { x: groupBox.x + groupBox.w, y: groupBox.y, name: 'tr' },
+                { x: groupBox.x + groupBox.w, y: groupBox.y + groupBox.h, name: 'br' },
+                { x: groupBox.x, y: groupBox.y + groupBox.h, name: 'bl' }
+            ];
+
+            for (const corner of corners) {
+                if (Math.abs(mouseX - corner.x) <= handleSize && Math.abs(mouseY - corner.y) <= handleSize) {
+                    return { type: 'resize', name: corner.name };
+                }
+            }
+            return null;
+        }
+
+        function isPointInRect(x, y, rect) {
+            return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+        }
+
+        function resizeGroup(originalGroupBox, handle, mouseX, mouseY) {
+            if (!moveStart || !moveStart.annotations) return;
+
+            const origBox = originalGroupBox;
+            let newX = origBox.x;
+            let newY = origBox.y;
+            let newW = origBox.w;
+            let newH = origBox.h;
+
+            // Calculate new dimensions based on handle
+            switch (handle) {
+                case 'tl':
+                    newX = mouseX;
+                    newY = mouseY;
+                    newW = origBox.x + origBox.w - mouseX;
+                    newH = origBox.y + origBox.h - mouseY;
+                    break;
+                case 'tr':
+                    newY = mouseY;
+                    newW = mouseX - origBox.x;
+                    newH = origBox.y + origBox.h - mouseY;
+                    break;
+                case 'br':
+                    newW = mouseX - origBox.x;
+                    newH = mouseY - origBox.y;
+                    break;
+                case 'bl':
+                    newX = mouseX;
+                    newW = origBox.x + origBox.w - mouseX;
+                    newH = mouseY - origBox.y;
+                    break;
+            }
+
+            // Prevent negative dimensions
+            if (newW < 10 || newH < 10) return;
+
+            // Calculate scale factors
+            const scaleX = newW / origBox.w;
+            const scaleY = newH / origBox.h;
+
+            // Apply transformation to all selected annotations
+            selectedAnnotations.forEach((idx, i) => {
+                const ann = annotations[idx];
+                const original = moveStart.annotations[i];
+
+                if (ann.type === 'obb') {
+                    ann.points = original.points.map(p => {
+                        const px = p.x * image.width;
+                        const py = p.y * image.height;
+                        // Transform relative to original group box
+                        const relX = (px - origBox.x) / origBox.w;
+                        const relY = (py - origBox.y) / origBox.h;
+                        return {
+                            x: (newX + relX * newW) / image.width,
+                            y: (newY + relY * newH) / image.height
+                        };
+                    });
+                } else {
+                    const cx = original.x * image.width;
+                    const cy = original.y * image.height;
+                    const w = original.w * image.width;
+                    const h = original.h * image.height;
+
+                    // Transform center position
+                    const relX = (cx - origBox.x) / origBox.w;
+                    const relY = (cy - origBox.y) / origBox.h;
+
+                    ann.x = (newX + relX * newW) / image.width;
+                    ann.y = (newY + relY * newH) / image.height;
+                    ann.w = (w * scaleX) / image.width;
+                    ann.h = (h * scaleY) / image.height;
+                }
+            });
         }
 
         function changeAnnotationClass(idx, newClass) {
@@ -3196,7 +3693,7 @@
             annotations.forEach((ann, idx) => {
                 const item = document.createElement('div');
                 item.className = 'annotation-item';
-                if (selectedAnnotation === idx) {
+                if (selectedAnnotations.includes(idx)) {
                     item.classList.add('selected');
                 }
 
@@ -3238,8 +3735,22 @@
                 item.appendChild(info);
                 item.appendChild(actions);
 
-                item.onclick = () => {
-                    selectedAnnotation = idx;
+                item.onclick = (e) => {
+                    // Multi-selection with Ctrl/Cmd key
+                    if (e.ctrlKey || e.metaKey) {
+                        const selIdx = selectedAnnotations.indexOf(idx);
+                        if (selIdx === -1) {
+                            selectedAnnotations.push(idx);
+                            selectedAnnotation = idx;
+                        } else {
+                            selectedAnnotations.splice(selIdx, 1);
+                            selectedAnnotation = selectedAnnotations.length > 0 ? selectedAnnotations[selectedAnnotations.length - 1] : null;
+                        }
+                    } else {
+                        // Single selection
+                        selectedAnnotation = idx;
+                        selectedAnnotations = [idx];
+                    }
                     updateUI();
                     updateClassSelector();
                     draw();
@@ -3276,6 +3787,7 @@
             return {
                 annotations: cloneAnnotations(annotations),
                 selectedAnnotation,
+                selectedAnnotations: [...selectedAnnotations],
                 selectedClass
             };
         }
@@ -3283,10 +3795,14 @@
         function restoreState(state) {
             annotations = cloneAnnotations(state.annotations);
             selectedAnnotation = state.selectedAnnotation;
+            selectedAnnotations = state.selectedAnnotations ? [...state.selectedAnnotations] : [];
             selectedClass = state.selectedClass;
             if (selectedAnnotation !== null && selectedAnnotation >= annotations.length) {
                 selectedAnnotation = null;
+                selectedAnnotations = [];
             }
+            // Filter out invalid indices from selectedAnnotations
+            selectedAnnotations = selectedAnnotations.filter(idx => idx < annotations.length);
             setUnsavedChanges(true);
             updateUI();
             draw();
