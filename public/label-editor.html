@@ -503,6 +503,16 @@
             font-size: 12px;
         }
 
+        .line-width-control {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .line-width-control input[type="range"] {
+            width: 100%;
+        }
+
         .filter-stats {
             font-size: 12px;
             color: #aaa;
@@ -652,6 +662,14 @@
             </div>
 
             <div class="sidebar-section">
+                <h2>Display</h2>
+                <div class="line-width-control">
+                    <label class="filter-label" for="lineWidthScale">Line Width <span id="lineWidthScaleValue">66%</span></label>
+                    <input type="range" id="lineWidthScale" min="0.3" max="1.5" step="0.05" value="0.66" oninput="setLineWidthScale(this.value)">
+                </div>
+            </div>
+
+            <div class="sidebar-section">
                 <h2>Select Class <span style="font-size: 12px; color: #aaa;">(Click to change selected)</span></h2>
                 <div class="class-selector" id="classSelector"></div>
             </div>
@@ -707,6 +725,7 @@
         const BASE_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#E74C3C'];
         let CLASSES = [...DEFAULT_CLASSES];
         const LABEL_CLIPBOARD_KEY = 'label_editor_clipboard';
+        const LINE_WIDTH_SCALE_DEFAULT = 2 / 3;
 
         // State
         let image = null;
@@ -792,6 +811,7 @@
         let labelCache = {}; // Cache label info for filtering: { imagePath: { classes: [0,1,2], count: 3 } }
         let filterActive = false;
         let filterDebounceTimer = null;
+        let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
 
         // Canvas
         const canvas = document.getElementById('canvas');
@@ -886,6 +906,7 @@
             await applyLastImageSelection();
             applyPreviewSort(true);
             await loadClassNames();
+            loadLineWidthScale();
             setupClassSelector();
             setupFilterUI();
             setupEventListeners();
@@ -2221,6 +2242,42 @@
             return { x: above.x, y: Math.max(0, above.y) };
         }
 
+        function scaledLineWidth(baseWidth, totalScale) {
+            return (baseWidth / totalScale) * lineWidthScale;
+        }
+
+        function loadLineWidthScale() {
+            const saved = localStorage.getItem('label_editor_line_width_scale');
+            if (saved) {
+                const value = parseFloat(saved);
+                if (!Number.isNaN(value) && value > 0) {
+                    lineWidthScale = value;
+                }
+            }
+            const slider = document.getElementById('lineWidthScale');
+            const label = document.getElementById('lineWidthScaleValue');
+            if (slider) {
+                slider.value = lineWidthScale.toFixed(2);
+            }
+            if (label) {
+                label.textContent = `${Math.round(lineWidthScale * 100)}%`;
+            }
+        }
+
+        function setLineWidthScale(value) {
+            const parsed = parseFloat(value);
+            if (Number.isNaN(parsed) || parsed <= 0) {
+                return;
+            }
+            lineWidthScale = parsed;
+            localStorage.setItem('label_editor_line_width_scale', String(parsed));
+            const label = document.getElementById('lineWidthScaleValue');
+            if (label) {
+                label.textContent = `${Math.round(lineWidthScale * 100)}%`;
+            }
+            draw();
+        }
+
         function setUnsavedChanges(value) {
             hasUnsavedChanges = value;
         }
@@ -2304,7 +2361,7 @@
                     }));
 
                     ctx.strokeStyle = color;
-                    ctx.lineWidth = (isSelected ? 3 : 2) / totalScale;
+                    ctx.lineWidth = scaledLineWidth(isSelected ? 3 : 2, totalScale);
                     ctx.beginPath();
                     ctx.moveTo(points[0].x, points[0].y);
                     for (let i = 1; i < points.length; i++) {
@@ -2362,7 +2419,7 @@
                         };
 
                         ctx.strokeStyle = color;
-                        ctx.lineWidth = 2 / totalScale;
+                        ctx.lineWidth = scaledLineWidth(2, totalScale);
                         ctx.beginPath();
                         ctx.moveTo(topMid.x, topMid.y);
                         ctx.lineTo(rotHandle.x, rotHandle.y);
@@ -2382,7 +2439,7 @@
 
                     // Draw box (scale line width inversely to keep constant visual size)
                     ctx.strokeStyle = color;
-                    ctx.lineWidth = (isSelected ? 3 : 2) / totalScale;
+                    ctx.lineWidth = scaledLineWidth(isSelected ? 3 : 2, totalScale);
                     ctx.strokeRect(x, y, w, h);
 
                     // Draw label
@@ -2414,7 +2471,7 @@
                 const groupBox = getGroupBoundingBox();
                 if (groupBox) {
                     ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)';
-                    ctx.lineWidth = 3 / totalScale;
+                    ctx.lineWidth = scaledLineWidth(3, totalScale);
                     ctx.setLineDash([8 / totalScale, 4 / totalScale]);
                     ctx.strokeRect(groupBox.x, groupBox.y, groupBox.w, groupBox.h);
                     ctx.setLineDash([]);
@@ -2435,7 +2492,7 @@
                     // Draw group rotate handle
                     const groupRotateInfo = getGroupRotateHandleInfo(groupBox, totalScale);
                     ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)';
-                    ctx.lineWidth = 2 / totalScale;
+                    ctx.lineWidth = scaledLineWidth(2, totalScale);
                     ctx.beginPath();
                     ctx.moveTo(groupRotateInfo.topMid.x, groupRotateInfo.topMid.y);
                     ctx.lineTo(groupRotateInfo.handle.x, groupRotateInfo.handle.y);
@@ -2462,7 +2519,7 @@
             // Draw current box being drawn
             if (isDrawing && drawStart && currentBox) {
                 ctx.strokeStyle = getClassColor(selectedClass);
-                ctx.lineWidth = 2 / totalScale;
+                ctx.lineWidth = scaledLineWidth(2, totalScale);
                 ctx.setLineDash([5 / totalScale, 5 / totalScale]);
                 ctx.strokeRect(currentBox.x, currentBox.y, currentBox.w, currentBox.h);
                 ctx.setLineDash([]);
@@ -2475,7 +2532,7 @@
                     y: p.y * image.height
                 }));
                 ctx.strokeStyle = color;
-                ctx.lineWidth = 2 / totalScale;
+                ctx.lineWidth = scaledLineWidth(2, totalScale);
                 ctx.setLineDash([6 / totalScale, 6 / totalScale]);
                 ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
@@ -2506,7 +2563,7 @@
                 const h = y2 - y1;
 
                 ctx.strokeStyle = color;
-                ctx.lineWidth = 2 / totalScale;
+                ctx.lineWidth = scaledLineWidth(2, totalScale);
                 ctx.setLineDash([6 / totalScale, 6 / totalScale]);
                 ctx.strokeRect(x1, y1, w, h);
                 ctx.setLineDash([]);
@@ -2528,7 +2585,7 @@
 
                 ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)';
                 ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
-                ctx.lineWidth = 2 / totalScale;
+                ctx.lineWidth = scaledLineWidth(2, totalScale);
                 ctx.setLineDash([6 / totalScale, 6 / totalScale]);
                 ctx.fillRect(x1, y1, w, h);
                 ctx.strokeRect(x1, y1, w, h);
