@@ -756,6 +756,9 @@
         let isCreatingObb = false;
         let obbCreatePoints = [];
         let obbPreviewPoint = null;
+        let isCreatingTwoPoint = false; // For 2-point rectangle creation
+        let twoPointFirst = null; // First corner point
+        let twoPointPreview = null; // Preview second corner
         let mouseCanvasPoint = null;
         let showCrosshair = false;
         let lastMouseClient = null;
@@ -1057,13 +1060,15 @@
             let instructions = '<li>Select a class above</li>';
 
             if (defaultAnnotationType === 'bbox') {
-                instructions += '<li>Click and drag to create bounding box</li>';
+                instructions += '<li><strong>Drag</strong> or <strong>click 2 points</strong> to create bbox</li>';
             } else if (defaultAnnotationType === 'obb') {
                 if (obbCreationMode === 'rectangle') {
-                    instructions += '<li>Click and drag to create OBB (rectangle mode)</li>';
+                    instructions += '<li><strong>Drag</strong> or <strong>click 2 points</strong> to create OBB</li>';
                 } else {
-                    instructions += '<li>Click 4 points to create OBB (4-point mode)</li>';
-                    instructions += '<li>Press Escape to cancel creation</li>';
+                    instructions += '<li><strong>Click 4 points</strong> to create OBB polygon</li>';
+                }
+                if (obbCreationMode === '4point') {
+                    instructions += '<li>Press <strong>Escape</strong> to cancel creation</li>';
                 }
             }
 
@@ -1860,7 +1865,7 @@
 
         async function previousImage() {
             if (currentImageIndex > 0) {
-                clearObbCreation();
+                clearAllCreation();
                 await saveLabels(false); // Save current before switching
                 currentImageIndex--;
                 await loadImage();
@@ -1871,7 +1876,7 @@
 
         async function nextImage() {
             if (currentImageIndex < imageList.length - 1) {
-                clearObbCreation();
+                clearAllCreation();
                 await saveLabels(false); // Save current before switching
                 currentImageIndex++;
                 await loadImage();
@@ -2334,6 +2339,28 @@
                 });
             }
 
+            // Draw 2-point rectangle preview
+            if (isCreatingTwoPoint && twoPointFirst && twoPointPreview) {
+                const color = getClassColor(selectedClass);
+                const x1 = Math.min(twoPointFirst.x, twoPointPreview.x);
+                const y1 = Math.min(twoPointFirst.y, twoPointPreview.y);
+                const x2 = Math.max(twoPointFirst.x, twoPointPreview.x);
+                const y2 = Math.max(twoPointFirst.y, twoPointPreview.y);
+                const w = x2 - x1;
+                const h = y2 - y1;
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2 / totalScale;
+                ctx.setLineDash([6 / totalScale, 6 / totalScale]);
+                ctx.strokeRect(x1, y1, w, h);
+                ctx.setLineDash([]);
+
+                // Draw first point marker
+                ctx.fillStyle = color;
+                const markerSize = 8 / totalScale;
+                ctx.fillRect(twoPointFirst.x - markerSize / 2, twoPointFirst.y - markerSize / 2, markerSize, markerSize);
+            }
+
             if (showCrosshair && mouseCanvasPoint) {
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
@@ -2492,6 +2519,56 @@
                 }
             }
 
+            // Handle 2-point rectangle creation (second click)
+            if (isCreatingTwoPoint && twoPointFirst) {
+                const x1 = Math.min(twoPointFirst.x, x);
+                const y1 = Math.min(twoPointFirst.y, y);
+                const x2 = Math.max(twoPointFirst.x, x);
+                const y2 = Math.max(twoPointFirst.y, y);
+                const w = x2 - x1;
+                const h = y2 - y1;
+
+                // Only create if box is big enough
+                if (w > 10 && h > 10) {
+                    const prevState = captureState();
+
+                    if (defaultAnnotationType === 'obb') {
+                        const points = [
+                            { x: x1 / image.width, y: y1 / image.height },
+                            { x: x2 / image.width, y: y1 / image.height },
+                            { x: x2 / image.width, y: y2 / image.height },
+                            { x: x1 / image.width, y: y2 / image.height }
+                        ];
+                        annotations.push({
+                            type: 'obb',
+                            class: selectedClass,
+                            points: orderPointsClockwiseFromTopLeft(points)
+                        });
+                    } else {
+                        const centerX = (x1 + w / 2) / image.width;
+                        const centerY = (y1 + h / 2) / image.height;
+                        const normW = w / image.width;
+                        const normH = h / image.height;
+                        annotations.push({
+                            type: 'bbox',
+                            class: selectedClass,
+                            x: centerX,
+                            y: centerY,
+                            w: normW,
+                            h: normH
+                        });
+                    }
+
+                    recordHistory(prevState);
+                    setUnsavedChanges(true);
+                    updateUI();
+                }
+
+                clearTwoPointCreation();
+                draw();
+                return;
+            }
+
             // Handle OBB 4-point mode clicks
             if (defaultAnnotationType === 'obb' && obbCreationMode === '4point' && isCreatingObb) {
                 addObbPoint(x, y);
@@ -2500,7 +2577,7 @@
 
             const clickedIdx = getAnnotationAt(x, y);
             if (clickedIdx !== null) {
-                clearObbCreation();
+                clearAllCreation();
                 selectedAnnotation = clickedIdx;
                 updateUI();
                 updateClassSelector();
@@ -2576,6 +2653,9 @@
             } else if (isCreatingObb) {
                 obbPreviewPoint = { x: x / image.width, y: y / image.height };
                 draw();
+            } else if (isCreatingTwoPoint) {
+                twoPointPreview = { x, y };
+                draw();
             } else if (isDrawing) {
                 currentBox.w = x - drawStart.x;
                 currentBox.h = y - drawStart.y;
@@ -2643,7 +2723,18 @@
                 const w = Math.abs(x - drawStart.x);
                 const h = Math.abs(y - drawStart.y);
 
-                // Only create if box is big enough
+                // Check if this was a click (not drag) - start 2-point mode
+                if (w <= 10 && h <= 10) {
+                    // This is a click, not a drag - start 2-point creation
+                    isDrawing = false;
+                    isCreatingTwoPoint = true;
+                    twoPointFirst = { x: drawStart.x, y: drawStart.y };
+                    twoPointPreview = { x, y };
+                    draw();
+                    return;
+                }
+
+                // Create box from drag (original behavior)
                 if (w > 10 && h > 10) {
                     const prevState = captureState();
                     const x1 = Math.min(drawStart.x, x);
@@ -2774,11 +2865,13 @@
                 return;
             }
 
-            if (e.key === 'Escape' && isCreatingObb) {
-                e.preventDefault();
-                clearObbCreation();
-                draw();
-                return;
+            if (e.key === 'Escape') {
+                if (isCreatingObb || isCreatingTwoPoint) {
+                    e.preventDefault();
+                    clearAllCreation();
+                    draw();
+                    return;
+                }
             }
 
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
@@ -3083,6 +3176,17 @@
             isCreatingObb = false;
             obbCreatePoints = [];
             obbPreviewPoint = null;
+        }
+
+        function clearTwoPointCreation() {
+            isCreatingTwoPoint = false;
+            twoPointFirst = null;
+            twoPointPreview = null;
+        }
+
+        function clearAllCreation() {
+            clearObbCreation();
+            clearTwoPointCreation();
         }
 
         function updateUI() {
