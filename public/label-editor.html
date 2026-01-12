@@ -644,6 +644,13 @@
                 </div>
             </div>
 
+            <div class="sidebar-section" id="obbModeSection" style="display: none;">
+                <h2>OBB Creation Mode</h2>
+                <div class="info-field">
+                    <div class="info-value" id="obbModeDisplay" style="color: #4ECDC4; font-weight: 500;">-</div>
+                </div>
+            </div>
+
             <div class="sidebar-section">
                 <h2>Select Class <span style="font-size: 12px; color: #aaa;">(Click to change selected)</span></h2>
                 <div class="class-selector" id="classSelector"></div>
@@ -658,14 +665,7 @@
                 <h2>Instructions</h2>
                 <div class="instructions">
                     <ul>
-                        <li>Select a class above</li>
-                        <li>Click and drag to create box</li>
-                        <li>Polygon mode: click 4 points to create box</li>
-                        <li>Click box to select/edit</li>
-                        <li>Delete key to remove</li>
-                        <li>Drag corners to resize</li>
-                        <li><strong>← → or A D keys</strong> to switch images</li>
-                        <li><strong>Ctrl Z / Ctrl Shift Z</strong> to undo/redo</li>
+                        <!-- Instructions will be dynamically updated based on selected format -->
                     </ul>
                 </div>
             </div>
@@ -711,7 +711,12 @@
         let image = null;
         let labelData = null;
         let annotations = [];
+        // defaultAnnotationType is set by admin (via existing labels) - 'bbox' or 'obb'
         let defaultAnnotationType = 'bbox';
+        // obbCreationMode: set by admin via URL parameter - 'rectangle' or '4point'
+        // Both modes create OBB format annotations, just different creation methods
+        // Default is 'rectangle', will be set from obbModeParam during init
+        let obbCreationMode = 'rectangle';
         let isRotating = false;
         let rotateState = null;
         let selectedClass = 0;
@@ -794,6 +799,10 @@
         const startImageParam = urlParams.get('start');
         let lastKnownImageParam = startImageParam || '';
 
+        // Get OBB creation mode from URL parameter (set by admin in manager)
+        // Default is 'rectangle' if not specified
+        const obbModeParam = urlParams.get('obbMode') || 'rectangle';
+
         // Support multiple images (comma-separated)
         const imageListParam = urlParams.get('images');
         if (imageListParam) {
@@ -846,6 +855,9 @@
 
         // Initialize
         async function init() {
+            // Set OBB creation mode from URL parameter (admin-controlled)
+            obbCreationMode = obbModeParam;
+
             // Load from folder if folder parameter is provided
             if (folderParam) {
                 const loaded = await loadImagesFromFolder();
@@ -866,6 +878,7 @@
             setupClassSelector();
             setupFilterUI();
             setupEventListeners();
+            updateInstructions(); // Initialize instructions based on default format
             updateNavigationButtons();
             setupImagePreview();
             await loadImage();
@@ -1024,6 +1037,45 @@
                 content.classList.add('collapsed');
                 icon.textContent = '▶';
             }
+        }
+
+        function updateObbModeDisplay() {
+            const obbModeDisplay = document.getElementById('obbModeDisplay');
+            if (!obbModeDisplay) return;
+
+            if (obbCreationMode === 'rectangle') {
+                obbModeDisplay.textContent = '🔲 Rectangle (Drag)';
+            } else {
+                obbModeDisplay.textContent = '⬡ 4-Point Polygon';
+            }
+        }
+
+        function updateInstructions() {
+            const instructionsList = document.querySelector('.instructions ul');
+            if (!instructionsList) return;
+
+            let instructions = '<li>Select a class above</li>';
+
+            if (defaultAnnotationType === 'bbox') {
+                instructions += '<li>Click and drag to create bounding box</li>';
+            } else if (defaultAnnotationType === 'obb') {
+                if (obbCreationMode === 'rectangle') {
+                    instructions += '<li>Click and drag to create OBB (rectangle mode)</li>';
+                } else {
+                    instructions += '<li>Click 4 points to create OBB (4-point mode)</li>';
+                    instructions += '<li>Press Escape to cancel creation</li>';
+                }
+            }
+
+            instructions += `
+                <li>Click annotation to select/edit</li>
+                <li>Delete key to remove selected</li>
+                <li>Drag corners to resize</li>
+                <li><strong>← → or A D keys</strong> to switch images</li>
+                <li><strong>Ctrl Z / Ctrl Shift Z</strong> to undo/redo</li>
+            `;
+
+            instructionsList.innerHTML = instructions;
         }
 
         // Load metadata from backend for all images (or batch)
@@ -1908,7 +1960,21 @@
                 const labelResult = await labelResponse.json();
                 labelData = labelResult.labelContent || '';
                 annotations = parseLabelData(labelData);
+                // Detect annotation type from existing labels (set by admin)
                 defaultAnnotationType = annotations.some(ann => ann.type === 'obb') ? 'obb' : 'bbox';
+
+                // Show/hide OBB mode section based on detected format
+                const obbModeSection = document.getElementById('obbModeSection');
+                if (defaultAnnotationType === 'obb') {
+                    obbModeSection.style.display = 'block';
+                    updateObbModeDisplay(); // Update the display text
+                } else {
+                    obbModeSection.style.display = 'none';
+                }
+
+                // Update instructions based on current format
+                updateInstructions();
+
                 setUnsavedChanges(false);
                 undoStack = [];
                 redoStack = [];
@@ -2426,7 +2492,8 @@
                 }
             }
 
-            if (defaultAnnotationType === 'obb' && isCreatingObb) {
+            // Handle OBB 4-point mode clicks
+            if (defaultAnnotationType === 'obb' && obbCreationMode === '4point' && isCreatingObb) {
                 addObbPoint(x, y);
                 return;
             }
@@ -2449,12 +2516,13 @@
                 return;
             }
 
-            if (defaultAnnotationType === 'obb') {
+            // Start OBB 4-point creation
+            if (defaultAnnotationType === 'obb' && obbCreationMode === '4point') {
                 addObbPoint(x, y);
                 return;
             }
 
-            // Start drawing new annotation
+            // Start drawing new annotation (bbox or OBB rectangle mode)
             selectedAnnotation = null;
             lastHitIndices = [];
             lastHitPoint = null;

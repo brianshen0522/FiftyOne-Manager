@@ -807,6 +807,14 @@
                     </div>
                     <small>Convert YOLO bounding boxes to OBB format (4 points, clockwise from top-left)</small>
                 </div>
+                <div class="form-group" id="obbModeGroup" style="display: none;">
+                    <label for="obbMode">OBB Creation Mode</label>
+                    <select id="obbMode">
+                        <option value="rectangle">Rectangle (Drag)</option>
+                        <option value="4point">4-Point Polygon</option>
+                    </select>
+                    <small>How users create OBB annotations: drag for rectangle or click 4 points for polygon</small>
+                </div>
                 <div class="form-group">
                     <button type="submit" id="saveInstanceBtn" class="btn success" style="width: 100%;">Save Instance</button>
                 </div>
@@ -1369,11 +1377,11 @@
                             ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">Restart</button>
                                <button class="btn danger" onclick="stopInstance('${instance.name}')">Stop</button>
                                <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? 'disabled title="Service down"' : ''}>Open</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
                             : `<button class="btn success" onclick="startInstance('${instance.name}')">Start</button>
                                <button class="btn ghost" onclick="editInstance('${instance.name}')">Edit</button>
                                <button class="btn danger" onclick="deleteInstance('${instance.name}')">Remove</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
                         }
                         <button class="btn ghost" onclick="showLogs('${instance.name}')">Logs</button>
                     </div>
@@ -1572,7 +1580,7 @@
             window.open(`http://${window.location.hostname}:${port}`, '_blank');
         }
 
-        async function openLabelEditor(encodedDatasetPath, encodedLastImagePath) {
+        async function openLabelEditor(encodedDatasetPath, encodedLastImagePath, obbMode = 'rectangle') {
             const datasetPath = decodeURIComponent(encodedDatasetPath || '');
             if (!datasetPath) {
                 alert('Dataset path is missing.');
@@ -1611,7 +1619,8 @@
             }
             const normalizedStart = normalizeStartImagePath(lastImagePath, folderPath);
             const startParam = normalizedStart ? `&start=${encodeURIComponent(normalizedStart)}` : '';
-            const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}`;
+            const obbModeParam = `&obbMode=${encodeURIComponent(obbMode || 'rectangle')}`;
+            const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}${obbModeParam}`;
             window.open(editorUrl, '_blank');
         }
 
@@ -1740,6 +1749,8 @@
             document.getElementById('cvatSync').checked = false;
             document.getElementById('autoSync').checked = true;
             document.getElementById('pentagonFormat').checked = false;
+            document.getElementById('obbMode').value = 'rectangle';
+            document.getElementById('obbModeGroup').style.display = 'none'; // Hide OBB mode by default
             document.getElementById('instanceName').disabled = false;
             hideInstanceNameError();
             document.getElementById('modalError').style.display = 'none';
@@ -1785,7 +1796,12 @@
                 document.getElementById('cvatSync').checked = instance.cvatSync || false;
                 document.getElementById('autoSync').checked = instance.autoSync || false;
                 document.getElementById('pentagonFormat').checked = instance.pentagonFormat || false;
+                document.getElementById('obbMode').value = instance.obbMode || 'rectangle';
                 document.getElementById('classFile').value = instance.classFile || '';
+
+                // Show/hide OBB mode dropdown based on pentagonFormat
+                document.getElementById('obbModeGroup').style.display = instance.pentagonFormat ? 'block' : 'none';
+
                 hideInstanceNameError();
                 document.getElementById('modalError').style.display = 'none';
                 document.getElementById('instanceModal').classList.add('active');
@@ -1905,13 +1921,14 @@
             const cvatSync = document.getElementById('cvatSync').checked;
             const autoSync = document.getElementById('autoSync').checked;
             const pentagonFormat = document.getElementById('pentagonFormat').checked;
+            const obbMode = document.getElementById('obbMode').value || 'rectangle';
             const classFile = document.getElementById('classFile').value || null;
 
             if (!validateInstanceName()) {
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, debug, cvatSync, autoSync, pentagonFormat, classFile };
+            const data = { name, port, datasetPath, threshold, debug, cvatSync, autoSync, pentagonFormat, obbMode, classFile };
 
             try {
                 if (!config.portRange) {
@@ -2143,6 +2160,17 @@
             if (classInput) {
                 classInput.addEventListener('change', () => previewClassFile(classInput.value));
                 classInput.addEventListener('blur', () => previewClassFile(classInput.value));
+            }
+
+            // Show/hide OBB mode dropdown based on pentagonFormat checkbox
+            const pentagonCheckbox = document.getElementById('pentagonFormat');
+            if (pentagonCheckbox) {
+                pentagonCheckbox.addEventListener('change', () => {
+                    const obbModeGroup = document.getElementById('obbModeGroup');
+                    if (obbModeGroup) {
+                        obbModeGroup.style.display = pentagonCheckbox.checked ? 'block' : 'none';
+                    }
+                });
             }
         });
     </script>

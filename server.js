@@ -467,7 +467,7 @@ app.get('/api/instances', async (req, res) => {
 // Add new instance
 app.post('/api/instances', (req, res) => {
   try {
-    const { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile, autoSync } = req.body;
+    const { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, obbMode, classFile, autoSync } = req.body;
 
     // Validation
     if (!name || !port || !datasetPath) {
@@ -502,6 +502,7 @@ app.post('/api/instances', (req, res) => {
       debug: debug !== undefined ? debug : CONFIG.defaultDebug,
       cvatSync: CONFIG.cvat.enabled && cvatSync !== undefined ? cvatSync : false,
       pentagonFormat: pentagonFormat || false,
+      obbMode: obbMode || 'rectangle',
       classFile: classFile || null,
       autoSync: autoSync !== undefined ? autoSync : true,
       status: 'stopped',
@@ -521,7 +522,7 @@ app.post('/api/instances', (req, res) => {
 app.put('/api/instances/:name', (req, res) => {
   try {
     const { name } = req.params;
-    const { port, datasetPath, threshold, debug, cvatSync, pentagonFormat, classFile, autoSync } = req.body;
+    const { port, datasetPath, threshold, debug, cvatSync, pentagonFormat, obbMode, classFile, autoSync } = req.body;
 
     const instances = loadInstances();
     const index = instances.findIndex(i => i.name === name);
@@ -553,6 +554,7 @@ app.put('/api/instances/:name', (req, res) => {
     if (debug !== undefined) instances[index].debug = debug;
     if (cvatSync !== undefined) instances[index].cvatSync = CONFIG.cvat.enabled ? cvatSync : false;
     if (pentagonFormat !== undefined) instances[index].pentagonFormat = pentagonFormat;
+    if (obbMode !== undefined) instances[index].obbMode = obbMode || 'rectangle';
     if (classFile !== undefined) instances[index].classFile = classFile || null;
     if (autoSync !== undefined) instances[index].autoSync = autoSync;
     instances[index].updatedAt = new Date().toISOString();
