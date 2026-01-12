@@ -706,6 +706,7 @@
         const DEFAULT_CLASSES = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
         const BASE_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#E74C3C'];
         let CLASSES = [...DEFAULT_CLASSES];
+        const LABEL_CLIPBOARD_KEY = 'label_editor_clipboard';
 
         // State
         let image = null;
@@ -3150,6 +3151,18 @@
                 return;
             }
 
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+                e.preventDefault();
+                copySelectedAnnotations();
+                return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+                e.preventDefault();
+                pasteAnnotations();
+                return;
+            }
+
             if (e.key === 'Escape') {
                 if (isCreatingObb || isCreatingTwoPoint || isSelectingBox) {
                     e.preventDefault();
@@ -3899,6 +3912,54 @@
                 undoStack.shift();
             }
             redoStack = [];
+        }
+
+        function copySelectedAnnotations() {
+            const indices = selectedAnnotations.length > 0
+                ? selectedAnnotations
+                : (selectedAnnotation !== null ? [selectedAnnotation] : []);
+            if (indices.length === 0) {
+                showStatus('No labels selected to copy');
+                return;
+            }
+            const copied = indices.map(idx => cloneAnnotations([annotations[idx]])[0]);
+            localStorage.setItem(LABEL_CLIPBOARD_KEY, JSON.stringify({
+                version: 1,
+                annotations: copied
+            }));
+            showStatus(`Copied ${copied.length} label${copied.length === 1 ? '' : 's'}`);
+        }
+
+        function pasteAnnotations() {
+            const raw = localStorage.getItem(LABEL_CLIPBOARD_KEY);
+            if (!raw) {
+                showStatus('Clipboard is empty');
+                return;
+            }
+            let payload;
+            try {
+                payload = JSON.parse(raw);
+            } catch (error) {
+                showStatus('Clipboard data is invalid');
+                return;
+            }
+            if (!payload || !Array.isArray(payload.annotations) || payload.annotations.length === 0) {
+                showStatus('Clipboard is empty');
+                return;
+            }
+
+            const prevState = captureState();
+            const pasted = cloneAnnotations(payload.annotations);
+            const startIndex = annotations.length;
+            annotations = annotations.concat(pasted);
+            selectedAnnotations = pasted.map((_, i) => startIndex + i);
+            selectedAnnotation = selectedAnnotations[selectedAnnotations.length - 1] ?? null;
+            recordHistory(prevState);
+            setUnsavedChanges(true);
+            updateUI();
+            updateClassSelector();
+            draw();
+            showStatus(`Pasted ${pasted.length} label${pasted.length === 1 ? '' : 's'}`);
         }
 
         function undoAction() {
