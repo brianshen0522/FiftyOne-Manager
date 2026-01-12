@@ -1270,7 +1270,45 @@ app.get('/api/label-editor/classes', async (req, res) => {
 
     const instances = loadInstances();
     const normalizedBase = path.resolve(basePath);
-    const instance = instances.find(i => path.resolve(i.datasetPath) === normalizedBase);
+    const baseCandidates = new Set([normalizedBase]);
+    if (fs.existsSync(normalizedBase)) {
+      baseCandidates.add(fs.realpathSync(normalizedBase));
+    }
+    [normalizedBase, ...baseCandidates].forEach(candidate => {
+      if (candidate.endsWith(`${path.sep}images`)) {
+        baseCandidates.add(candidate.slice(0, -(`${path.sep}images`).length));
+      }
+      if (candidate.endsWith(`${path.sep}labels`)) {
+        baseCandidates.add(candidate.slice(0, -(`${path.sep}labels`).length));
+      }
+    });
+
+    const matchScore = (base, datasetPath) => {
+      if (base === datasetPath) return 100000 + datasetPath.length;
+      if (base.startsWith(`${datasetPath}${path.sep}`)) return datasetPath.length;
+      if (datasetPath.startsWith(`${base}${path.sep}`)) return base.length - 1;
+      return -1;
+    };
+
+    let instance = null;
+    let bestScore = -1;
+    for (const cand of baseCandidates) {
+      for (const inst of instances) {
+        if (!inst.datasetPath) {
+          continue;
+        }
+        const resolved = path.resolve(inst.datasetPath);
+        const resolvedReal = fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
+        const score = Math.max(
+          matchScore(cand, resolved),
+          matchScore(cand, resolvedReal)
+        );
+        if (score > bestScore) {
+          bestScore = score;
+          instance = inst;
+        }
+      }
+    }
 
     if (!instance || !instance.classFile) {
       return res.json({ classes: defaultClasses, source: 'default' });
