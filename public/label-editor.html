@@ -2091,27 +2091,41 @@
                 angle: Math.atan2(p.y - cy, p.x - cx)
             }));
 
-            // Sort clockwise
-            withAngle.sort((a, b) => b.angle - a.angle);
+            // Sort by angle and enforce clockwise order in image coordinates (y-down).
+            withAngle.sort((a, b) => a.angle - b.angle);
+            let ordered = withAngle.map(p => ({ x: p.x, y: p.y }));
+            if (signedArea(ordered) < 0) {
+                ordered = ordered.reverse();
+            }
 
             // Rotate so the first point is top-left (min y, then min x)
             let startIndex = 0;
-            for (let i = 1; i < withAngle.length; i++) {
+            for (let i = 1; i < ordered.length; i++) {
                 if (
-                    withAngle[i].y < withAngle[startIndex].y ||
-                    (withAngle[i].y === withAngle[startIndex].y && withAngle[i].x < withAngle[startIndex].x)
+                    ordered[i].y < ordered[startIndex].y ||
+                    (ordered[i].y === ordered[startIndex].y && ordered[i].x < ordered[startIndex].x)
                 ) {
                     startIndex = i;
                 }
             }
 
-            const ordered = [];
-            for (let i = 0; i < withAngle.length; i++) {
-                const idx = (startIndex + i) % withAngle.length;
-                ordered.push({ x: withAngle[idx].x, y: withAngle[idx].y });
+            const rotated = [];
+            for (let i = 0; i < ordered.length; i++) {
+                const idx = (startIndex + i) % ordered.length;
+                rotated.push({ x: ordered[idx].x, y: ordered[idx].y });
             }
 
-            return ordered;
+            return rotated;
+        }
+
+        function signedArea(points) {
+            let sum = 0;
+            for (let i = 0; i < points.length; i++) {
+                const p1 = points[i];
+                const p2 = points[(i + 1) % points.length];
+                sum += (p1.x * p2.y) - (p2.x * p1.y);
+            }
+            return sum / 2;
         }
 
         function getObbCenter(points) {
@@ -2142,6 +2156,56 @@
                 x: center.x + dx * cosA - dy * sinA,
                 y: center.y + dx * sinA + dy * cosA
             };
+        }
+
+        function rectsIntersect(a, b) {
+            return a.x < b.x + b.w &&
+                a.x + a.w > b.x &&
+                a.y < b.y + b.h &&
+                a.y + a.h > b.y;
+        }
+
+        function getBoundsFromPoints(points) {
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+            points.forEach(p => {
+                minX = Math.min(minX, p.x);
+                minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            });
+            return {
+                x: minX,
+                y: minY,
+                w: maxX - minX,
+                h: maxY - minY
+            };
+        }
+
+        function getLabelPosition(anchorX, boxRect, textWidth, labelHeight, labelPadding, totalScale) {
+            const margin = 4 / totalScale;
+            const labelWidth = textWidth + labelPadding;
+            const above = {
+                x: anchorX,
+                y: boxRect.y - labelHeight - margin,
+                w: labelWidth,
+                h: labelHeight
+            };
+            if (!rectsIntersect(above, boxRect) && above.y >= 0) {
+                return { x: above.x, y: above.y };
+            }
+            const below = {
+                x: anchorX,
+                y: boxRect.y + boxRect.h + margin,
+                w: labelWidth,
+                h: labelHeight
+            };
+            if (below.y + below.h <= image.height) {
+                return { x: below.x, y: below.y };
+            }
+            return { x: above.x, y: Math.max(0, above.y) };
         }
 
         function setUnsavedChanges(value) {
@@ -2247,9 +2311,11 @@
                     const textWidth = ctx.measureText(label).width;
                     const labelHeight = 20 / totalScale;
                     const labelPadding = 8 / totalScale;
-                    ctx.fillRect(labelPoint.x, labelPoint.y - labelHeight, textWidth + labelPadding, labelHeight);
+                    const obbBounds = getBoundsFromPoints(points);
+                    const labelPos = getLabelPosition(labelPoint.x, obbBounds, textWidth, labelHeight, labelPadding, totalScale);
+                    ctx.fillRect(labelPos.x, labelPos.y, textWidth + labelPadding, labelHeight);
                     ctx.fillStyle = '#000';
-                    ctx.fillText(label, labelPoint.x + 4 / totalScale, labelPoint.y - 6 / totalScale);
+                    ctx.fillText(label, labelPos.x + 4 / totalScale, labelPos.y + labelHeight - 6 / totalScale);
 
                     if (isSelected) {
                         const handleSize = 8 / totalScale;
@@ -2313,9 +2379,11 @@
                     const textWidth = ctx.measureText(label).width;
                     const labelHeight = 20 / totalScale;
                     const labelPadding = 8 / totalScale;
-                    ctx.fillRect(x, y - labelHeight, textWidth + labelPadding, labelHeight);
+                    const bboxBounds = { x, y, w, h };
+                    const labelPos = getLabelPosition(x, bboxBounds, textWidth, labelHeight, labelPadding, totalScale);
+                    ctx.fillRect(labelPos.x, labelPos.y, textWidth + labelPadding, labelHeight);
                     ctx.fillStyle = '#000';
-                    ctx.fillText(label, x + 4 / totalScale, y - 6 / totalScale);
+                    ctx.fillText(label, labelPos.x + 4 / totalScale, labelPos.y + labelHeight - 6 / totalScale);
 
                     // Draw handles if selected
                     if (isSelected) {

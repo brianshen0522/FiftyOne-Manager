@@ -588,27 +588,41 @@ function orderPointsClockwiseFromTopLeft(points) {
     angle: Math.atan2(p.y - cy, p.x - cx)
   }));
 
-  // Sort clockwise
-  withAngle.sort((a, b) => b.angle - a.angle);
+  // Sort by angle and enforce clockwise order in image coordinates (y-down).
+  withAngle.sort((a, b) => a.angle - b.angle);
+  let ordered = withAngle.map(p => ({ x: p.x, y: p.y }));
+  if (signedArea(ordered) < 0) {
+    ordered = ordered.reverse();
+  }
 
   // Rotate so the first point is top-left (min y, then min x)
   let startIndex = 0;
-  for (let i = 1; i < withAngle.length; i++) {
+  for (let i = 1; i < ordered.length; i++) {
     if (
-      withAngle[i].y < withAngle[startIndex].y ||
-      (withAngle[i].y === withAngle[startIndex].y && withAngle[i].x < withAngle[startIndex].x)
+      ordered[i].y < ordered[startIndex].y ||
+      (ordered[i].y === ordered[startIndex].y && ordered[i].x < ordered[startIndex].x)
     ) {
       startIndex = i;
     }
   }
 
-  const ordered = [];
-  for (let i = 0; i < withAngle.length; i++) {
-    const idx = (startIndex + i) % withAngle.length;
-    ordered.push({ x: withAngle[idx].x, y: withAngle[idx].y });
+  const rotated = [];
+  for (let i = 0; i < ordered.length; i++) {
+    const idx = (startIndex + i) % ordered.length;
+    rotated.push({ x: ordered[idx].x, y: ordered[idx].y });
   }
 
-  return ordered;
+  return rotated;
+}
+
+function signedArea(points) {
+  let sum = 0;
+  for (let i = 0; i < points.length; i++) {
+    const p1 = points[i];
+    const p2 = points[(i + 1) % points.length];
+    sum += (p1.x * p2.y) - (p2.x * p1.y);
+  }
+  return sum / 2;
 }
 
 function formatObbLine(classId, points) {
