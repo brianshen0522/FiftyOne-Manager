@@ -2773,6 +2773,14 @@
                 return;
             }
 
+            if (!e.shiftKey && !e.ctrlKey && !e.metaKey && selectedAnnotations.length > 0) {
+                selectedAnnotation = null;
+                selectedAnnotations = [];
+                updateUI();
+                draw();
+                return;
+            }
+
             // Start OBB 4-point creation
             if (defaultAnnotationType === 'obb' && obbCreationMode === '4point') {
                 addObbPoint(x, y);
