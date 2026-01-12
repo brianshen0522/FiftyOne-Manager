@@ -729,6 +729,7 @@
         let currentBox = null;
         let isDragging = false;
         let dragHandle = null;
+        let resizeStart = null;
         let isPanning = false;
         let panStart = null;
         let baseScale = 1; // Scale to fit image to canvas
@@ -2605,6 +2606,12 @@
                     } else {
                         isDragging = true;
                         dragHandle = handle;
+                        if (ann.type === 'obb' && handle.type === 'obb') {
+                            resizeStart = {
+                                handleIndex: handle.index,
+                                points: ann.points.map(p => ({ x: p.x, y: p.y }))
+                            };
+                        }
                     }
                     return;
                 }
@@ -2961,6 +2968,7 @@
             } else if (isDragging) {
                 isDragging = false;
                 dragHandle = null;
+                resizeStart = null;
                 recordHistory(historySnapshot);
                 historySnapshot = null;
                 setUnsavedChanges(true);
@@ -3374,6 +3382,44 @@
 
         function resizeAnnotation(ann, handle, mouseX, mouseY) {
             if (ann.type === 'obb' && handle && handle.type === 'obb') {
+                if (obbCreationMode === 'rectangle' && resizeStart && resizeStart.handleIndex === handle.index) {
+                    const original = resizeStart.points;
+                    const oppositeIdx = (handle.index + 2) % 4;
+                    const adj1 = (oppositeIdx + 1) % 4;
+                    const adj2 = (oppositeIdx + 3) % 4;
+                    const opposite = original[oppositeIdx];
+                    const uVec = {
+                        x: original[adj1].x - opposite.x,
+                        y: original[adj1].y - opposite.y
+                    };
+                    const vVec = {
+                        x: original[adj2].x - opposite.x,
+                        y: original[adj2].y - opposite.y
+                    };
+                    const uLen = Math.hypot(uVec.x, uVec.y) || 1;
+                    const vLen = Math.hypot(vVec.x, vVec.y) || 1;
+                    const u = { x: uVec.x / uLen, y: uVec.y / uLen };
+                    const v = { x: vVec.x / vLen, y: vVec.y / vLen };
+                    const newCorner = { x: mouseX / image.width, y: mouseY / image.height };
+                    const delta = { x: newCorner.x - opposite.x, y: newCorner.y - opposite.y };
+                    const lenU = delta.x * u.x + delta.y * u.y;
+                    const lenV = delta.x * v.x + delta.y * v.y;
+                    const adj1Point = { x: opposite.x + u.x * lenU, y: opposite.y + u.y * lenU };
+                    const adj2Point = { x: opposite.x + v.x * lenV, y: opposite.y + v.y * lenV };
+                    const cornerPoint = {
+                        x: opposite.x + u.x * lenU + v.x * lenV,
+                        y: opposite.y + u.y * lenU + v.y * lenV
+                    };
+
+                    const nextPoints = original.map(p => ({ x: p.x, y: p.y }));
+                    nextPoints[oppositeIdx] = { x: opposite.x, y: opposite.y };
+                    nextPoints[adj1] = adj1Point;
+                    nextPoints[adj2] = adj2Point;
+                    nextPoints[handle.index] = cornerPoint;
+                    ann.points = nextPoints;
+                    return;
+                }
+
                 const idx = handle.index;
                 const nextPoints = ann.points.map(p => ({ x: p.x, y: p.y }));
                 nextPoints[idx] = { x: mouseX / image.width, y: mouseY / image.height };
