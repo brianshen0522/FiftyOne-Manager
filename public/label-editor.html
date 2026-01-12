@@ -754,6 +754,9 @@
         let mouseCanvasPoint = null;
         let showCrosshair = false;
         let lastMouseClient = null;
+        let isMoving = false;
+        let moveStart = null;
+        let moveMoved = false;
         let previewDragState = {
             isDown: false,
             moved: false,
@@ -2423,28 +2426,31 @@
                 }
             }
 
-            if (defaultAnnotationType === 'obb') {
-                const clickedIdx = getAnnotationAt(x, y);
-                if (clickedIdx !== null) {
-                    selectedAnnotation = clickedIdx;
-                    updateUI();
-                    updateClassSelector();
-                    draw();
-                    return;
-                }
-
+            if (defaultAnnotationType === 'obb' && isCreatingObb) {
                 addObbPoint(x, y);
                 return;
             }
 
-            // Check if clicking on an annotation
             const clickedIdx = getAnnotationAt(x, y);
             if (clickedIdx !== null) {
-                pendingSelection = clickedIdx;
-                isDrawing = true;
-                drawStart = { x, y };
-                currentBox = { x, y, w: 0, h: 0 };
+                clearObbCreation();
+                selectedAnnotation = clickedIdx;
+                updateUI();
                 updateClassSelector();
+                historySnapshot = captureState();
+                isMoving = true;
+                moveMoved = false;
+                moveStart = {
+                    x,
+                    y,
+                    ann: cloneAnnotations([annotations[clickedIdx]])[0]
+                };
+                pendingSelection = clickedIdx;
+                return;
+            }
+
+            if (defaultAnnotationType === 'obb') {
+                addObbPoint(x, y);
                 return;
             }
 
@@ -2482,6 +2488,23 @@
                 const ann = annotations[selectedAnnotation];
                 resizeAnnotation(ann, dragHandle, x, y);
                 draw();
+            } else if (isMoving && selectedAnnotation !== null && moveStart) {
+                const dx = x - moveStart.x;
+                const dy = y - moveStart.y;
+                const deltaX = dx / image.width;
+                const deltaY = dy / image.height;
+                moveMoved = moveMoved || Math.abs(dx) > 1 || Math.abs(dy) > 1;
+                const ann = annotations[selectedAnnotation];
+                if (ann.type === 'obb') {
+                    ann.points = moveStart.ann.points.map(p => ({
+                        x: p.x + deltaX,
+                        y: p.y + deltaY
+                    }));
+                } else {
+                    ann.x = moveStart.ann.x + deltaX;
+                    ann.y = moveStart.ann.y + deltaY;
+                }
+                draw();
             } else if (isCreatingObb) {
                 obbPreviewPoint = { x: x / image.width, y: y / image.height };
                 draw();
@@ -2501,6 +2524,8 @@
                 return;
             }
 
+            const { x, y } = getCanvasCoordinates(e);
+
             if (isRotating) {
                 isRotating = false;
                 rotateState = null;
@@ -2515,9 +2540,38 @@
                 historySnapshot = null;
                 setUnsavedChanges(true);
                 updateUI();
+            } else if (isMoving) {
+                isMoving = false;
+                moveStart = null;
+                if (moveMoved) {
+                    recordHistory(historySnapshot);
+                    setUnsavedChanges(true);
+                    updateUI();
+                } else {
+                    const hitIndices = getAnnotationsAtAll(x, y);
+                    if (hitIndices.length > 0) {
+                        const pointMatches = lastHitPoint &&
+                            Math.abs(lastHitPoint.x - x) <= 5 &&
+                            Math.abs(lastHitPoint.y - y) <= 5 &&
+                            arraysEqual(hitIndices, lastHitIndices);
+                        if (pointMatches) {
+                            lastHitCycle = (lastHitCycle + 1) % hitIndices.length;
+                        } else {
+                            lastHitCycle = 0;
+                        }
+                        selectedAnnotation = hitIndices[lastHitCycle];
+                        lastHitIndices = hitIndices;
+                        lastHitPoint = { x, y };
+                    } else if (pendingSelection !== null) {
+                        selectedAnnotation = pendingSelection;
+                    }
+                    updateUI();
+                    updateClassSelector();
+                }
+                historySnapshot = null;
+                pendingSelection = null;
+                draw();
             } else if (isDrawing) {
-                const { x, y } = getCanvasCoordinates(e);
-
                 const w = Math.abs(x - drawStart.x);
                 const h = Math.abs(y - drawStart.y);
 
