@@ -3320,6 +3320,13 @@
                 return;
             }
 
+            if (e.key === 'q' || e.key === 'Q' || e.key === 'e' || e.key === 'E') {
+                e.preventDefault();
+                const delta = (e.key === 'q' || e.key === 'Q') ? -Math.PI / 36 : Math.PI / 36;
+                rotateSelectionBy(delta);
+                return;
+            }
+
             if (e.key === 'Escape') {
                 if (isCreatingObb || isCreatingTwoPoint || isSelectingBox) {
                     e.preventDefault();
@@ -4139,6 +4146,52 @@
             undoStack.push(currentState);
             restoreState(nextState);
             showStatus('Redo');
+        }
+
+        function rotateSelectionBy(delta) {
+            if (!image) {
+                return;
+            }
+            const indices = selectedAnnotations.length > 0
+                ? selectedAnnotations
+                : (selectedAnnotation !== null ? [selectedAnnotation] : []);
+            if (indices.length === 0) {
+                return;
+            }
+
+            const prevState = captureState();
+
+            if (indices.length > 1) {
+                const groupBox = getGroupBoundingBox();
+                if (!groupBox) {
+                    return;
+                }
+                const center = {
+                    x: (groupBox.x + groupBox.w / 2) / image.width,
+                    y: (groupBox.y + groupBox.h / 2) / image.height
+                };
+                indices.forEach(idx => {
+                    const ann = annotations[idx];
+                    if (ann.type === 'obb') {
+                        ann.points = rotatePoints(ann.points, center, delta);
+                    } else {
+                        const rotatedCenter = rotatePoint({ x: ann.x, y: ann.y }, center, delta);
+                        ann.x = rotatedCenter.x;
+                        ann.y = rotatedCenter.y;
+                    }
+                });
+            } else {
+                const ann = annotations[indices[0]];
+                if (ann && ann.type === 'obb') {
+                    const center = getObbCenter(ann.points);
+                    ann.points = rotatePoints(ann.points, center, delta);
+                }
+            }
+
+            recordHistory(prevState);
+            setUnsavedChanges(true);
+            updateUI();
+            draw();
         }
 
         async function saveLabels(showMessage = true) {
