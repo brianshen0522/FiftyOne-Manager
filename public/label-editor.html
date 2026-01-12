@@ -2128,6 +2128,19 @@
             return sum / 2;
         }
 
+        function ensureClockwisePreserveStart(points) {
+            if (signedArea(points) >= 0) {
+                return points;
+            }
+            const reversed = [...points].reverse();
+            const start = points[0];
+            const startIndex = reversed.indexOf(start);
+            if (startIndex === -1) {
+                return reversed;
+            }
+            return reversed.slice(startIndex).concat(reversed.slice(0, startIndex));
+        }
+
         function getObbCenter(points) {
             const cx = points.reduce((sum, p) => sum + p.x, 0) / points.length;
             const cy = points.reduce((sum, p) => sum + p.y, 0) / points.length;
@@ -2225,7 +2238,7 @@
                     for (let i = 1; i < 9; i += 2) {
                         points.push({ x: parseFloat(parts[i]), y: parseFloat(parts[i + 1]) });
                     }
-                    const ordered = orderPointsClockwiseFromTopLeft(points);
+                    const ordered = ensureClockwisePreserveStart(points);
                     return {
                         type: 'obb',
                         class: parseInt(parts[0]),
@@ -4081,7 +4094,7 @@
                 // Convert annotations to YOLO format
                 const yoloContent = annotations.map(ann => {
                     if (ann.type === 'obb') {
-                        const ordered = orderPointsClockwiseFromTopLeft(ann.points);
+                        const ordered = ensureClockwisePreserveStart(ann.points);
                         const coords = ordered
                             .map(p => `${p.x.toFixed(6)} ${p.y.toFixed(6)}`)
                             .join(' ');
