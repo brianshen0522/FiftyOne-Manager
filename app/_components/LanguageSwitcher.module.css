@@ -1,0 +1,33 @@
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  color: #aaa;
+}
+
+.switcher:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.active {
+  color: #4ECDC4;
+  font-weight: 600;
+}
+
+.inactive {
+  color: #666;
+}
+
+.separator {
+  color: #444;
+  margin: 0 2px;
+}

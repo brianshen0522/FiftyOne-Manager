@@ -1,3 +1,5 @@
+import { initI18n, onLanguageChange, t } from '@/lib/i18n';
+
 // Configuration
         const DEFAULT_CLASSES = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
         const BASE_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#E74C3C'];
@@ -6,6 +8,10 @@
         const LINE_WIDTH_SCALE_DEFAULT = 2 / 3;
 
         // State
+        let lastStatusKey = null;
+        let lastStatusParams = null;
+        let lastFilterWarningKey = null;
+        let lastFilterWarningParams = null;
         let image = null;
         let labelData = null;
         let annotations = [];
@@ -130,12 +136,12 @@
             }
 
             try {
-                showStatus('Loading images from folder...');
+                showStatusMessage('editor.status.loadingImages');
                 const response = await fetch(`/api/label-editor/list-folder?basePath=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderParam)}`);
 
                 if (!response.ok) {
                     const error = await response.json();
-                    throw new Error(error.error || 'Failed to load folder');
+                    throw new Error(error.error || t('editor.errors.failedToLoadFolderGeneric'));
                 }
 
                 const data = await response.json();
@@ -149,21 +155,32 @@
                 }
 
                 if (imageList.length === 0) {
-                    showError(`No images found in folder: ${folderParam}`);
+                    showError(t('editor.errors.noImagesFound'));
                     return false;
                 }
 
                 applyPreviewSort(false);
-                showStatus(`Loaded ${imageList.length} images from folder`);
+                showStatusMessage('editor.status.loadedImages', { count: imageList.length });
                 return true;
             } catch (err) {
-                showError(`Error loading folder: ${err.message}`);
+                showError(t('editor.errors.failedToLoadFolder', { error: err.message }));
                 return false;
             }
         }
 
         // Initialize
         async function init() {
+            await initI18n();
+            onLanguageChange(() => {
+                updateObbModeDisplay();
+                updateInstructions();
+                updateFilterStats();
+                handlePreviewSearch();
+                updateImagePreview();
+                refreshStatusBar();
+                refreshFilterWarning();
+            });
+
             // Set OBB creation mode from URL parameter (admin-controlled)
             obbCreationMode = obbModeParam;
 
@@ -174,7 +191,7 @@
             }
 
             if (imageList.length === 0) {
-                showError('Missing image path parameters');
+                showError(t('editor.status.missingImagePath'));
                 return;
             }
 
@@ -354,9 +371,9 @@
             if (!obbModeDisplay) return;
 
             if (obbCreationMode === 'rectangle') {
-                obbModeDisplay.textContent = '🔲 Rectangle (Drag)';
+                obbModeDisplay.textContent = `🔲 ${t('editor.obbMode.rectangle')}`;
             } else {
-                obbModeDisplay.textContent = '⬡ 4-Point Polygon';
+                obbModeDisplay.textContent = `⬡ ${t('editor.obbMode.fourPoint')}`;
             }
         }
 
@@ -364,33 +381,33 @@
             const instructionsList = document.querySelector('.instructions ul');
             if (!instructionsList) return;
 
-            let instructions = '<li>Select a class above</li>';
+            let instructions = `<li>${t('editor.instructions.selectClass')}</li>`;
 
             if (defaultAnnotationType === 'bbox') {
-                instructions += '<li><strong>Drag</strong> or <strong>click 2 points</strong> to create bbox</li>';
+                instructions += `<li>${t('editor.instructions.createBbox')}</li>`;
             } else if (defaultAnnotationType === 'obb') {
                 if (obbCreationMode === 'rectangle') {
-                    instructions += '<li><strong>Drag</strong> or <strong>click 2 points</strong> to create OBB</li>';
+                    instructions += `<li>${t('editor.instructions.createObbDrag')}</li>`;
                 } else {
-                    instructions += '<li><strong>Click 4 points</strong> to create OBB polygon</li>';
+                    instructions += `<li>${t('editor.instructions.createObbFourPoint')}</li>`;
                 }
                 if (obbCreationMode === '4point') {
-                    instructions += '<li>Press <strong>Escape</strong> to cancel creation</li>';
+                    instructions += `<li>${t('editor.instructions.cancelCreation')}</li>`;
                 }
             }
 
             instructions += `
-                <li>Click annotation to select/edit</li>
-                <li><strong>Shift+Drag</strong> to select multiple with box</li>
-                <li><strong>Ctrl+Click</strong> to multi-select</li>
-                <li><strong>Ctrl+A</strong> to select all</li>
-                <li><strong>Drag group box</strong> to move all selected</li>
-                <li><strong>Drag group corners</strong> to resize all proportionally</li>
-                <li><strong>Delete</strong> key to remove selected</li>
-                <li><strong>Escape</strong> to clear selection</li>
-                <li>Drag corners to resize single annotation</li>
-                <li><strong>← → or A D keys</strong> to switch images</li>
-                <li><strong>Ctrl Z / Ctrl Shift Z</strong> to undo/redo</li>
+                <li>${t('editor.instructions.clickToSelect')}</li>
+                <li>${t('editor.instructions.shiftDragSelect')}</li>
+                <li>${t('editor.instructions.ctrlClickSelect')}</li>
+                <li>${t('editor.instructions.selectAll')}</li>
+                <li>${t('editor.instructions.dragGroupMove')}</li>
+                <li>${t('editor.instructions.dragGroupResize')}</li>
+                <li>${t('editor.instructions.deleteSelected')}</li>
+                <li>${t('editor.instructions.escapeClear')}</li>
+                <li>${t('editor.instructions.dragResizeSingle')}</li>
+                <li>${t('editor.instructions.navKeys')}</li>
+                <li>${t('editor.instructions.undoRedo')}</li>
             `;
 
             instructionsList.innerHTML = instructions;
@@ -437,7 +454,7 @@
 
         async function applyFilters() {
             try {
-                showStatus('Applying filters...');
+                showStatusMessage('editor.filter.applyingFilters');
 
                 clearFilterWarning();
 
@@ -450,7 +467,7 @@
                 const maxLabels = maxLabelsInput ? parseInt(maxLabelsInput) : null;
 
                 if (maxLabels !== null && minLabels > maxLabels) {
-                    showFilterWarning('Label count min cannot be greater than max');
+                    showFilterWarningMessage('editor.filter.minCannotBeGreaterThanMax');
                     return;
                 }
 
@@ -473,7 +490,7 @@
                 });
 
                 if (classMode === 'only' && selectedClasses.length === 0) {
-                    showFilterWarning('Select classes for "Only Selected" mode');
+                    showFilterWarningMessage('editor.filter.selectClassesForOnly');
                     return;
                 }
 
@@ -489,7 +506,7 @@
                     await loadImage();
                     updateNavigationButtons();
                     updateImagePreview();
-                    showStatus('No filters active');
+                    showStatusMessage('editor.filter.noFiltersActive');
                     return;
                 }
 
@@ -512,7 +529,7 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to filter images');
+                    throw new Error(t('editor.filter.failedToFilter'));
                 }
 
                 const data = await response.json();
@@ -541,14 +558,14 @@
                     await loadImage();
                     updateNavigationButtons();
                     updateImagePreview();
-                    showStatus(`Found ${imageList.length} matching images`);
+                    showStatusMessage('editor.filter.foundMatching', { count: imageList.length });
                 } else {
-                    showError('No images match the current filters');
+                    showError(t('editor.filter.noImagesMatchFilter'));
                 }
 
             } catch (error) {
                 console.error('Error applying filters:', error);
-                showError(`Filter error: ${error.message}`);
+                showError(t('editor.filter.filterError', { error: error.message }));
             }
         }
 
@@ -557,13 +574,19 @@
             const previewCount = document.getElementById('imagePreviewCount');
 
             if (filterActive) {
-                stats.textContent = `Showing ${imageList.length} of ${allImageList.length} images`;
+                stats.textContent = t('editor.filter.showingFiltered', {
+                    shown: imageList.length,
+                    total: allImageList.length
+                });
                 stats.style.color = '#007bff';
-                previewCount.innerHTML = `Images (<span style="color: #007bff;">${imageList.length}</span> of ${allImageList.length})`;
+                previewCount.innerHTML = t('editor.preview.countFiltered', {
+                    shown: `<span style="color: #007bff;">${imageList.length}</span>`,
+                    total: allImageList.length
+                });
             } else {
-                stats.textContent = `Showing all ${allImageList.length} images`;
+                stats.textContent = t('editor.filter.showingAllCount', { total: allImageList.length });
                 stats.style.color = '#aaa';
-                previewCount.textContent = `Images (${allImageList.length})`;
+                previewCount.textContent = t('editor.preview.countAll', { total: allImageList.length });
             }
 
             updatePreviewProgress();
@@ -593,6 +616,12 @@
             warning.style.display = 'block';
         }
 
+        function showFilterWarningMessage(key, params) {
+            lastFilterWarningKey = key;
+            lastFilterWarningParams = params;
+            showFilterWarning(t(key, params));
+        }
+
         function clearFilterWarning() {
             const warning = document.getElementById('filterWarning');
             if (!warning) {
@@ -600,6 +629,18 @@
             }
 
             warning.style.display = 'none';
+            lastFilterWarningKey = null;
+            lastFilterWarningParams = null;
+        }
+
+        function refreshFilterWarning() {
+            const warning = document.getElementById('filterWarning');
+            if (!warning || warning.style.display === 'none') {
+                return;
+            }
+            if (lastFilterWarningKey) {
+                warning.textContent = t(lastFilterWarningKey, lastFilterWarningParams);
+            }
         }
 
         function clearFilters() {
@@ -643,7 +684,7 @@
             loadImage();
             updateNavigationButtons();
             updateImagePreview();
-            showStatus('Filters cleared');
+            showStatusMessage('editor.filter.filtersCleared');
         }
 
         // === END FILTER FUNCTIONS ===
@@ -777,16 +818,26 @@
             if (previewSearchQuery) {
                 const totalInFilter = imageList.length;
                 if (filterActive) {
-                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${visibleCount}</span> of <span style="color: #007bff;">${totalInFilter}</span> of ${allImageList.length})`;
+                    countDisplay.innerHTML = t('editor.preview.countSearchFilteredAll', {
+                        shown: `<span style="color: #007bff;">${visibleCount}</span>`,
+                        total: `<span style="color: #007bff;">${totalInFilter}</span>`,
+                        all: allImageList.length
+                    });
                 } else {
-                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${visibleCount}</span> of ${totalInFilter})`;
+                    countDisplay.innerHTML = t('editor.preview.countFiltered', {
+                        shown: `<span style="color: #007bff;">${visibleCount}</span>`,
+                        total: totalInFilter
+                    });
                 }
             } else {
                 // No search, restore normal display
                 if (filterActive) {
-                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${imageList.length}</span> of ${allImageList.length})`;
+                    countDisplay.innerHTML = t('editor.preview.countFiltered', {
+                        shown: `<span style="color: #007bff;">${imageList.length}</span>`,
+                        total: allImageList.length
+                    });
                 } else {
-                    countDisplay.textContent = `Images (${allImageList.length})`;
+                    countDisplay.textContent = t('editor.preview.countAll', { total: allImageList.length });
                 }
             }
         }
@@ -800,7 +851,7 @@
 
             // If no images in filtered list, show message
             if (imageList.length === 0) {
-                previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #aaa;">No matching images</div>';
+                previewContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: #aaa;">${t('editor.preview.noMatchingImages')}</div>`;
                 return;
             }
 
@@ -862,7 +913,8 @@
             if (imageThumbnails[imagePath]) {
                 img.src = imageThumbnails[imagePath];
             } else {
-                img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" fill="%23aaa" font-size="12">Loading...</text></svg>';
+                const loadingText = encodeURIComponent(t('common.loading'));
+                img.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" fill="%23aaa" font-size="12">${loadingText}</text></svg>`;
 
                 // Load thumbnail asynchronously
                 loadThumbnail(index).then(dataUrl => {
@@ -1241,7 +1293,7 @@
 
         async function loadImage() {
             try {
-                showStatus('Loading image...');
+                showStatusMessage('editor.status.loadingImage');
 
                 // Reset UI state
                 document.getElementById('errorMessage').style.display = 'none';
@@ -1314,14 +1366,14 @@
                     setupCanvas();
                     document.getElementById('loading').style.display = 'none';
                     canvas.style.display = 'block';
-                    showStatus('Ready');
+                    showStatusMessage('editor.status.ready');
                     updateUI();
 
                     // Preload adjacent images for faster navigation
                     preloadAdjacentImages();
                 };
                 image.onerror = () => {
-                    showError('Failed to load image');
+                    showError(t('editor.status.failedToLoadImage'));
                 };
                 image.src = imageUrl;
 
@@ -3269,7 +3321,7 @@
 
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn btn-small btn-danger';
-                deleteBtn.textContent = 'Delete';
+                deleteBtn.textContent = t('editor.annotations.delete');
                 deleteBtn.onclick = (e) => {
                     e.stopPropagation();
                     deleteAnnotation(idx);
@@ -3405,7 +3457,7 @@
                 ? selectedAnnotations
                 : (selectedAnnotation !== null ? [selectedAnnotation] : []);
             if (indices.length === 0) {
-                showStatus('No labels selected to copy');
+                showStatusMessage('editor.annotations.noLabelsSelected');
                 return;
             }
             const copied = indices.map(idx => cloneAnnotations([annotations[idx]])[0]);
@@ -3413,24 +3465,24 @@
                 version: 1,
                 annotations: copied
             }));
-            showStatus(`Copied ${copied.length} label${copied.length === 1 ? '' : 's'}`);
+            showStatusMessage('editor.annotations.copied', { count: copied.length });
         }
 
         function pasteAnnotations() {
             const raw = localStorage.getItem(LABEL_CLIPBOARD_KEY);
             if (!raw) {
-                showStatus('Clipboard is empty');
+                showStatusMessage('editor.annotations.clipboardEmpty');
                 return;
             }
             let payload;
             try {
                 payload = JSON.parse(raw);
             } catch (error) {
-                showStatus('Clipboard data is invalid');
+                showStatusMessage('editor.annotations.clipboardInvalid');
                 return;
             }
             if (!payload || !Array.isArray(payload.annotations) || payload.annotations.length === 0) {
-                showStatus('Clipboard is empty');
+                showStatusMessage('editor.annotations.clipboardEmpty');
                 return;
             }
 
@@ -3445,7 +3497,7 @@
             updateUI();
             updateClassSelector();
             draw();
-            showStatus(`Pasted ${pasted.length} label${pasted.length === 1 ? '' : 's'}`);
+            showStatusMessage('editor.annotations.pasted', { count: pasted.length });
         }
 
         function undoAction() {
@@ -3456,7 +3508,7 @@
             const prevState = undoStack.pop();
             redoStack.push(currentState);
             restoreState(prevState);
-            showStatus('Undo');
+            showStatusMessage('editor.status.undo');
         }
 
         function redoAction() {
@@ -3467,7 +3519,7 @@
             const nextState = redoStack.pop();
             undoStack.push(currentState);
             restoreState(nextState);
-            showStatus('Redo');
+            showStatusMessage('editor.status.redo');
         }
 
         function rotateSelectionBy(delta) {
@@ -3521,7 +3573,7 @@
                 // Prevent saving if no label path is available
                 if (!currentLabelPath) return;
 
-                if (showMessage) showStatus('Saving labels...');
+                if (showMessage) showStatusMessage('editor.status.savingLabels');
 
                 // Convert annotations to YOLO format
                 const yoloContent = annotations.map(ann => {
@@ -3556,12 +3608,12 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to save labels');
+                    throw new Error(data.error || t('editor.errors.failedToSaveLabels'));
                 }
 
                 if (showMessage) {
-                    showStatus('Labels saved successfully!');
-                    setTimeout(() => showStatus('Ready'), 2000);
+                    showStatusMessage('editor.status.labelsSaved');
+                    setTimeout(() => showStatusMessage('editor.status.ready'), 2000);
                 }
 
                 // Update label cache for current image
@@ -3578,9 +3630,29 @@
             }
         }
 
+        function updateStatusBar(message, color) {
+            const statusBar = document.getElementById('statusBar');
+            if (!statusBar) return;
+            statusBar.textContent = message;
+            statusBar.style.color = color;
+        }
+
         function showStatus(message) {
-            document.getElementById('statusBar').textContent = message;
-            document.getElementById('statusBar').style.color = '#aaa';
+            lastStatusKey = null;
+            lastStatusParams = null;
+            updateStatusBar(message, '#aaa');
+        }
+
+        function showStatusMessage(key, params) {
+            lastStatusKey = key;
+            lastStatusParams = params;
+            updateStatusBar(t(key, params), '#aaa');
+        }
+
+        function refreshStatusBar() {
+            if (lastStatusKey) {
+                updateStatusBar(t(lastStatusKey, lastStatusParams), '#aaa');
+            }
         }
 
         function showError(message) {
@@ -3590,11 +3662,12 @@
 
             // Show error message
             const errorEl = document.getElementById('errorMessage');
-            errorEl.textContent = `Error: ${message}`;
+            errorEl.textContent = `${t('common.error')}: ${message}`;
             errorEl.style.display = 'block';
 
-            document.getElementById('statusBar').textContent = `Error: ${message}`;
-            document.getElementById('statusBar').style.color = '#dc3545';
+            lastStatusKey = null;
+            lastStatusParams = null;
+            updateStatusBar(`${t('common.error')}: ${message}`, '#dc3545');
         }
 
         function saveLastImageSelection(imagePath) {

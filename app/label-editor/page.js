@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
+import { useTranslation } from '../_components/LanguageProvider';
 import './label-editor.css';
 
 export default function LabelEditorPage() {
   const apiRef = useRef(null);
+  const { t, isReady } = useTranslation();
 
   useEffect(() => {
     let active = true;
@@ -28,31 +30,39 @@ export default function LabelEditorPage() {
     api[method](...args);
   };
 
+  if (!isReady) {
+    return <div style={{ padding: '20px', color: '#aaa' }}>Loading...</div>;
+  }
+
   return (
     <>
       <div className="header">
-        <h1>YOLO Label Editor</h1>
+        <h1>{t('editor.title')}</h1>
         <div className="header-actions">
           <button className="btn btn-secondary" id="prevBtn" onClick={() => callApi('previousImage')}>
-            ← Previous
+            {t('editor.previous')}
           </button>
           <span id="imageCounter" style={{ margin: '0 15px', color: '#aaa' }} />
           <button className="btn btn-secondary" id="nextBtn" onClick={() => callApi('nextImage')}>
-            Next →
+            {t('editor.next')}
           </button>
           <button className="btn btn-secondary" onClick={() => callApi('loadImage')}>
-            Reload
+            {t('editor.reload')}
           </button>
-          <button className="btn btn-primary" onClick={() => callApi('saveLabels')}>
-            Save Labels
+          <button
+            className="btn btn-primary"
+            data-tour="editor-save"
+            onClick={() => callApi('saveLabels')}
+          >
+            {t('editor.saveLabels')}
           </button>
         </div>
       </div>
 
       <div className="main-container">
-        <div className="canvas-container" id="canvasContainer">
+        <div className="canvas-container" id="canvasContainer" data-tour="editor-canvas">
           <div className="loading" id="loading">
-            Loading...
+            {t('common.loading')}
           </div>
           <div
             className="error-message"
@@ -63,19 +73,19 @@ export default function LabelEditorPage() {
         </div>
 
         <div className="sidebar">
-          <div className="sidebar-section filter-section">
+          <div className="sidebar-section filter-section" data-tour="editor-filters">
             <div className="filter-toggle" onClick={() => callApi('toggleFilterSection')}>
-              <h2>Filter Images</h2>
+              <h2>{t('editor.filter.title')}</h2>
               <span id="filterToggleIcon">▶</span>
             </div>
             <div className="filter-content collapsed" id="filterContent">
               <div className="filter-group">
-                <label className="filter-label">Image Name</label>
+                <label className="filter-label">{t('editor.filter.imageName')}</label>
                 <input
                   type="text"
                   className="filter-input"
                   id="filterName"
-                  placeholder="Search by filename..."
+                  placeholder={t('editor.filter.searchByFilename')}
                   autoComplete="off"
                   inputMode="text"
                   onInput={() => callApi('applyFiltersDebounced')}
@@ -83,23 +93,23 @@ export default function LabelEditorPage() {
               </div>
 
               <div className="filter-group">
-                <label className="filter-label">Has Classes</label>
+                <label className="filter-label">{t('editor.filter.hasClasses')}</label>
                 <div className="filter-range">
                   <select id="filterClassMode" onChange={() => callApi('applyFilters')}>
-                    <option value="any">Any</option>
-                    <option value="none">None (no labels)</option>
-                    <option value="only">Only Selected</option>
+                    <option value="any">{t('editor.filter.any')}</option>
+                    <option value="none">{t('editor.filter.none')}</option>
+                    <option value="only">{t('editor.filter.onlySelected')}</option>
                   </select>
                   <select id="filterClassLogic" onChange={() => callApi('applyFilters')}>
-                    <option value="any">Match Any</option>
-                    <option value="all">Match All</option>
+                    <option value="any">{t('editor.filter.matchAny')}</option>
+                    <option value="all">{t('editor.filter.matchAll')}</option>
                   </select>
                 </div>
                 <div className="filter-class-search">
                   <input
                     type="text"
                     id="filterClassSearch"
-                    placeholder="Search classes..."
+                    placeholder={t('editor.filter.searchClasses')}
                     autoComplete="off"
                     inputMode="text"
                   />
@@ -109,21 +119,21 @@ export default function LabelEditorPage() {
               </div>
 
               <div className="filter-group">
-                <label className="filter-label">Label Count</label>
+                <label className="filter-label">{t('editor.filter.labelCount')}</label>
                 <div className="filter-range">
                   <input
                     type="number"
                     id="filterMinLabels"
-                    placeholder="Min"
+                    placeholder={t('editor.filter.min')}
                     min="0"
                     defaultValue="0"
                     onChange={() => callApi('applyFilters')}
                   />
-                  <span>to</span>
+                  <span>{t('editor.filter.to')}</span>
                   <input
                     type="number"
                     id="filterMaxLabels"
-                    placeholder="Max"
+                    placeholder={t('editor.filter.max')}
                     min="0"
                     defaultValue=""
                     onChange={() => callApi('applyFilters')}
@@ -132,28 +142,28 @@ export default function LabelEditorPage() {
               </div>
 
               <button className="btn-clear-filter" onClick={() => callApi('clearFilters')}>
-                Clear All Filters
+                {t('editor.filter.clearAll')}
               </button>
 
               <div className="filter-stats" id="filterStats">
-                Showing all images
+                {t('editor.filter.showingAll')}
               </div>
               <div className="filter-warning" id="filterWarning" style={{ display: 'none' }}>
-                Label count min cannot be greater than max
+                {t('editor.filter.minCannotBeGreaterThanMax')}
               </div>
             </div>
           </div>
 
           <div className="sidebar-section">
-            <h2>Image Info</h2>
+            <h2>{t('editor.imageInfo.title')}</h2>
             <div className="info-field">
-              <div className="info-label">Filename</div>
+              <div className="info-label">{t('editor.imageInfo.filename')}</div>
               <div className="info-value" id="filename">
                 -
               </div>
             </div>
             <div className="info-field">
-              <div className="info-label">Image Size</div>
+              <div className="info-label">{t('editor.imageInfo.imageSize')}</div>
               <div className="info-value" id="imageSize">
                 -
               </div>
@@ -161,7 +171,7 @@ export default function LabelEditorPage() {
           </div>
 
           <div className="sidebar-section" id="obbModeSection" style={{ display: 'none' }}>
-            <h2>OBB Creation Mode</h2>
+            <h2>{t('editor.obbMode.title')}</h2>
             <div className="info-field">
               <div className="info-value" id="obbModeDisplay" style={{ color: '#4ECDC4', fontWeight: 500 }}>
                 -
@@ -170,10 +180,10 @@ export default function LabelEditorPage() {
           </div>
 
           <div className="sidebar-section">
-            <h2>Display</h2>
+            <h2>{t('editor.display.title')}</h2>
             <div className="line-width-control">
               <label className="filter-label" htmlFor="lineWidthScale">
-                Line Width <span id="lineWidthScaleValue">66%</span>
+                {t('editor.display.lineWidth')} <span id="lineWidthScaleValue">66%</span>
               </label>
               <input
                 type="range"
@@ -189,20 +199,20 @@ export default function LabelEditorPage() {
 
           <div className="sidebar-section">
             <h2>
-              Select Class <span style={{ fontSize: '12px', color: '#aaa' }}>(Click to change selected)</span>
+              {t('editor.selectClass.title')} <span style={{ fontSize: '12px', color: '#aaa' }}>({t('editor.selectClass.hint')})</span>
             </h2>
             <div className="class-selector" id="classSelector" />
           </div>
 
           <div className="sidebar-section">
             <h2>
-              Annotations (<span id="annotationCount">0</span>)
+              {t('editor.annotations.title')} (<span id="annotationCount">0</span>)
             </h2>
             <div className="annotations-list" id="annotationsList" />
           </div>
 
           <div className="sidebar-section">
-            <h2>Instructions</h2>
+            <h2>{t('editor.instructions.title')}</h2>
             <div className="instructions">
               <ul />
             </div>
@@ -213,20 +223,20 @@ export default function LabelEditorPage() {
       <div className="preview-bar" id="previewBar">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
           <div style={{ color: '#aaa', fontSize: '12px' }} id="imagePreviewCount">
-            Images
+            {t('editor.preview.images')}
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select id="previewSort" className="preview-sort-select" onChange={() => callApi('handlePreviewSortChange')}>
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="created-desc">Created (newest)</option>
-              <option value="created-asc">Created (oldest)</option>
+              <option value="name-asc">{t('editor.preview.nameAsc')}</option>
+              <option value="name-desc">{t('editor.preview.nameDesc')}</option>
+              <option value="created-desc">{t('editor.preview.createdNewest')}</option>
+              <option value="created-asc">{t('editor.preview.createdOldest')}</option>
             </select>
             <input
               type="text"
               id="previewSearch"
               className="preview-search-input"
-              placeholder="Search filename..."
+              placeholder={t('editor.preview.searchFilename')}
               onInput={() => callApi('handlePreviewSearch')}
             />
           </div>
@@ -238,7 +248,7 @@ export default function LabelEditorPage() {
       </div>
 
       <div className="status-bar" id="statusBar">
-        Ready
+        {t('editor.status.ready')}
       </div>
     </>
   );

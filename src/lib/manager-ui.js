@@ -1,3 +1,5 @@
+import { initI18n, onLanguageChange, t } from '@/lib/i18n';
+
 const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         let config = {};
         let editingInstance = null;
@@ -12,7 +14,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         let selectedInstances = new Set();
         const lastHealthByInstance = new Map();
 
-        function showProcessing(text = 'Processing...') {
+        function showProcessing(text = t('common.processing')) {
             const overlay = document.getElementById('processingOverlay');
             const label = document.getElementById('processingText');
             if (!overlay || !label) return;
@@ -31,8 +33,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             if (!obbModeSelect) return;
 
             const allModes = {
-                'rectangle': 'Rectangle (Drag)',
-                '4point': '4-Point Polygon'
+                'rectangle': t('manager.modal.obbModeRectangle'),
+                '4point': t('manager.modal.obbMode4Point')
             };
 
             const availableModes = config.availableObbModes || ['rectangle', '4point'];
@@ -88,16 +90,16 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to load datasets');
+                    throw new Error(data.error || t('manager.folder.failedToLoadDatasets'));
                 }
                 if (!Array.isArray(data)) {
-                    throw new Error('Datasets response was not an array');
+                    throw new Error(t('manager.folder.invalidDatasetsResponse'));
                 }
 
                 datasets = data;
             } catch (err) {
                 datasets = [];
-                datasetsError = err.message || 'Failed to load datasets';
+                datasetsError = err.message || t('manager.folder.failedToLoadDatasets');
                 console.error('Failed to load datasets:', err);
             }
             populateDatasetOptions();
@@ -203,7 +205,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             if (!breadcrumb) return;
 
             const parts = path ? path.split('/') : [];
-            let html = '<span class="crumb" onclick="navigateToPath(\'\')">📁 datasets</span>';
+            let html = `<span class="crumb" onclick="navigateToPath('')">📁 ${t('manager.folder.datasets')}</span>`;
 
             if (parts.length > 0 && parts[0] !== '') {
                 html += '<span class="crumb-sep">/</span>';
@@ -217,7 +219,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             }
 
             // Add refresh button
-            html += '<button type="button" class="btn-refresh" onclick="refreshAndStay()" title="Refresh folders">↻</button>';
+            html += `<button type="button" class="btn-refresh" onclick="refreshAndStay()" title="${t('manager.folder.refreshFolders')}">↻</button>`;
 
             breadcrumb.innerHTML = html;
         }
@@ -230,7 +232,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             let html = '';
 
             if (datasetsError) {
-                folderList.innerHTML = `<div class="folder-item empty">Error loading datasets: ${datasetsError}</div>`;
+                folderList.innerHTML = `<div class="folder-item empty">${t('manager.folder.errorLoading')}: ${datasetsError}</div>`;
                 return;
             }
 
@@ -263,7 +265,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             });
 
             if (html === '') {
-                html = '<div class="folder-item empty">No folders here</div>';
+                html = `<div class="folder-item empty">${t('manager.folder.noFolders')}</div>`;
             }
 
             folderList.innerHTML = html;
@@ -297,7 +299,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             if (!breadcrumb) return;
 
             const parts = path ? path.split('/').filter(p => p) : [];
-            let html = '<span class="crumb" onclick="navigateToClassPath(\'\')">📁 datasets</span>';
+            let html = `<span class="crumb" onclick="navigateToClassPath('')">📁 ${t('manager.folder.datasets')}</span>`;
 
             if (parts.length > 0) {
                 html += '<span class="crumb-sep">/</span>';
@@ -311,7 +313,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             }
 
             // Add refresh button
-            html += '<button type="button" class="btn-refresh" onclick="navigateToClassPath(currentClassPath)" title="Refresh folders">↻</button>';
+            html += `<button type="button" class="btn-refresh" onclick="navigateToClassPath(currentClassPath)" title="${t('manager.folder.refreshFolders')}">↻</button>`;
 
             breadcrumb.innerHTML = html;
         }
@@ -358,13 +360,13 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 }
 
                 if (html === '') {
-                    html = '<div class="folder-item empty">No folders or class files here</div>';
+                    html = `<div class="folder-item empty">${t('manager.folder.noFoldersOrClassFiles')}</div>`;
                 }
 
                 folderList.innerHTML = html;
             } catch (err) {
                 console.error('Failed to load path:', err);
-                folderList.innerHTML = '<div class="folder-item empty">Error loading path</div>';
+                folderList.innerHTML = `<div class="folder-item empty">${t('manager.folder.errorLoading')}</div>`;
             }
         }
 
@@ -376,7 +378,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const error = document.getElementById('classPreviewError');
             if (!container || !body || !meta) return;
             container.style.display = 'none';
-            body.textContent = 'Select a class file to preview';
+            body.textContent = t('manager.modal.selectClassFile');
             meta.textContent = '';
             if (note) note.style.display = 'none';
             if (error) error.style.display = 'none';
@@ -396,7 +398,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             }
 
             container.style.display = 'block';
-            body.textContent = 'Loading preview...';
+            body.textContent = t('manager.modal.loadingPreview');
             meta.textContent = '';
             if (note) note.style.display = 'none';
             if (error) {
@@ -408,21 +410,21 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 const response = await fetch(`${API_BASE}/api/class-file?path=${encodeURIComponent(path)}`);
                 const data = await response.json();
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to load class file');
+                    throw new Error(data.error || t('manager.modal.failedToLoadClassFile'));
                 }
 
                 const lines = (data.content || '')
                     .split(/\r?\n/)
                     .filter(line => line.trim() !== '');
 
-                body.textContent = lines.length ? lines.join('\n') : 'File is empty';
+                body.textContent = lines.length ? lines.join('\n') : t('manager.modal.fileEmpty');
 
                 const lineCount = lines.length;
-                meta.textContent = `${lineCount} line${lineCount === 1 ? '' : 's'}`;
+                meta.textContent = `${lineCount} ${t('manager.modal.lines')}`;
 
                 if (note) {
                     if (data.truncated) {
-                        note.textContent = 'Preview truncated to the first 10,000 characters.';
+                        note.textContent = t('manager.modal.previewTruncated');
                         note.style.display = 'block';
                     } else {
                         note.style.display = 'none';
@@ -432,7 +434,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 body.textContent = '';
                 meta.textContent = '';
                 if (error) {
-                    error.textContent = err.message || 'Unable to preview file.';
+                    error.textContent = err.message || t('manager.modal.unableToPreview');
                     error.style.display = 'block';
                 }
             }
@@ -483,16 +485,16 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
         function statusMeta(instance) {
             const status = (instance.status || 'unknown').toLowerCase();
-            if (status === 'online') return { cls: 'status-online', text: 'Running' };
-            if (status === 'stopped') return { cls: 'status-stopped', text: 'Not running' };
-            return { cls: 'status-unknown', text: 'Unknown' };
+            if (status === 'online') return { cls: 'status-online', text: t('manager.status.running') };
+            if (status === 'stopped') return { cls: 'status-stopped', text: t('manager.status.notRunning') };
+            return { cls: 'status-unknown', text: t('manager.status.unknown') };
         }
 
         function healthMeta(instance) {
             const health = (instance.serviceHealth || 'n/a').toLowerCase();
-            if (health === 'healthy') return { cls: 'health-healthy', text: 'Service OK' };
-            if (health === 'unhealthy') return { cls: 'health-unhealthy', text: 'Service Down' };
-            return { cls: 'health-na', text: 'N/A' };
+            if (health === 'healthy') return { cls: 'health-healthy', text: t('manager.status.serviceOk') };
+            if (health === 'unhealthy') return { cls: 'health-unhealthy', text: t('manager.status.serviceDown') };
+            return { cls: 'health-na', text: t('manager.status.na') };
         }
 
         function renderInstances(instances) {
@@ -507,8 +509,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             if (!instances.length) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <h2>No instances yet</h2>
-                        <p>Click "Add Instance" to create your first FiftyOne instance</p>
+                        <h2>${t('manager.noInstances')}</h2>
+                        <p>${t('manager.noInstancesHint')}</p>
                     </div>
                 `;
                 return;
@@ -529,12 +531,12 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                                    id="checkbox-${instance.name}"
                                    onchange="toggleInstanceSelection('${instance.name}')"
                                    ${selectedInstances.has(instance.name) ? 'checked' : ''}>
-                            <span>${instance.name || 'Instance'}</span>
+                            <span>${instance.name || t('manager.instanceFallback')}</span>
                         </div>
                         <div class="status-group">
                             <div class="status-pill ${hasError ? 'status-error' : meta.cls}">
                                 <span class="dot"></span>
-                                <span>${hasError ? 'Error' : meta.text}</span>
+                                <span>${hasError ? t('manager.status.error') : meta.text}</span>
                             </div>
                             ${instance.status === 'online' ? `
                             <div class="status-pill ${health.cls}">
@@ -545,35 +547,35 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                         </div>
                     </div>
 
-                    ${hasError ? `<div class="status-message">Last error reported. Check logs for details.</div>` : ''}
+                    ${hasError ? `<div class="status-message">${t('manager.hint.lastErrorReported')}</div>` : ''}
 
                     <div class="instance-grid">
                         <div class="field">
-                            <label>Name</label>
+                            <label>${t('common.name')}</label>
                             <input type="text" value="${instance.name || ''}" readonly>
                         </div>
                         <div class="field">
-                            <label>Port</label>
+                            <label>${t('common.port')}</label>
                             <input type="text" value="${instance.port || ''}" readonly>
                         </div>
                         <div class="field" style="grid-column: span 2;">
-                            <label>Dataset Dir</label>
+                            <label>${t('manager.modal.datasetPath')}</label>
                             <input type="text" value="${instance.datasetPath || ''}" readonly>
                         </div>
                     </div>
-                    <div class="hint">Must be inside the base path defined in .env.</div>
+                    <div class="hint">${t('manager.hint.mustBeInsideBasePath')}</div>
                     <div class="instance-actions">
                         ${instance.status === 'online'
-                            ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">Restart</button>
-                               <button class="btn danger" onclick="stopInstance('${instance.name}')">Stop</button>
-                               <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? 'disabled title="Service down"' : ''}>Open</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
-                            : `<button class="btn success" onclick="startInstance('${instance.name}')">Start</button>
-                               <button class="btn ghost" onclick="editInstance('${instance.name}')">Edit</button>
-                               <button class="btn danger" onclick="deleteInstance('${instance.name}')">Remove</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : 'disabled title="Dataset path required"'}>Open Editor</button>`
+                            ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">${t('common.restart')}</button>
+                               <button class="btn danger" onclick="stopInstance('${instance.name}')">${t('common.stop')}</button>
+                               <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? `disabled title="${t('manager.hint.serviceDown')}"` : ''}>${t('common.open')}</button>
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : `disabled title="${t('manager.hint.datasetPathRequired')}"`}>${t('manager.openEditor')}</button>`
+                            : `<button class="btn success" onclick="startInstance('${instance.name}')">${t('common.start')}</button>
+                               <button class="btn ghost" onclick="editInstance('${instance.name}')">${t('common.edit')}</button>
+                               <button class="btn danger" onclick="deleteInstance('${instance.name}')">${t('common.remove')}</button>
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : `disabled title="${t('manager.hint.datasetPathRequired')}"`}>${t('manager.openEditor')}</button>`
                         }
-                        <button class="btn ghost" onclick="showLogs('${instance.name}')">Logs</button>
+                        <button class="btn ghost" onclick="showLogs('${instance.name}')">${t('manager.logs')}</button>
                     </div>
                 </div>
                 `;
@@ -581,34 +583,34 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         }
 
         async function startInstance(name) {
-            showProcessing(`Starting ${name}...`);
+            showProcessing(t('manager.processing.starting', { name }));
             try {
                 const response = await fetch(`${API_BASE}/api/instances/${name}/start`, { method: 'POST' });
                 if (!response.ok) {
                     const error = await response.json();
-                    alert(`Failed to start instance: ${error.error}`);
+                    alert(`${t('manager.errors.failedToStart')}: ${error.error}`);
                     return;
                 }
                 setTimeout(refreshInstances, 800);
             } catch (err) {
-                alert(`Failed to start instance: ${err.message}`);
+                alert(`${t('manager.errors.failedToStart')}: ${err.message}`);
             } finally {
                 hideProcessing();
             }
         }
 
         async function stopInstance(name) {
-            showProcessing(`Stopping ${name}...`);
+            showProcessing(t('manager.processing.stopping', { name }));
             try {
                 const response = await fetch(`${API_BASE}/api/instances/${name}/stop`, { method: 'POST' });
                 if (!response.ok) {
                     const error = await response.json();
-                    alert(`Failed to stop instance: ${error.error}`);
+                    alert(`${t('manager.errors.failedToStop')}: ${error.error}`);
                     return;
                 }
                 setTimeout(refreshInstances, 800);
             } catch (err) {
-                alert(`Failed to stop instance: ${err.message}`);
+                alert(`${t('manager.errors.failedToStop')}: ${err.message}`);
             } finally {
                 hideProcessing();
             }
@@ -619,12 +621,12 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 const response = await fetch(`${API_BASE}/api/instances/${name}/restart`, { method: 'POST' });
                 if (!response.ok) {
                     const error = await response.json();
-                    alert(`Failed to restart instance: ${error.error}`);
+                    alert(`${t('manager.errors.failedToRestart')}: ${error.error}`);
                     return;
                 }
                 setTimeout(refreshInstances, 800);
             } catch (err) {
-                alert(`Failed to restart instance: ${err.message}`);
+                alert(`${t('manager.errors.failedToRestart')}: ${err.message}`);
             }
         }
 
@@ -664,11 +666,11 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
             if (startBtn) {
                 startBtn.disabled = !hasSelection;
-                startBtn.title = hasSelection ? 'Start selected instances' : 'Select instances to start';
+                startBtn.title = hasSelection ? t('manager.hint.startSelected') : t('manager.hint.selectInstancesToStart');
             }
             if (stopBtn) {
                 stopBtn.disabled = !hasSelection;
-                stopBtn.title = hasSelection ? 'Stop selected instances' : 'Select instances to stop';
+                stopBtn.title = hasSelection ? t('manager.hint.stopSelected') : t('manager.hint.selectInstancesToStop');
             }
 
             // Check if any selected instances are running
@@ -681,13 +683,13 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
                 if (!hasSelection) {
                     removeBtn.disabled = true;
-                    removeBtn.title = 'Select instances to remove';
+                    removeBtn.title = t('manager.hint.selectInstancesToRemove');
                 } else if (hasRunningInstances) {
                     removeBtn.disabled = true;
-                    removeBtn.title = 'Cannot remove running instances. Please stop them first.';
+                    removeBtn.title = t('manager.hint.cannotRemoveRunning');
                 } else {
                     removeBtn.disabled = false;
-                    removeBtn.title = 'Remove selected instances';
+                    removeBtn.title = t('manager.hint.removeSelected');
                 }
             }
 
@@ -734,7 +736,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             if (selectedInstances.size === 0) return;
 
             const count = selectedInstances.size;
-            if (!confirm(`Are you sure you want to delete ${count} instance(s)?`)) {
+            if (!confirm(t('manager.confirm.deleteMultiple', { count }))) {
                 return;
             }
 
@@ -747,14 +749,14 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         }
 
         async function deleteInstance(name, skipConfirm = false) {
-            if (!skipConfirm && !confirm(`Are you sure you want to delete instance "${name}"?`)) {
+            if (!skipConfirm && !confirm(t('manager.confirm.deleteInstance', { name }))) {
                 return;
             }
             try {
                 const response = await fetch(`${API_BASE}/api/instances/${name}`, { method: 'DELETE' });
                 if (!response.ok) {
                     const error = await response.json();
-                    alert(`Failed to delete instance: ${error.error}`);
+                    alert(`${t('manager.errors.failedToDelete')}: ${error.error}`);
                     return;
                 }
                 selectedInstances.delete(name);
@@ -762,7 +764,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                     refreshInstances();
                 }
             } catch (err) {
-                alert(`Failed to delete instance: ${err.message}`);
+                alert(`${t('manager.errors.failedToDelete')}: ${err.message}`);
             }
         }
 
@@ -773,7 +775,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         async function openLabelEditor(encodedDatasetPath, encodedLastImagePath, obbMode = 'rectangle') {
             const datasetPath = decodeURIComponent(encodedDatasetPath || '');
             if (!datasetPath) {
-                alert('Dataset path is missing.');
+                alert(t('manager.errors.datasetPathMissing'));
                 return;
             }
 
@@ -781,13 +783,13 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const basePath = rawBasePath.replace(/\/+$/, '');
             const matchesBase = datasetPath === basePath || datasetPath.startsWith(`${basePath}/`);
             if (!matchesBase) {
-                alert('Dataset path must be inside the configured base path.');
+                alert(t('manager.errors.datasetPathMustBeInBase'));
                 return;
             }
 
             const relativePath = datasetPath.slice(basePath.length).replace(/^\/+/, '');
             if (!relativePath) {
-                alert('Dataset folder is required to open the label editor.');
+                alert(t('manager.errors.datasetFolderRequired'));
                 return;
             }
 
@@ -871,7 +873,9 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 const isAvailable = !usedPorts.has(port);
                 ports.push({
                     value: port,
-                    label: isAvailable ? `${port} (available)` : `${port} (in use)`,
+                    label: isAvailable
+                        ? `${port} (${t('common.available')})`
+                        : `${port} (${t('common.inUse')})`,
                     available: isAvailable,
                     display: true
                 });
@@ -932,7 +936,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             console.log('showAddModal: Instances loaded', latestInstances);
 
             editingInstance = null;
-            document.getElementById('modalTitle').textContent = 'Add New Instance';
+            document.getElementById('modalTitle').textContent = t('manager.modal.addTitle');
             document.getElementById('instanceForm').reset();
             document.getElementById('threshold').value = config.defaultThreshold;
             document.getElementById('debugMode').checked = config.defaultDebug;
@@ -973,12 +977,12 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
                 const instance = latestInstances.find(i => i.name === name);
                 if (!instance) {
-                    alert('Instance not found');
+                    alert(t('manager.errors.instanceNotFound'));
                     return;
                 }
 
                 editingInstance = name;
-                document.getElementById('modalTitle').textContent = 'Edit Instance';
+                document.getElementById('modalTitle').textContent = t('manager.modal.editTitle');
                 document.getElementById('instanceName').value = instance.name;
                 document.getElementById('instanceName').disabled = true;
                 document.getElementById('threshold').value = instance.threshold;
@@ -1085,17 +1089,17 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 const data = await response.json();
 
                 if (!response.ok) {
-                    alert(`Error: ${data.error}`);
+                    alert(`${t('common.error')}: ${data.error}`);
                     document.getElementById('pentagonFormat').checked = false;
                     return;
                 }
 
                 if (!data.alreadyConverted) {
-                    alert(`Converted ${data.convertedCount} files to OBB format`);
+                    alert(t('manager.modal.convertedCount', { count: data.convertedCount }));
                 }
             } catch (err) {
                 console.error('Error converting to OBB format:', err);
-                alert(`Failed to convert: ${err.message}`);
+                alert(`${t('common.error')}: ${err.message}`);
                 document.getElementById('pentagonFormat').checked = false;
             }
         }
@@ -1122,12 +1126,15 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
             try {
                 if (!config.portRange) {
-                    document.getElementById('modalError').textContent = 'Config not loaded yet. Try again.';
+                    document.getElementById('modalError').textContent = t('manager.errors.configNotLoaded');
                     document.getElementById('modalError').style.display = 'block';
                     return;
                 }
                 if (Number.isNaN(port) || port < config.portRange.start || port > config.portRange.end) {
-                    const message = `Port must be between ${config.portRange.start} and ${config.portRange.end}.`;
+                    const message = t('manager.errors.portOutOfRange', {
+                        start: config.portRange.start,
+                        end: config.portRange.end
+                    });
                     document.getElementById('modalError').textContent = message;
                     document.getElementById('modalError').style.display = 'block';
                     return;
@@ -1165,8 +1172,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         }
 
         async function showLogs(name) {
-            document.getElementById('logsTitle').textContent = `Logs: ${name}`;
-            document.getElementById('logsContent').textContent = 'Loading logs...';
+            document.getElementById('logsTitle').textContent = t('manager.logsTitle', { name });
+            document.getElementById('logsContent').textContent = t('manager.loadingLogs');
             document.getElementById('logsModal').classList.add('active');
             activeLogsInstance = name;
             followLogs = true;
@@ -1268,11 +1275,11 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const invalid = duplicate || invalidFormat;
 
             if (invalidFormat) {
-                errorEl.textContent = 'Use only letters, numbers, hyphens, or underscores.';
+                errorEl.textContent = t('manager.modal.instanceNameInvalid');
                 errorEl.style.display = 'block';
                 input.classList.add('input-error');
             } else if (duplicate) {
-                errorEl.textContent = `Instance name "${name}" is already in use. Choose another.`;
+                errorEl.textContent = t('manager.modal.instanceNameExists');
                 errorEl.style.display = 'block';
                 input.classList.add('input-error');
             } else {
@@ -1316,7 +1323,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                     combined += '=== STDERR ===\n' + logs.stderr;
                 }
 
-                container.textContent = combined || 'No logs available';
+                container.textContent = combined || t('manager.noLogsAvailable');
 
                 if (followLogs) {
                     container.scrollTop = container.scrollHeight;
@@ -1325,7 +1332,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                     container.scrollTop = newDistance;
                 }
             } catch (err) {
-                container.textContent = `Failed to load logs: ${err.message}`;
+                container.textContent = `${t('manager.errors.failedToLoadLogs')}: ${err.message}`;
             }
         }
 
@@ -1387,11 +1394,47 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             window.currentClassPath = currentClassPath;
         }
 
+        function refreshLocalizedUI() {
+            updateObbModeOptions();
+            renderBreadcrumb(currentPath);
+            renderFolderList(currentPath);
+            renderClassBreadcrumb(currentClassPath);
+            renderClassFolderList(currentClassPath);
+            renderInstances(latestInstances);
+            updateSelectionButtons();
+
+            const modalTitle = document.getElementById('modalTitle');
+            if (modalTitle) {
+                modalTitle.textContent = editingInstance ? t('manager.modal.editTitle') : t('manager.modal.addTitle');
+            }
+
+            const logsTitle = document.getElementById('logsTitle');
+            if (logsTitle && activeLogsInstance) {
+                logsTitle.textContent = t('manager.logsTitle', { name: activeLogsInstance });
+            }
+
+            const portSelect = document.getElementById('instancePort');
+            if (portSelect && portSelect._allPorts) {
+                const updatedPorts = portSelect._allPorts.map(port => ({
+                    ...port,
+                    label: port.available
+                        ? `${port.value} (${t('common.available')})`
+                        : `${port.value} (${t('common.inUse')})`
+                }));
+                portSelect._allPorts = updatedPorts;
+                renderPortOptions(updatedPorts);
+            }
+        }
+
         export function initManager() {
             if (initialized || typeof window === 'undefined') {
                 return;
             }
             initialized = true;
+            initI18n().then(() => {
+                refreshLocalizedUI();
+            });
+            onLanguageChange(refreshLocalizedUI);
             exposeToWindow();
             bindFormHandlers();
             loadConfig().then(() => {
