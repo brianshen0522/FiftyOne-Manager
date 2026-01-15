@@ -386,6 +386,63 @@ app.get('/api/browse-path', (req, res) => {
   }
 });
 
+// Helper function to check if a directory directly contains class files (non-recursive)
+function hasDirectClassFiles(dirPath) {
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.toLowerCase().endsWith('.txt') && entry.name.toLowerCase().includes('class')) {
+        return true;
+      }
+    }
+  } catch (err) {
+    // Can't read directory
+  }
+  return false;
+}
+
+// Find nearest parent folder that contains class files
+app.get('/api/find-class-path', (req, res) => {
+  try {
+    const targetPath = req.query.path;
+    const basePath = CONFIG.datasetBasePath;
+
+    if (!targetPath) {
+      return res.json({ path: '' });
+    }
+
+    // Ensure we stay within the base path
+    const resolvedTarget = path.resolve(targetPath);
+    const resolvedBase = path.resolve(basePath);
+
+    if (!resolvedTarget.startsWith(resolvedBase)) {
+      return res.json({ path: '' });
+    }
+
+    // Walk up from target path to base path, checking each level
+    let currentPath = resolvedTarget;
+
+    while (currentPath.length >= resolvedBase.length) {
+      // Check if this directory contains class files (recursively, for navigation purposes)
+      if (fs.existsSync(currentPath) && containsClassFiles(currentPath)) {
+        // Return relative path from base
+        const relativePath = path.relative(resolvedBase, currentPath);
+        return res.json({ path: relativePath || '' });
+      }
+
+      // Move up one directory
+      const parentPath = path.dirname(currentPath);
+      if (parentPath === currentPath) break; // Reached root
+      currentPath = parentPath;
+    }
+
+    // Default to base path
+    return res.json({ path: '' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Preview class file content
 app.get('/api/class-file', (req, res) => {
   try {

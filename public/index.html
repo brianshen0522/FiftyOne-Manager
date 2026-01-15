@@ -954,16 +954,16 @@
 
         async function loadClassFiles(datasetFullPath) {
             const basePath = config.datasetBasePath || '/data/datasets';
-            let relativePath = '';
-
-            if (datasetFullPath && datasetFullPath.startsWith(basePath)) {
-                relativePath = datasetFullPath.slice(basePath.length).replace(/^\//, '');
-            }
 
             try {
-                await navigateToClassPath(relativePath);
+                // Find nearest parent folder that contains class files
+                const response = await fetch(`${API_BASE}/api/find-class-path?path=${encodeURIComponent(datasetFullPath || basePath)}`);
+                const data = await response.json();
+                await navigateToClassPath(data.path || '');
             } catch (err) {
                 console.error('Failed to load class files:', err);
+                // Fallback to root
+                await navigateToClassPath('');
             }
         }
 
