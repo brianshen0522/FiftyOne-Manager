@@ -38,6 +38,7 @@ services:
       - CVAT_USERNAME=${CVAT_USERNAME}
       - CVAT_PASSWORD=${CVAT_PASSWORD}
       - CVAT_EMAIL=${CVAT_EMAIL}
+      - AVAILABLE_OBB_MODES=${AVAILABLE_OBB_MODES:-rectangle,4point}
     restart: unless-stopped
 
 volumes:

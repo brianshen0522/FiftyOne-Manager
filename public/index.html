@@ -875,6 +875,39 @@
             overlay.style.display = 'none';
         }
 
+        function updateObbModeOptions() {
+            const obbModeSelect = document.getElementById('obbMode');
+            if (!obbModeSelect) return;
+
+            const allModes = {
+                'rectangle': 'Rectangle (Drag)',
+                '4point': '4-Point Polygon'
+            };
+
+            const availableModes = config.availableObbModes || ['rectangle', '4point'];
+
+            // Clear existing options
+            obbModeSelect.innerHTML = '';
+
+            // Add only available modes
+            availableModes.forEach(mode => {
+                if (allModes[mode]) {
+                    const option = document.createElement('option');
+                    option.value = mode;
+                    option.textContent = allModes[mode];
+                    obbModeSelect.appendChild(option);
+                }
+            });
+
+            // If no valid modes, add rectangle as fallback
+            if (obbModeSelect.options.length === 0) {
+                const option = document.createElement('option');
+                option.value = 'rectangle';
+                option.textContent = allModes['rectangle'];
+                obbModeSelect.appendChild(option);
+            }
+        }
+
         async function loadConfig() {
             try {
                 const response = await fetch(`${API_BASE}/api/config`);
@@ -887,6 +920,9 @@
                 if (cvatSyncGroup) {
                     cvatSyncGroup.style.display = config.cvat?.enabled ? 'block' : 'none';
                 }
+
+                // Filter OBB mode dropdown based on available modes
+                updateObbModeOptions();
 
                 await loadDatasets();
             } catch (err) {

@@ -34,7 +34,8 @@ const CONFIG = {
     username: process.env.CVAT_USERNAME || '',
     password: process.env.CVAT_PASSWORD || '',
     email: process.env.CVAT_EMAIL || ''
-  }
+  },
+  availableObbModes: (process.env.AVAILABLE_OBB_MODES || 'rectangle,4point').split(',').map(m => m.trim()).filter(m => m)
 };
 
 // Store instances configuration
