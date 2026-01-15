@@ -32,7 +32,7 @@ FiftyOne UI → Plugin Button → Opens Label Editor → Edits YOLO .txt files
    - Displays images with bounding boxes
    - Interactive editing interface
 
-2. **API Endpoints** (`server.js`)
+2. **API Endpoints** (`app/api`)
    - `/api/label-editor/load` - Loads image and label data
    - `/api/label-editor/save` - Saves edited labels
 

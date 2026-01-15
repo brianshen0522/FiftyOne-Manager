@@ -31,7 +31,7 @@ RUN python3 -m venv "${VIRTUAL_ENV}" \
 
 WORKDIR /app
 
-# Install Node.js dependencies (omit dev-only tools like nodemon)
+# Install Node.js dependencies
 COPY package*.json ./
 RUN npm install --omit=dev && npm cache clean --force
 
@@ -49,6 +49,9 @@ COPY . .
 # Provide defaults when no env file is mounted
 RUN if [ ! -f .env ]; then cp .env.example .env; fi
 
+# Build Next.js app
+RUN npm run build
+
 # Ensure dataset directory exists inside the image
 RUN mkdir -p /data/datasets
 
@@ -57,4 +60,4 @@ RUN mkdir -p /app/deletion_logs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["npm", "start"]

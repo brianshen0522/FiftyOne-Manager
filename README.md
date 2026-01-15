@@ -86,6 +86,11 @@ npm install -g pm2
 Start the server:
 
 ```bash
+# Development
+npm run dev
+
+# Production
+npm run build
 npm start
 ```
 

@@ -1,4 +1,14 @@
-node_modules/
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+
+# Production build
+/build
 .env
 .env.dev
 instances.json
