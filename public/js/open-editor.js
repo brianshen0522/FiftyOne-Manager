@@ -1,76 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Opening Label Editor...</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a1a;
-            color: #ffffff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            text-align: center;
-            padding: 40px;
-        }
-        .spinner {
-            border: 4px solid #333;
-            border-top: 4px solid #007bff;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
-        }
-        p {
-            color: #aaa;
-            margin-bottom: 20px;
-        }
-        .manual-link {
-            display: none;
-            margin-top: 20px;
-        }
-        .manual-link a {
-            color: #007bff;
-            text-decoration: none;
-            padding: 10px 20px;
-            border: 1px solid #007bff;
-            border-radius: 4px;
-            display: inline-block;
-        }
-        .manual-link a:hover {
-            background: #007bff;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="spinner"></div>
-        <h1>Opening Label Editor...</h1>
-        <p id="status">Please wait...</p>
-        <div class="manual-link" id="manualLink">
-            <p>If the editor doesn't open automatically:</p>
-            <a id="editorLink" href="#" target="_blank">Click here to open Label Editor</a>
-        </div>
-    </div>
-
-    <script>
-        async function getConfig() {
+async function getConfig() {
             try {
                 const response = await fetch('/api/config');
                 return await response.json();
@@ -133,6 +61,3 @@
 
         // Run on page load
         openEditor();
-    </script>
-</body>
-</html>
