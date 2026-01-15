@@ -1946,8 +1946,11 @@
         }
 
         function selectClass(classIdx) {
-            // If an annotation is selected, change its class
-            if (selectedAnnotation !== null) {
+            // If multiple annotations are selected, change all their classes
+            if (selectedAnnotations.length > 0) {
+                changeMultipleAnnotationsClass(selectedAnnotations, classIdx);
+            } else if (selectedAnnotation !== null) {
+                // Single annotation selected
                 changeAnnotationClass(selectedAnnotation, classIdx);
             }
 
@@ -2394,42 +2397,45 @@
                             ctx.fillRect(p.x - handleSize / 2, p.y - handleSize / 2, handleSize, handleSize);
                         });
 
-                        const topMid = {
-                            x: (points[0].x + points[1].x) / 2,
-                            y: (points[0].y + points[1].y) / 2
-                        };
-                        const edgeDx = points[1].x - points[0].x;
-                        const edgeDy = points[1].y - points[0].y;
-                        let normal = { x: edgeDy, y: -edgeDx };
-                        const center = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
-                        center.x /= points.length;
-                        center.y /= points.length;
-                        const toCenter = { x: center.x - topMid.x, y: center.y - topMid.y };
-                        if (normal.x * toCenter.x + normal.y * toCenter.y > 0) {
-                            normal.x *= -1;
-                            normal.y *= -1;
+                        // Only draw individual rotate handle when single selection
+                        if (selectedAnnotations.length === 1) {
+                            const topMid = {
+                                x: (points[0].x + points[1].x) / 2,
+                                y: (points[0].y + points[1].y) / 2
+                            };
+                            const edgeDx = points[1].x - points[0].x;
+                            const edgeDy = points[1].y - points[0].y;
+                            let normal = { x: edgeDy, y: -edgeDx };
+                            const center = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+                            center.x /= points.length;
+                            center.y /= points.length;
+                            const toCenter = { x: center.x - topMid.x, y: center.y - topMid.y };
+                            if (normal.x * toCenter.x + normal.y * toCenter.y > 0) {
+                                normal.x *= -1;
+                                normal.y *= -1;
+                            }
+                            const normalLen = Math.hypot(normal.x, normal.y) || 1;
+                            normal.x /= normalLen;
+                            normal.y /= normalLen;
+                            const handleOffset = 24 / totalScale;
+                            const rotHandle = {
+                                x: topMid.x + normal.x * handleOffset,
+                                y: topMid.y + normal.y * handleOffset
+                            };
+
+                            ctx.strokeStyle = color;
+                            ctx.lineWidth = scaledLineWidth(2, totalScale);
+                            ctx.beginPath();
+                            ctx.moveTo(topMid.x, topMid.y);
+                            ctx.lineTo(rotHandle.x, rotHandle.y);
+                            ctx.stroke();
+
+                            ctx.fillStyle = '#fff';
+                            ctx.beginPath();
+                            ctx.arc(rotHandle.x, rotHandle.y, 6 / totalScale, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.stroke();
                         }
-                        const normalLen = Math.hypot(normal.x, normal.y) || 1;
-                        normal.x /= normalLen;
-                        normal.y /= normalLen;
-                        const handleOffset = 24 / totalScale;
-                        const rotHandle = {
-                            x: topMid.x + normal.x * handleOffset,
-                            y: topMid.y + normal.y * handleOffset
-                        };
-
-                        ctx.strokeStyle = color;
-                        ctx.lineWidth = scaledLineWidth(2, totalScale);
-                        ctx.beginPath();
-                        ctx.moveTo(topMid.x, topMid.y);
-                        ctx.lineTo(rotHandle.x, rotHandle.y);
-                        ctx.stroke();
-
-                        ctx.fillStyle = '#fff';
-                        ctx.beginPath();
-                        ctx.arc(rotHandle.x, rotHandle.y, 6 / totalScale, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.stroke();
                     }
                 } else {
                     const x = (ann.x - ann.w / 2) * image.width;
@@ -2867,6 +2873,22 @@
                         };
                         return;
                     } else if (isPointInRect(x, y, groupBox)) {
+                        // Check if Shift/Ctrl+click on annotation to toggle selection
+                        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                            const clickedIdx = getAnnotationAt(x, y);
+                            if (clickedIdx !== null) {
+                                const idx = selectedAnnotations.indexOf(clickedIdx);
+                                if (idx !== -1) {
+                                    // Remove from selection
+                                    selectedAnnotations.splice(idx, 1);
+                                    selectedAnnotation = selectedAnnotations.length > 0 ? selectedAnnotations[selectedAnnotations.length - 1] : null;
+                                    updateUI();
+                                    updateClassSelector();
+                                    draw();
+                                    return;
+                                }
+                            }
+                        }
                         // Start group move
                         historySnapshot = captureState();
                         isMoving = true;
@@ -2886,8 +2908,8 @@
             if (clickedIdx !== null) {
                 clearAllCreation();
 
-                // Multi-selection with Ctrl/Cmd key
-                if (e.ctrlKey || e.metaKey) {
+                // Multi-selection toggle with Ctrl/Cmd or Shift key
+                if (e.ctrlKey || e.metaKey || e.shiftKey) {
                     // Toggle selection
                     const idx = selectedAnnotations.indexOf(clickedIdx);
                     if (idx === -1) {
@@ -3379,8 +3401,13 @@
             // Switch class with W/S keys
             if (e.key === 'w' || e.key === 'W') {
                 e.preventDefault();
-                if (selectedAnnotation !== null) {
-                    // Change class of selected annotation
+                if (selectedAnnotations.length > 0) {
+                    // Change class of all selected annotations
+                    const currentClass = annotations[selectedAnnotations[0]].class;
+                    const newClass = (currentClass - 1 + CLASSES.length) % CLASSES.length;
+                    changeMultipleAnnotationsClass(selectedAnnotations, newClass);
+                } else if (selectedAnnotation !== null) {
+                    // Change class of single selected annotation
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass - 1 + CLASSES.length) % CLASSES.length;
                     changeAnnotationClass(selectedAnnotation, newClass);
@@ -3391,8 +3418,13 @@
                 }
             } else if (e.key === 's' || e.key === 'S') {
                 e.preventDefault();
-                if (selectedAnnotation !== null) {
-                    // Change class of selected annotation
+                if (selectedAnnotations.length > 0) {
+                    // Change class of all selected annotations
+                    const currentClass = annotations[selectedAnnotations[0]].class;
+                    const newClass = (currentClass + 1) % CLASSES.length;
+                    changeMultipleAnnotationsClass(selectedAnnotations, newClass);
+                } else if (selectedAnnotation !== null) {
+                    // Change class of single selected annotation
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass + 1) % CLASSES.length;
                     changeAnnotationClass(selectedAnnotation, newClass);
@@ -3859,6 +3891,18 @@
         function changeAnnotationClass(idx, newClass) {
             const prevState = captureState();
             annotations[idx].class = newClass;
+            recordHistory(prevState);
+            setUnsavedChanges(true);
+            updateUI();
+            draw();
+        }
+
+        function changeMultipleAnnotationsClass(indices, newClass) {
+            if (indices.length === 0) return;
+            const prevState = captureState();
+            indices.forEach(idx => {
+                annotations[idx].class = newClass;
+            });
             recordHistory(prevState);
             setUnsavedChanges(true);
             updateUI();
