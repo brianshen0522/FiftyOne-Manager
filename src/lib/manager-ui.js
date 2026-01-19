@@ -939,7 +939,6 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             document.getElementById('modalTitle').textContent = t('manager.modal.addTitle');
             document.getElementById('instanceForm').reset();
             document.getElementById('threshold').value = config.defaultThreshold;
-            document.getElementById('debugMode').checked = config.defaultDebug;
             document.getElementById('cvatSync').checked = false;
             document.getElementById('autoSync').checked = true;
             document.getElementById('pentagonFormat').checked = false;
@@ -986,7 +985,6 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 document.getElementById('instanceName').value = instance.name;
                 document.getElementById('instanceName').disabled = true;
                 document.getElementById('threshold').value = instance.threshold;
-                document.getElementById('debugMode').checked = instance.debug;
                 document.getElementById('cvatSync').checked = instance.cvatSync || false;
                 document.getElementById('autoSync').checked = instance.autoSync || false;
                 document.getElementById('pentagonFormat').checked = instance.pentagonFormat || false;
@@ -1111,7 +1109,6 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const port = parseInt(document.getElementById('instancePort').value, 10);
             const datasetPath = document.getElementById('datasetPath').value;
             const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
-            const debug = document.getElementById('debugMode').checked;
             const cvatSync = document.getElementById('cvatSync').checked;
             const autoSync = document.getElementById('autoSync').checked;
             const pentagonFormat = document.getElementById('pentagonFormat').checked;
@@ -1122,7 +1119,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, debug, cvatSync, autoSync, pentagonFormat, obbMode, classFile };
+            const data = { name, port, datasetPath, threshold, cvatSync, autoSync, pentagonFormat, obbMode, classFile };
 
             try {
                 if (!config.portRange) {
