@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import { loadInstances } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req) {
+export const GET = withApiLogging(async (req) => {
   try {
     const { searchParams } = new URL(req.url);
     const datasetPath = searchParams.get('datasetPath');
@@ -21,4 +22,4 @@ export async function GET(req) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

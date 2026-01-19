@@ -7,10 +7,11 @@ import {
   saveInstances,
   validatePort
 } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function PUT(req, { params }) {
+export const PUT = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
     const body = await req.json();
@@ -55,9 +56,9 @@ export async function PUT(req, { params }) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function DELETE(req, { params }) {
+export const DELETE = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
     const instances = loadInstances();
@@ -78,4 +79,4 @@ export async function DELETE(req, { params }) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

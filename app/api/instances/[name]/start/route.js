@@ -5,10 +5,11 @@ import {
   execPromise,
   loadInstances
 } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req, { params }) {
+export const POST = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
     const instances = loadInstances();
@@ -61,4 +62,4 @@ export async function POST(req, { params }) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

@@ -10,10 +10,11 @@ import {
   validateInstanceNameFormat,
   validatePort
 } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export const GET = withApiLogging(async () => {
   try {
     const instances = loadInstances();
 
@@ -64,9 +65,9 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function POST(req) {
+export const POST = withApiLogging(async (req) => {
   try {
     const body = await req.json();
     const {
@@ -131,4 +132,4 @@ export async function POST(req) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

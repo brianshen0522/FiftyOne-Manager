@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import { getPm2LogInfo, loadInstances } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req, { params }) {
+export const GET = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
     const { searchParams } = new URL(req.url);
@@ -60,4 +61,4 @@ export async function GET(req, { params }) {
   } catch (err) {
     return NextResponse.json({ stdout: '', stderr: err.message });
   }
-}
+});

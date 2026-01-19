@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { checkDatasetFormat, loadInstances } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req, { params }) {
+export const GET = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
     const instances = loadInstances();
@@ -27,4 +28,4 @@ export async function GET(req, { params }) {
     console.error('Error checking format:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 import { CONFIG, containsClassFiles } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req) {
+export const GET = withApiLogging(async (req) => {
   try {
     const { searchParams } = new URL(req.url);
     const targetPath = searchParams.get('path');
@@ -39,4 +40,4 @@ export async function GET(req) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});

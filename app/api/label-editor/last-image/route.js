@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
 import { loadInstances, saveInstances } from '@/lib/manager';
+import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req) {
+export const POST = withApiLogging(async (req) => {
   try {
     const body = await req.json();
     const { basePath, imagePath } = body;
@@ -29,9 +30,9 @@ export async function POST(req) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
 
-export async function GET(req) {
+export const GET = withApiLogging(async (req) => {
   try {
     const { searchParams } = new URL(req.url);
     const basePath = searchParams.get('basePath');
@@ -65,4 +66,4 @@ export async function GET(req) {
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+});
