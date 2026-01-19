@@ -190,13 +190,6 @@ export default function Page() {
               <input type="number" id="threshold" step="0.01" min="0" max="1" />
               <small>{t('manager.modal.duplicateThresholdHint')}</small>
             </div>
-            <div className="form-group" id="cvatSyncGroup">
-              <div className="checkbox-group">
-                <input type="checkbox" id="cvatSync" />
-                <label htmlFor="cvatSync">{t('manager.modal.cvatSync')}</label>
-              </div>
-              <small>{t('manager.modal.cvatSyncHint')}</small>
-            </div>
             <div className="form-group">
               <div className="checkbox-group">
                 <input type="checkbox" id="autoSync" />

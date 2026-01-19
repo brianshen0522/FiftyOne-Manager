@@ -47,13 +47,6 @@ const CONFIG = {
   defaultDebug: process.env.DEFAULT_DEBUG_MODE === 'true',
   healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '5000'),
   healthCheckTimeout: parseInt(process.env.HEALTH_CHECK_TIMEOUT || '3000'),
-  cvat: {
-    enabled: process.env.CVAT_ENABLED === 'true',
-    url: process.env.CVAT_URL || '',
-    username: process.env.CVAT_USERNAME || '',
-    password: process.env.CVAT_PASSWORD || '',
-    email: process.env.CVAT_EMAIL || ''
-  },
   availableObbModes: (process.env.AVAILABLE_OBB_MODES || 'rectangle,4point').split(',').map(m => m.trim()).filter(m => m),
   duplicateRules: parseDuplicateRules(),
   duplicateDefaultAction: process.env.DUPLICATE_DEFAULT_ACTION || 'move'
@@ -546,7 +539,7 @@ app.get('/api/instances', async (req, res) => {
 // Add new instance
 app.post('/api/instances', (req, res) => {
   try {
-    const { name, port, datasetPath, threshold, debug, cvatSync, pentagonFormat, obbMode, classFile, autoSync } = req.body;
+    const { name, port, datasetPath, threshold, debug, pentagonFormat, obbMode, classFile, autoSync } = req.body;
 
     // Validation
     if (!name || !port || !datasetPath) {
@@ -579,7 +572,6 @@ app.post('/api/instances', (req, res) => {
       datasetPath,
       threshold: threshold !== undefined ? threshold : CONFIG.defaultIouThreshold,
       debug: debug !== undefined ? debug : CONFIG.defaultDebug,
-      cvatSync: CONFIG.cvat.enabled && cvatSync !== undefined ? cvatSync : false,
       pentagonFormat: pentagonFormat || false,
       obbMode: obbMode || 'rectangle',
       classFile: classFile || null,
@@ -601,7 +593,7 @@ app.post('/api/instances', (req, res) => {
 app.put('/api/instances/:name', (req, res) => {
   try {
     const { name } = req.params;
-    const { port, datasetPath, threshold, debug, cvatSync, pentagonFormat, obbMode, classFile, autoSync } = req.body;
+    const { port, datasetPath, threshold, debug, pentagonFormat, obbMode, classFile, autoSync } = req.body;
 
     const instances = loadInstances();
     const index = instances.findIndex(i => i.name === name);
@@ -631,7 +623,6 @@ app.put('/api/instances/:name', (req, res) => {
     if (datasetPath !== undefined) instances[index].datasetPath = datasetPath;
     if (threshold !== undefined) instances[index].threshold = threshold;
     if (debug !== undefined) instances[index].debug = debug;
-    if (cvatSync !== undefined) instances[index].cvatSync = CONFIG.cvat.enabled ? cvatSync : false;
     if (pentagonFormat !== undefined) instances[index].pentagonFormat = pentagonFormat;
     if (obbMode !== undefined) instances[index].obbMode = obbMode || 'rectangle';
     if (classFile !== undefined) instances[index].classFile = classFile || null;
@@ -1014,14 +1005,6 @@ app.post('/api/instances/:name/start', async (req, res) => {
       MANAGER_PORT: CONFIG.managerPort,
       PUBLIC_ADDRESS: CONFIG.publicAddress
     };
-
-    // Add CVAT configuration if sync is enabled and CVAT is globally enabled
-    if (CONFIG.cvat.enabled && instance.cvatSync) {
-      if (CONFIG.cvat.url) envVars.FIFTYONE_CVAT_URL = CONFIG.cvat.url;
-      if (CONFIG.cvat.username) envVars.FIFTYONE_CVAT_USERNAME = CONFIG.cvat.username;
-      if (CONFIG.cvat.password) envVars.FIFTYONE_CVAT_PASSWORD = CONFIG.cvat.password;
-      if (CONFIG.cvat.email) envVars.FIFTYONE_CVAT_EMAIL = CONFIG.cvat.email;
-    }
 
     // Build environment variable string
     const envString = Object.entries(envVars)

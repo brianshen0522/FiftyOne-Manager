@@ -50,13 +50,6 @@ export async function POST(req, { params }) {
       PUBLIC_ADDRESS: CONFIG.publicAddress
     };
 
-    if (CONFIG.cvat.enabled && instance.cvatSync) {
-      if (CONFIG.cvat.url) envVars.FIFTYONE_CVAT_URL = CONFIG.cvat.url;
-      if (CONFIG.cvat.username) envVars.FIFTYONE_CVAT_USERNAME = CONFIG.cvat.username;
-      if (CONFIG.cvat.password) envVars.FIFTYONE_CVAT_PASSWORD = CONFIG.cvat.password;
-      if (CONFIG.cvat.email) envVars.FIFTYONE_CVAT_EMAIL = CONFIG.cvat.email;
-    }
-
     const envString = Object.entries(envVars)
       .map(([key, value]) => `${key}=${value}`)
       .join(' ');

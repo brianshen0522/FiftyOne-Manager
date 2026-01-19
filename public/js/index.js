@@ -66,12 +66,6 @@ const API_BASE = window.location.origin;
                 document.getElementById('basePath').textContent = config.datasetBasePath;
                 document.getElementById('portRange').textContent = `${config.portRange.start}-${config.portRange.end}`;
 
-                // Show/hide CVAT sync option based on config
-                const cvatSyncGroup = document.getElementById('cvatSyncGroup');
-                if (cvatSyncGroup) {
-                    cvatSyncGroup.style.display = config.cvat?.enabled ? 'block' : 'none';
-                }
-
                 // Filter OBB mode dropdown based on available modes
                 updateObbModeOptions();
 
@@ -932,7 +926,6 @@ const API_BASE = window.location.origin;
             document.getElementById('modalTitle').textContent = 'Add New Instance';
             document.getElementById('instanceForm').reset();
             document.getElementById('threshold').value = config.defaultThreshold;
-            document.getElementById('cvatSync').checked = false;
             document.getElementById('autoSync').checked = true;
             document.getElementById('pentagonFormat').checked = false;
             document.getElementById('obbMode').value = 'rectangle';
@@ -978,7 +971,6 @@ const API_BASE = window.location.origin;
                 document.getElementById('instanceName').value = instance.name;
                 document.getElementById('instanceName').disabled = true;
                 document.getElementById('threshold').value = instance.threshold;
-                document.getElementById('cvatSync').checked = instance.cvatSync || false;
                 document.getElementById('autoSync').checked = instance.autoSync || false;
                 document.getElementById('pentagonFormat').checked = instance.pentagonFormat || false;
                 document.getElementById('obbMode').value = instance.obbMode || 'rectangle';
@@ -1102,7 +1094,6 @@ const API_BASE = window.location.origin;
             const port = parseInt(document.getElementById('instancePort').value, 10);
             const datasetPath = document.getElementById('datasetPath').value;
             const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
-            const cvatSync = document.getElementById('cvatSync').checked;
             const autoSync = document.getElementById('autoSync').checked;
             const pentagonFormat = document.getElementById('pentagonFormat').checked;
             const obbMode = document.getElementById('obbMode').value || 'rectangle';
@@ -1112,7 +1103,7 @@ const API_BASE = window.location.origin;
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, cvatSync, autoSync, pentagonFormat, obbMode, classFile };
+            const data = { name, port, datasetPath, threshold, autoSync, pentagonFormat, obbMode, classFile };
 
             try {
                 if (!config.portRange) {

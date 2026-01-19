@@ -38,13 +38,6 @@ export const CONFIG = {
   defaultDebug: process.env.DEFAULT_DEBUG_MODE === 'true',
   healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '5000', 10),
   healthCheckTimeout: parseInt(process.env.HEALTH_CHECK_TIMEOUT || '3000', 10),
-  cvat: {
-    enabled: process.env.CVAT_ENABLED === 'true',
-    url: process.env.CVAT_URL || '',
-    username: process.env.CVAT_USERNAME || '',
-    password: process.env.CVAT_PASSWORD || '',
-    email: process.env.CVAT_EMAIL || ''
-  },
   availableObbModes: (process.env.AVAILABLE_OBB_MODES || 'rectangle,4point')
     .split(',')
     .map((mode) => mode.trim())

@@ -74,8 +74,6 @@
       "classFileHint": "Browse for .txt file containing \"class\" in filename (one class name per line)",
       "duplicateThreshold": "Duplicate Threshold",
       "duplicateThresholdHint": "Similarity threshold (0.0 - 1.0) for duplicate detection",
-      "cvatSync": "CVAT Sync",
-      "cvatSyncHint": "Enable synchronization with CVAT annotation backend",
       "autoSyncLabels": "Auto Sync Labels",
       "autoSyncLabelsHint": "Sync labels into FiftyOne on every save from the label editor",
       "obbFormat": "OBB Format (Polygon)",

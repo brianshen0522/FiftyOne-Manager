@@ -14,8 +14,7 @@ export async function PUT(req, { params }) {
   try {
     const { name } = params;
     const body = await req.json();
-    const { port, datasetPath, threshold, debug, cvatSync, pentagonFormat, obbMode, classFile, autoSync } =
-      body;
+    const { port, datasetPath, threshold, debug, pentagonFormat, obbMode, classFile, autoSync } = body;
 
     const instances = loadInstances();
     const index = instances.findIndex((instance) => instance.name === name);
@@ -45,7 +44,6 @@ export async function PUT(req, { params }) {
     if (datasetPath !== undefined) instances[index].datasetPath = datasetPath;
     if (threshold !== undefined) instances[index].threshold = threshold;
     if (debug !== undefined) instances[index].debug = debug;
-    if (cvatSync !== undefined) instances[index].cvatSync = CONFIG.cvat.enabled ? cvatSync : false;
     if (pentagonFormat !== undefined) instances[index].pentagonFormat = pentagonFormat;
     if (obbMode !== undefined) instances[index].obbMode = obbMode || 'rectangle';
     if (classFile !== undefined) instances[index].classFile = classFile || null;

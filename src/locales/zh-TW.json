@@ -74,8 +74,6 @@
       "classFileHint": "瀏覽含有「class」的 .txt 檔案（每行一個類別名稱）",
       "duplicateThreshold": "重複檢測閾值",
       "duplicateThresholdHint": "重複檢測的相似度閾值（0.0 - 1.0）",
-      "cvatSync": "CVAT 同步",
-      "cvatSyncHint": "啟用與 CVAT 標註後端的同步",
       "autoSyncLabels": "自動同步標籤",
       "autoSyncLabelsHint": "標籤編輯器儲存時自動同步到 FiftyOne",
       "obbFormat": "OBB 格式（多邊形）",
