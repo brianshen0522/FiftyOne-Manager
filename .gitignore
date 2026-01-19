@@ -26,3 +26,4 @@ npm-debug.log
 CLAUDE.local.md
 instances.json/instances.json
 deletion_logs/
+.claude/settings.local.json
