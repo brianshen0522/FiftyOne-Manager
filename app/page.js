@@ -154,6 +154,12 @@ export default function Page() {
               </div>
               <input type="text" id="datasetPath" required placeholder={t('manager.modal.datasetPathHint')} />
               <small>{t('manager.modal.datasetPathHint')}</small>
+              <div id="duplicateModeInfo" className="duplicate-mode-info" style={{ display: 'none' }}>
+                <span className="duplicate-mode-label">{t('manager.modal.duplicateMode')}:</span>
+                <span id="duplicateModeAction" className="duplicate-mode-action"></span>
+                <span id="duplicateModeLabels" className="duplicate-mode-labels"></span>
+                <span id="duplicateModePattern" className="duplicate-mode-pattern"></span>
+              </div>
             </div>
             <div className="form-group" data-tour="form-classfile">
               <label htmlFor="classFile">{t('manager.modal.classFile')}</label>

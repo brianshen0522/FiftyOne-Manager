@@ -16,6 +16,25 @@ app.use(bodyParser.json());
 app.use(express.static('public'));
 
 // Configuration
+// Parse duplicate rules from JSON environment variable
+function parseDuplicateRules() {
+  const rulesJson = process.env.DUPLICATE_RULES;
+  if (!rulesJson || !rulesJson.trim()) {
+    return [];
+  }
+  try {
+    const rules = JSON.parse(rulesJson);
+    if (!Array.isArray(rules)) {
+      console.error('DUPLICATE_RULES must be a JSON array');
+      return [];
+    }
+    return rules;
+  } catch (err) {
+    console.error('Failed to parse DUPLICATE_RULES:', err.message);
+    return [];
+  }
+}
+
 const CONFIG = {
   datasetBasePath: process.env.DATASET_BASE_PATH || '/data/datasets',
   portRange: {
@@ -35,7 +54,9 @@ const CONFIG = {
     password: process.env.CVAT_PASSWORD || '',
     email: process.env.CVAT_EMAIL || ''
   },
-  availableObbModes: (process.env.AVAILABLE_OBB_MODES || 'rectangle,4point').split(',').map(m => m.trim()).filter(m => m)
+  availableObbModes: (process.env.AVAILABLE_OBB_MODES || 'rectangle,4point').split(',').map(m => m.trim()).filter(m => m),
+  duplicateRules: parseDuplicateRules(),
+  duplicateDefaultAction: process.env.DUPLICATE_DEFAULT_ACTION || 'move'
 };
 
 // Store instances configuration
@@ -965,6 +986,12 @@ app.post('/api/instances/:name/start', async (req, res) => {
     if (instance.classFile) {
       args.push('--class-file', instance.classFile);
     }
+
+    // Pass duplicate handling rules if configured
+    if (CONFIG.duplicateRules && CONFIG.duplicateRules.length > 0) {
+      args.push('--duplicate-rules', JSON.stringify(JSON.stringify(CONFIG.duplicateRules)));
+    }
+    args.push('--duplicate-default-action', CONFIG.duplicateDefaultAction);
 
     const command = `/opt/venv/bin/python ${scriptPath} ${args.join(' ')}`;
 

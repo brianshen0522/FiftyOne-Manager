@@ -39,6 +39,8 @@ services:
       - CVAT_PASSWORD=${CVAT_PASSWORD}
       - CVAT_EMAIL=${CVAT_EMAIL}
       - AVAILABLE_OBB_MODES=${AVAILABLE_OBB_MODES:-rectangle,4point}
+      - DUPLICATE_RULES=${DUPLICATE_RULES:-}
+      - DUPLICATE_DEFAULT_ACTION=${DUPLICATE_DEFAULT_ACTION:-move}
     restart: unless-stopped
 
 volumes:

@@ -7,6 +7,25 @@ import util from 'util';
 
 export const execPromise = util.promisify(exec);
 
+// Parse duplicate rules from JSON environment variable
+function parseDuplicateRules() {
+  const rulesJson = process.env.DUPLICATE_RULES;
+  if (!rulesJson || !rulesJson.trim()) {
+    return [];
+  }
+  try {
+    const rules = JSON.parse(rulesJson);
+    if (!Array.isArray(rules)) {
+      console.error('DUPLICATE_RULES must be a JSON array');
+      return [];
+    }
+    return rules;
+  } catch (err) {
+    console.error('Failed to parse DUPLICATE_RULES:', err.message);
+    return [];
+  }
+}
+
 export const CONFIG = {
   datasetBasePath: process.env.DATASET_BASE_PATH || '/data/datasets',
   portRange: {
@@ -29,8 +48,48 @@ export const CONFIG = {
   availableObbModes: (process.env.AVAILABLE_OBB_MODES || 'rectangle,4point')
     .split(',')
     .map((mode) => mode.trim())
-    .filter(Boolean)
+    .filter(Boolean),
+  duplicateRules: parseDuplicateRules(),
+  duplicateDefaultAction: process.env.DUPLICATE_DEFAULT_ACTION || 'move'
 };
+
+/**
+ * Get the matching duplicate rule for a dataset path.
+ * @param {string} datasetPath - Path to check against patterns
+ * @returns {object} - {action: string, labels: number, matchedPattern: string|null}
+ */
+export function getMatchingDuplicateRule(datasetPath) {
+  const rules = CONFIG.duplicateRules;
+  const defaultAction = CONFIG.duplicateDefaultAction;
+
+  if (!datasetPath) {
+    return { action: defaultAction, labels: 0, matchedPattern: null };
+  }
+
+  const matchingRules = [];
+  const pathLower = datasetPath.toLowerCase();
+
+  for (const rule of rules) {
+    const pattern = rule.pattern || '';
+    if (pattern && pathLower.includes(pattern.toLowerCase())) {
+      matchingRules.push(rule);
+    }
+  }
+
+  if (matchingRules.length === 0) {
+    return { action: defaultAction, labels: 0, matchedPattern: null };
+  }
+
+  // Sort by priority (lower = higher priority)
+  matchingRules.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+  const winner = matchingRules[0];
+
+  return {
+    action: winner.action || defaultAction,
+    labels: winner.labels || 0,
+    matchedPattern: winner.pattern
+  };
+}
 
 const INSTANCES_FILE = path.join(process.cwd(), 'instances.json');
 

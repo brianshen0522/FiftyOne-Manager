@@ -93,7 +93,16 @@
       "fileEmpty": "檔案為空",
       "unableToPreview": "無法預覽檔案。",
       "failedToLoadClassFile": "載入類別檔案失敗",
-      "convertedCount": "已轉換 {count} 個檔案為 OBB 格式"
+      "convertedCount": "已轉換 {count} 個檔案為 OBB 格式",
+      "duplicateMode": "重複處理模式",
+      "duplicateModeHint": "啟動此實例時如何處理重複項目",
+      "duplicateModeSkip": "跳過",
+      "duplicateModeMove": "移動",
+      "duplicateModeDelete": "刪除",
+      "duplicateModeDefault": "預設",
+      "duplicateLabels": "標籤",
+      "duplicateLabelsAll": "全部",
+      "duplicateMatchedPattern": "符合：{pattern}"
     },
     "folder": {
       "datasets": "資料集",

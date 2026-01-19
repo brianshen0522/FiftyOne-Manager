@@ -1,9 +1,10 @@
 import argparse
+import json
 import os
 import logging
 import math
 from collections import defaultdict
-from typing import List, Tuple, Sequence
+from typing import List, Tuple, Sequence, Optional
 from datetime import datetime
 
 import fiftyone as fo
@@ -294,18 +295,19 @@ def calculate_iou(box1: Tuple[float, float, float, float],
 def labels_are_similar(labels1: List[Tuple[int, float, float, float, float]],
                        labels2: List[Tuple[int, float, float, float, float]],
                        iou_threshold: float,
-                       is_dice_dataset: bool = False) -> bool:
+                       labels_limit: int = 0) -> bool:
     """
     Check if two label sets are similar based on class matching and IoU threshold.
     For multiple boxes of the same class, finds optimal matching using greedy algorithm.
     Returns True if both have same number of boxes, all classes match, and all IoUs exceed threshold.
 
-    For dice datasets, only compares the first 3 labels.
+    Args:
+        labels_limit: Number of labels to compare (0 = all labels).
     """
-    # For dice datasets, only compare first 3 labels
-    if is_dice_dataset:
-        labels1 = labels1[:3]
-        labels2 = labels2[:3]
+    # Apply labels limit if specified
+    if labels_limit > 0:
+        labels1 = labels1[:labels_limit]
+        labels2 = labels2[:labels_limit]
 
     if len(labels1) != len(labels2):
         return False
@@ -363,20 +365,24 @@ def labels_are_similar(labels1: List[Tuple[int, float, float, float, float]],
     return True
 
 
-def find_duplicate_groups(image_paths: Sequence[str], iou_threshold: float, dataset_path: str = "") -> List[List[int]]:
+def find_duplicate_groups(
+    image_paths: Sequence[str],
+    iou_threshold: float,
+    dataset_path: str = "",
+    labels_limit: int = 0,
+) -> List[List[int]]:
     """
     Find duplicate groups using sequential comparison based on filename order.
     Only uses label comparison (class + bounding box IoU).
 
-    For dice datasets (detected by "dice" in the folder path), only compares the first 3 labels.
+    Args:
+        labels_limit: Number of labels to compare (0 = all labels).
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     n = len(image_paths)
 
-    # Detect if this is a dice dataset
-    is_dice_dataset = "dice" in dataset_path.lower()
-    if is_dice_dataset:
-        print(f"Dice dataset detected - will only compare first 3 labels for duplicate detection")
+    if labels_limit > 0:
+        print(f"Labels limit: comparing only first {labels_limit} labels for duplicate detection")
 
     print(f"Finding duplicates in {n} images using IoU threshold {iou_threshold}")
 
@@ -411,7 +417,7 @@ def find_duplicate_groups(image_paths: Sequence[str], iou_threshold: float, data
                 compare_labels = parse_yolo_labels(image_paths[j])
 
                 # Check if labels are similar (same classes + IoU >= threshold)
-                if labels_are_similar(base_labels, compare_labels, iou_threshold, is_dice_dataset):
+                if labels_are_similar(base_labels, compare_labels, iou_threshold, labels_limit):
                     current_group.append(j)
                     visited[j] = True
                     f.write(f"Similar labels (IoU >= {iou_threshold})\n")
@@ -432,69 +438,161 @@ def find_duplicate_groups(image_paths: Sequence[str], iou_threshold: float, data
     return groups
 
 
-def move_duplicates(
+def get_matching_rule(
+    dataset_path: str,
+    rules: List[dict],
+    default_action: str = "move",
+) -> dict:
+    """
+    Find the highest priority rule matching the dataset path.
+
+    Args:
+        dataset_path: Path to check against patterns
+        rules: List of rule dicts with pattern, action, labels, priority
+        default_action: Action when no pattern matches
+
+    Returns:
+        dict: {action: str, labels: int} - the effective rule
+    """
+    matching_rules = []
+    path_lower = dataset_path.lower()
+
+    for rule in rules:
+        pattern = rule.get("pattern", "")
+        if pattern and pattern.lower() in path_lower:
+            matching_rules.append(rule)
+
+    if not matching_rules:
+        return {"action": default_action, "labels": 0}
+
+    # Sort by priority (lower = higher priority)
+    matching_rules.sort(key=lambda r: r.get("priority", 999))
+    winner = matching_rules[0]
+
+    return {"action": winner.get("action", default_action), "labels": winner.get("labels", 0)}
+
+
+def process_duplicates(
     dataset_base: str,
     groups: List[List[int]],
     image_paths: List[str],
     debug: bool,
+    action: str = "move",
 ) -> None:
-    dup_root = os.path.join(dataset_base, "duplicate")
-    dup_img_root = os.path.join(dup_root, "images")
-    dup_label_root = os.path.join(dup_root, "labels")
-    os.makedirs(dup_img_root, exist_ok=True)
-    os.makedirs(dup_label_root, exist_ok=True)
+    """
+    Process duplicate groups based on the specified action.
 
-    for group_idx, group in enumerate(groups, start=1):
-        keep_idx = group[0]
-        group_folder_img = dup_img_root
-        group_folder_label = dup_label_root
-        if debug:
-            group_name = f"group_{group_idx:04d}"
-            group_folder_img = os.path.join(dup_img_root, group_name)
-            group_folder_label = os.path.join(dup_label_root, group_name)
-            os.makedirs(group_folder_img, exist_ok=True)
-            os.makedirs(group_folder_label, exist_ok=True)
+    Args:
+        action: "move" to move to duplicate/ folder, "delete" to remove directly.
+    """
+    if action == "delete":
+        # Delete duplicates directly without moving to duplicate folder
+        for group_idx, group in enumerate(groups, start=1):
+            keep_idx = group[0]
+            files_to_delete = group if debug else group[1:]
 
-        # In debug mode, move ALL duplicates (including the first one)
-        # In normal mode, keep the first one and move the rest
-        files_to_move = group if debug else group[1:]
+            for idx in files_to_delete:
+                src_img = image_paths[idx]
+                stem = os.path.splitext(os.path.basename(src_img))[0]
+                src_label = os.path.join(dataset_base, "labels", stem + ".txt")
 
-        for idx in files_to_move:
-            src_img = image_paths[idx]
-            stem, ext = os.path.splitext(os.path.basename(src_img))
-            target_img_dir = group_folder_img
-            target_label_dir = group_folder_label
+                # Delete image
+                if os.path.exists(src_img):
+                    os.remove(src_img)
+
+                # Delete label
+                if os.path.exists(src_label):
+                    os.remove(src_label)
 
             if debug:
-                target_img = os.path.join(target_img_dir, os.path.basename(src_img))
-                target_label = os.path.join(target_label_dir, stem + ".txt")
+                print(f"Deleted all {len(group)} duplicates in group {group_idx}")
             else:
-                target_img, target_label = unique_target_path(target_img_dir, target_label_dir, os.path.basename(src_img))
+                kept = image_paths[keep_idx]
+                print(f"Kept original: {kept}; deleted {len(group) - 1} duplicates")
+    else:
+        # Move duplicates to duplicate/ folder (default behavior)
+        dup_root = os.path.join(dataset_base, "duplicate")
+        dup_img_root = os.path.join(dup_root, "images")
+        dup_label_root = os.path.join(dup_root, "labels")
+        os.makedirs(dup_img_root, exist_ok=True)
+        os.makedirs(dup_label_root, exist_ok=True)
 
-            os.makedirs(os.path.dirname(target_img), exist_ok=True)
-            os.makedirs(os.path.dirname(target_label), exist_ok=True)
-            os.rename(src_img, target_img)
+        for group_idx, group in enumerate(groups, start=1):
+            keep_idx = group[0]
+            group_folder_img = dup_img_root
+            group_folder_label = dup_label_root
+            if debug:
+                group_name = f"group_{group_idx:04d}"
+                group_folder_img = os.path.join(dup_img_root, group_name)
+                group_folder_label = os.path.join(dup_label_root, group_name)
+                os.makedirs(group_folder_img, exist_ok=True)
+                os.makedirs(group_folder_label, exist_ok=True)
 
-            src_label = os.path.join(dataset_base, "labels", stem + ".txt")
-            if os.path.exists(src_label):
-                os.rename(src_label, target_label)
+            # In debug mode, move ALL duplicates (including the first one)
+            # In normal mode, keep the first one and move the rest
+            files_to_move = group if debug else group[1:]
+
+            for idx in files_to_move:
+                src_img = image_paths[idx]
+                stem, ext = os.path.splitext(os.path.basename(src_img))
+                target_img_dir = group_folder_img
+                target_label_dir = group_folder_label
+
+                if debug:
+                    target_img = os.path.join(target_img_dir, os.path.basename(src_img))
+                    target_label = os.path.join(target_label_dir, stem + ".txt")
+                else:
+                    target_img, target_label = unique_target_path(target_img_dir, target_label_dir, os.path.basename(src_img))
+
+                os.makedirs(os.path.dirname(target_img), exist_ok=True)
+                os.makedirs(os.path.dirname(target_label), exist_ok=True)
+                os.rename(src_img, target_img)
+
+                src_label = os.path.join(dataset_base, "labels", stem + ".txt")
+                if os.path.exists(src_label):
+                    os.rename(src_label, target_label)
+                else:
+                    # Leave a marker file so the user knows the label was missing
+                    with open(target_label, "w") as f:
+                        f.write("# Label file was missing for this duplicate\n")
+
+            if debug:
+                print(f"Moved all {len(group)} duplicates to {group_folder_img}")
             else:
-                # Leave a marker file so the user knows the label was missing
-                with open(target_label, "w") as f:
-                    f.write("# Label file was missing for this duplicate\n")
-
-        if debug:
-            print(f"Moved all {len(group)} duplicates to {group_folder_img}")
-        else:
-            kept = image_paths[keep_idx]
-            print(f"Kept original: {kept}; moved {len(group) - 1} duplicates to {dup_root}")
+                kept = image_paths[keep_idx]
+                print(f"Kept original: {kept}; moved {len(group) - 1} duplicates to {dup_root}")
 
 
-def handle_duplicates(dataset_base: str, iou_threshold: float, debug: bool) -> None:
+def handle_duplicates(
+    dataset_base: str,
+    iou_threshold: float,
+    debug: bool,
+    duplicate_rules: Optional[List[dict]] = None,
+    default_action: str = "move",
+) -> None:
     """
-    Detect and move duplicate images based on label similarity (class + IoU).
+    Detect and handle duplicate images based on label similarity (class + IoU).
     No image hash computation - only label file comparison.
+
+    Args:
+        duplicate_rules: List of rules for pattern-based duplicate handling.
+        default_action: Default action when no rule matches (skip, move, delete).
     """
+    if duplicate_rules is None:
+        duplicate_rules = []
+
+    # Get matching rule for this dataset path
+    rule = get_matching_rule(dataset_base, duplicate_rules, default_action)
+    action = rule["action"]
+    labels_limit = rule["labels"]
+
+    print(f"Duplicate handling rule: action={action}, labels={labels_limit}")
+
+    # Skip duplicate detection if action is "skip"
+    if action == "skip":
+        print("Skipping duplicate detection (action=skip)")
+        return
+
     img_dir = os.path.join(dataset_base, "images")
     label_dir = os.path.join(dataset_base, "labels")
     print(f"Image directory: {img_dir}")
@@ -518,13 +616,13 @@ def handle_duplicates(dataset_base: str, iou_threshold: float, debug: bool) -> N
     print(f"Analyzing {len(image_paths)} images for duplicates using IoU threshold {iou_threshold}")
 
     # Find duplicate groups based on label similarity only
-    groups = find_duplicate_groups(image_paths, iou_threshold, dataset_base)
+    groups = find_duplicate_groups(image_paths, iou_threshold, dataset_base, labels_limit)
 
     if not groups:
         print("No duplicates found.")
         return
 
-    move_duplicates(dataset_base, groups, image_paths, debug)
+    process_duplicates(dataset_base, groups, image_paths, debug, action)
     print(f"Detected {len(groups)} duplicate group(s).")
 
 
@@ -551,6 +649,19 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Path to class names file (one class per line). If not provided, uses default class names.",
+    )
+    parser.add_argument(
+        "--duplicate-rules",
+        type=str,
+        default=None,
+        help="JSON string containing duplicate handling rules.",
+    )
+    parser.add_argument(
+        "--duplicate-default-action",
+        type=str,
+        default="move",
+        choices=["skip", "move", "delete"],
+        help="Default action when no pattern matches (default: move).",
     )
     return parser.parse_args()
 
@@ -595,8 +706,26 @@ def main() -> None:
     except Exception as e:
         print(f"Warning: Could not delete existing dataset: {e}")
 
+    # Parse duplicate rules from JSON string
+    duplicate_rules = []
+    if args.duplicate_rules:
+        try:
+            duplicate_rules = json.loads(args.duplicate_rules)
+            if not isinstance(duplicate_rules, list):
+                print("Warning: duplicate_rules must be a list, ignoring")
+                duplicate_rules = []
+        except json.JSONDecodeError as e:
+            print(f"Warning: Failed to parse duplicate_rules JSON: {e}")
+            duplicate_rules = []
+
     # Run duplicate detection using label comparison only (no image hashing)
-    handle_duplicates(dataset_base, iou_threshold, args.debug)
+    handle_duplicates(
+        dataset_base,
+        iou_threshold,
+        args.debug,
+        duplicate_rules=duplicate_rules,
+        default_action=args.duplicate_default_action,
+    )
 
     # ------------------------------------------------------------------
     # 1. Build your custom dataset from images + YOLO labels

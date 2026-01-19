@@ -161,6 +161,52 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             navigateToPath('');
         }
 
+        async function fetchDuplicateRule(datasetPath) {
+            const infoEl = document.getElementById('duplicateModeInfo');
+            const actionEl = document.getElementById('duplicateModeAction');
+            const labelsEl = document.getElementById('duplicateModeLabels');
+            const patternEl = document.getElementById('duplicateModePattern');
+
+            if (!infoEl || !actionEl || !labelsEl || !patternEl) return;
+
+            if (!datasetPath) {
+                infoEl.style.display = 'none';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/duplicate-rule?path=${encodeURIComponent(datasetPath)}`);
+                const rule = await response.json();
+
+                // Show the info box
+                infoEl.style.display = 'flex';
+
+                // Set action with appropriate styling
+                const actionKey = `manager.modal.duplicateMode${rule.action.charAt(0).toUpperCase() + rule.action.slice(1)}`;
+                actionEl.textContent = t(actionKey) || rule.action;
+                actionEl.className = `duplicate-mode-action action-${rule.action}`;
+
+                // Set labels info
+                if (rule.labels === 0) {
+                    labelsEl.textContent = `(${t('manager.modal.duplicateLabels')}: ${t('manager.modal.duplicateLabelsAll')})`;
+                } else {
+                    labelsEl.textContent = `(${t('manager.modal.duplicateLabels')}: ${rule.labels})`;
+                }
+
+                // Set matched pattern if any
+                if (rule.matchedPattern) {
+                    patternEl.textContent = t('manager.modal.duplicateMatchedPattern', { pattern: rule.matchedPattern });
+                    patternEl.style.display = 'inline';
+                } else {
+                    patternEl.textContent = `(${t('manager.modal.duplicateModeDefault')})`;
+                    patternEl.style.display = 'inline';
+                }
+            } catch (err) {
+                console.error('Failed to fetch duplicate rule:', err);
+                infoEl.style.display = 'none';
+            }
+        }
+
         function navigateToPath(path, updatePathField = true) {
             currentPath = path;
             renderBreadcrumb(path);
@@ -173,6 +219,9 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             // Auto-update dataset path only if requested (skip when editing existing instance)
             if (updatePathField) {
                 document.getElementById('datasetPath').value = fullPath;
+
+                // Fetch and display duplicate rule for this path
+                fetchDuplicateRule(fullPath);
 
                 // Auto-populate instance name from last folder name (only when adding new instance)
                 const instanceNameField = document.getElementById('instanceName');
@@ -949,6 +998,9 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             document.getElementById('modalError').style.display = 'none';
             document.getElementById('instanceModal').classList.add('active');
             hideClassPreview();
+            // Hide duplicate mode info initially
+            const duplicateModeInfo = document.getElementById('duplicateModeInfo');
+            if (duplicateModeInfo) duplicateModeInfo.style.display = 'none';
             populateDatasetOptions();
 
             // Initialize class file browser
@@ -1052,6 +1104,11 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 populatePortOptions(name);
                 document.getElementById('instancePort').value = instance.port;
                 updateSelectedPortDisplay();
+
+                // Fetch and display duplicate rule for this instance's path
+                if (instance.datasetPath) {
+                    fetchDuplicateRule(instance.datasetPath);
+                }
             } catch (err) {
                 alert(`Failed to load instance: ${err.message}`);
             }
@@ -1358,6 +1415,17 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                     if (obbModeGroup) {
                         obbModeGroup.style.display = pentagonCheckbox.checked ? 'block' : 'none';
                     }
+                });
+            }
+
+            // Update duplicate mode when dataset path is manually changed
+            const datasetPathInput = document.getElementById('datasetPath');
+            if (datasetPathInput) {
+                datasetPathInput.addEventListener('change', () => {
+                    fetchDuplicateRule(datasetPathInput.value);
+                });
+                datasetPathInput.addEventListener('blur', () => {
+                    fetchDuplicateRule(datasetPathInput.value);
                 });
             }
         }

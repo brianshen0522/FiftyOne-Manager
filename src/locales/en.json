@@ -93,7 +93,16 @@
       "fileEmpty": "File is empty",
       "unableToPreview": "Unable to preview file.",
       "failedToLoadClassFile": "Failed to load class file",
-      "convertedCount": "Converted {count} files to OBB format"
+      "convertedCount": "Converted {count} files to OBB format",
+      "duplicateMode": "Duplicate Mode",
+      "duplicateModeHint": "How duplicates will be handled when starting this instance",
+      "duplicateModeSkip": "skip",
+      "duplicateModeMove": "move",
+      "duplicateModeDelete": "delete",
+      "duplicateModeDefault": "default",
+      "duplicateLabels": "labels",
+      "duplicateLabelsAll": "all",
+      "duplicateMatchedPattern": "matched: {pattern}"
     },
     "folder": {
       "datasets": "datasets",
