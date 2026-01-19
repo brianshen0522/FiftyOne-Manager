@@ -50,9 +50,16 @@ export const POST = withApiLogging(async (req, { params }) => {
       MANAGER_PORT: CONFIG.managerPort,
       PUBLIC_ADDRESS: CONFIG.publicAddress
     };
+    if (process.env.DUPLICATE_RULES) {
+      envVars.DUPLICATE_RULES = process.env.DUPLICATE_RULES;
+    }
+    if (process.env.DUPLICATE_DEFAULT_ACTION) {
+      envVars.DUPLICATE_DEFAULT_ACTION = process.env.DUPLICATE_DEFAULT_ACTION;
+    }
 
+    const escapeShellValue = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;
     const envString = Object.entries(envVars)
-      .map(([key, value]) => `${key}=${value}`)
+      .map(([key, value]) => `${key}=${escapeShellValue(value)}`)
       .join(' ');
 
     const fullCommand = `${envString} pm2 start "${command}" --name ${name} --interpreter none --update-env`;

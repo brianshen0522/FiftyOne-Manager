@@ -3,6 +3,7 @@ import json
 import os
 import logging
 import math
+import sys
 from collections import defaultdict
 from typing import List, Tuple, Sequence, Optional
 from datetime import datetime
@@ -518,6 +519,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.duplicate_rules is None:
+        env_rules = os.environ.get("DUPLICATE_RULES")
+        if env_rules:
+            args.duplicate_rules = env_rules
+    if "--duplicate-default-action" not in sys.argv:
+        env_default_action = os.environ.get("DUPLICATE_DEFAULT_ACTION")
+        if env_default_action in {"skip", "move", "delete"}:
+            args.duplicate_default_action = env_default_action
 
     fiftyone_port = args.port
     dataset_base = args.dataset_path
