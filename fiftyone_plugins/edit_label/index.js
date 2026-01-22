@@ -26,7 +26,7 @@ class OpenLabelEditor extends Operator {
       const managerPort = result.manager_port || "3000";
 
       // Construct the URL using current IP/hostname
-      const editorUrl = `${protocol}//${hostname}:${managerPort}/label-editor.html?image=${encodeURIComponent(
+      const editorUrl = `${protocol}//${hostname}:${managerPort}/label-editor?image=${encodeURIComponent(
         result.image_path
       )}&label=${encodeURIComponent(result.label_path)}`;
 

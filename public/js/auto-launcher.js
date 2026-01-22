@@ -22,7 +22,7 @@ const STORAGE_KEY = 'fiftyone_edit_label_request';
             const publicAddress = config.publicAddress || window.location.hostname;
             const port = config.managerPort || managerPort || '5000';
 
-            const editorUrl = `${protocol}//${publicAddress}:${port}/label-editor.html?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
+            const editorUrl = `${protocol}//${publicAddress}:${port}/label-editor?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
 
             // Open in new tab
             const newWindow = window.open(editorUrl, '_blank');

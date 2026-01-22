@@ -116,7 +116,7 @@ class OpenLabelEditor(foo.Operator):
         if use_folder_mode:
             # Folder mode: pass base path and subfolder instead of individual images
             folder_path = f"images/{subfolder}" if subfolder else "images"
-            editor_url = f"http://{public_address}:{manager_port}/label-editor.html?base={quote(base_path)}&folder={quote(folder_path)}"
+            editor_url = f"http://{public_address}:{manager_port}/label-editor?base={quote(base_path)}&folder={quote(folder_path)}"
 
             ctx.ops.notify(
                 f"Copy the URL below to open label editor for {len(samples)} images in folder '{folder_path}'",
@@ -125,7 +125,7 @@ class OpenLabelEditor(foo.Operator):
         else:
             # Individual mode: pass comma-separated image list
             images_param = ",".join(relative_images)
-            editor_url = f"http://{public_address}:{manager_port}/label-editor.html?base={quote(base_path)}&images={quote(images_param)}"
+            editor_url = f"http://{public_address}:{manager_port}/label-editor?base={quote(base_path)}&images={quote(images_param)}"
 
             # Notify user
             if len(samples) > 1:

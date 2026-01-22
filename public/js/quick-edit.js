@@ -18,7 +18,7 @@
                 return null;
             }
 
-            const url = `${window.location.origin}/label-editor.html?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
+            const url = `${window.location.origin}/label-editor?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
             return url;
         }
 
@@ -80,7 +80,7 @@
                 const labelPath = imagePath
                     .replace('/images/', '/labels/')
                     .replace(/\.(jpg|jpeg|png|JPG|JPEG|PNG)$/, '.txt');
-                const url = `${window.location.origin}/label-editor.html?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
+                const url = `${window.location.origin}/label-editor?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
 
                 return `
                     <div class="recent-item">

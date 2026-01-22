@@ -55,6 +55,8 @@
         let hasUnsavedChanges = false;
         let pendingPreviewCenter = null;
         let previewSearchQuery = ''; // Search query for preview filtering
+        let previewSearchDebounceTimer = null;
+        let filterBaseList = []; // List after main filter (before preview search)
         let isCreatingObb = false;
         let obbCreatePoints = [];
         let obbPreviewPoint = null;
@@ -122,6 +124,7 @@
             allImageList = [imagePath];
         }
         imageList = [...allImageList]; // Initialize filtered list
+        filterBaseList = [...allImageList]; // Initialize filter base list
 
         // Load images from folder if folder parameter is provided
         async function loadImagesFromFolder() {
@@ -142,6 +145,7 @@
                 allImageList = data.images;
                 imageMetaByPath = data.imageMeta || {};
                 imageList = [...allImageList]; // Initialize filtered list
+                filterBaseList = [...allImageList]; // Initialize filter base list
                 if (startImageParam && imageList.includes(startImageParam)) {
                     currentImageIndex = imageList.indexOf(startImageParam);
                 } else {
@@ -441,6 +445,13 @@
 
                 clearFilterWarning();
 
+                // Clear preview search when applying main filter
+                const previewSearchInput = document.getElementById('previewSearch');
+                if (previewSearchInput) {
+                    previewSearchInput.value = '';
+                    previewSearchQuery = '';
+                }
+
                 // Get filter values
                 const nameFilter = document.getElementById('filterName').value.trim();
                 const classMode = document.getElementById('filterClassMode').value;
@@ -483,6 +494,7 @@
                 if (!hasActiveFilter) {
                     // No filters active, show all
                     imageList = sortImageList(allImageList);
+                    filterBaseList = [...imageList]; // Reset filter base
                     filterActive = false;
                     updateFilterStats();
                     currentImageIndex = 0;
@@ -524,6 +536,7 @@
                 const previousImage = imageList[currentImageIndex];
                 imageList = filteredImages;
                 imageList = sortImageList(imageList);
+                filterBaseList = [...imageList]; // Update filter base for preview search
                 filterActive = true;
 
                 // Update stats
@@ -634,6 +647,7 @@
 
             // Reset to all images
             imageList = sortImageList(allImageList);
+            filterBaseList = [...imageList]; // Reset filter base
             filterActive = false;
             currentImageIndex = 0;
 
@@ -752,42 +766,106 @@
 
         function handlePreviewSearch() {
             const searchInput = document.getElementById('previewSearch');
-            previewSearchQuery = searchInput.value.toLowerCase().trim();
+            const newQuery = searchInput.value.trim();
 
-            // Apply the search filter to preview items
-            const previewContainer = document.getElementById('imagePreview');
-            const previewItems = previewContainer.querySelectorAll('.preview-item');
+            // Debounce the search
+            if (previewSearchDebounceTimer) {
+                clearTimeout(previewSearchDebounceTimer);
+            }
 
-            let visibleCount = 0;
-            previewItems.forEach(item => {
-                const index = parseInt(item.dataset.previewIndex);
-                const imagePath = imageList[index];
-                const filename = imagePath.split('/').pop().toLowerCase();
+            previewSearchDebounceTimer = setTimeout(() => {
+                performPreviewSearch(newQuery);
+            }, 300);
+        }
 
-                if (previewSearchQuery === '' || filename.includes(previewSearchQuery)) {
-                    item.style.display = 'flex';
-                    visibleCount++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-
-            // Update count display
+        async function performPreviewSearch(query) {
+            previewSearchQuery = query;
             const countDisplay = document.getElementById('imagePreviewCount');
-            if (previewSearchQuery) {
-                const totalInFilter = imageList.length;
-                if (filterActive) {
-                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${visibleCount}</span> of <span style="color: #007bff;">${totalInFilter}</span> of ${allImageList.length})`;
+
+            // If empty query, restore to filter base list
+            if (!query) {
+                imageList = [...filterBaseList];
+                // Find current image in the restored list
+                const currentPath = imageList.length > 0 ? imageList[currentImageIndex] : null;
+                if (currentPath) {
+                    const newIndex = imageList.indexOf(currentPath);
+                    if (newIndex >= 0) {
+                        currentImageIndex = newIndex;
+                    } else {
+                        currentImageIndex = 0;
+                    }
                 } else {
-                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${visibleCount}</span> of ${totalInFilter})`;
+                    currentImageIndex = 0;
                 }
-            } else {
-                // No search, restore normal display
+
+                updateFilterStats();
+                updateNavigationButtons();
+                updateImagePreview();
+                return;
+            }
+
+            try {
+                // Call backend API to search
+                const response = await fetch('/api/label-editor/filter-images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        basePath: basePath,
+                        images: filterBaseList,
+                        filters: {
+                            nameFilter: query,
+                            selectedClasses: [],
+                            minLabels: 0,
+                            maxLabels: null,
+                            classMode: 'any',
+                            classLogic: 'any'
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+
+                const data = await response.json();
+                const searchResults = data.filteredImages;
+
+                // Store current image path before updating list
+                const currentPath = imageList[currentImageIndex];
+
+                // Update image list with search results
+                imageList = searchResults;
+
+                // Try to keep current image if it's in search results
+                if (currentPath) {
+                    const newIndex = imageList.indexOf(currentPath);
+                    if (newIndex >= 0) {
+                        currentImageIndex = newIndex;
+                    } else if (imageList.length > 0) {
+                        // Current image not in results, go to first result
+                        currentImageIndex = 0;
+                        await loadImage();
+                    }
+                } else if (imageList.length > 0) {
+                    currentImageIndex = 0;
+                }
+
+                // Update count display
                 if (filterActive) {
-                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${imageList.length}</span> of ${allImageList.length})`;
+                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${imageList.length}</span> of <span style="color: #007bff;">${filterBaseList.length}</span> of ${allImageList.length})`;
                 } else {
-                    countDisplay.textContent = `Images (${allImageList.length})`;
+                    countDisplay.innerHTML = `Images (<span style="color: #007bff;">${imageList.length}</span> of ${filterBaseList.length})`;
                 }
+
+                updateNavigationButtons();
+                updateImagePreview();
+
+                if (imageList.length === 0) {
+                    showStatus('No images match the search');
+                }
+            } catch (error) {
+                console.error('Preview search error:', error);
+                showError('Search error: ' + error.message);
             }
         }
 

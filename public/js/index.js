@@ -801,7 +801,7 @@ const API_BASE = window.location.origin;
             const normalizedStart = normalizeStartImagePath(lastImagePath, folderPath);
             const startParam = normalizedStart ? `&start=${encodeURIComponent(normalizedStart)}` : '';
             const obbModeParam = `&obbMode=${encodeURIComponent(obbMode || 'rectangle')}`;
-            const editorUrl = `${window.location.origin}/label-editor.html?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}${obbModeParam}`;
+            const editorUrl = `${window.location.origin}/label-editor?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}${obbModeParam}`;
             window.open(editorUrl, '_blank');
         }
 

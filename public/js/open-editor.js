@@ -26,7 +26,7 @@ async function getConfig() {
             const managerPort = config.managerPort || '5000';
 
             // Construct the label editor URL
-            const editorUrl = `${protocol}//${publicAddress}:${managerPort}/label-editor.html?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
+            const editorUrl = `${protocol}//${publicAddress}:${managerPort}/label-editor?image=${encodeURIComponent(imagePath)}&label=${encodeURIComponent(labelPath)}`;
 
             document.getElementById('status').textContent = `Opening editor at ${publicAddress}:${managerPort}...`;
 
