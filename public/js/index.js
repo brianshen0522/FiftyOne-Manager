@@ -153,14 +153,57 @@ const API_BASE = window.location.origin;
             navigateToPath('');
         }
 
-        function navigateToPath(path, updatePathField = true) {
+        async function isDatasetFolder(fullPath) {
+            // Check if a folder only contains "images" and/or "labels" subfolders via API
+            try {
+                const response = await fetch(`/api/browse-path?path=${encodeURIComponent(fullPath)}`);
+                if (!response.ok) return false;
+
+                const data = await response.json();
+                const folders = data.folders || [];
+
+                // If there are no subfolders at all, not a dataset folder
+                if (folders.length === 0) return false;
+
+                // Check if all folders are only "images" or "labels"
+                const datasetFolders = ['images', 'labels'];
+                return folders.every(f => datasetFolders.includes(f));
+            } catch (err) {
+                return false;
+            }
+        }
+
+        async function navigateToPath(path, updatePathField = true) {
+            const basePath = config.datasetBasePath || '/data/datasets';
+            const fullPath = path ? `${basePath}/${path}` : basePath;
+
+            // Check if this folder only contains images/labels - if so, don't enter it
+            if (path && await isDatasetFolder(fullPath)) {
+                // Select this folder as dataset path without entering it
+                document.getElementById('datasetPath').value = fullPath;
+
+                // Auto-populate instance name
+                const instanceNameField = document.getElementById('instanceName');
+                if (instanceNameField && !editingInstance) {
+                    const pathParts = path.split('/').filter(p => p);
+                    if (pathParts.length > 0) {
+                        instanceNameField.value = pathParts[pathParts.length - 1];
+                        validateInstanceName();
+                    }
+                }
+
+                // Load class files
+                const classFileInput = document.getElementById('classFile');
+                if (!classFileInput || !classFileInput.value) {
+                    loadClassFiles(fullPath);
+                }
+
+                return; // Don't navigate into the folder
+            }
+
             currentPath = path;
             renderBreadcrumb(path);
             renderFolderList(path);
-
-            // Compute target path once so we can reuse it without leaking scope errors
-            const basePath = config.datasetBasePath || '/data/datasets';
-            const fullPath = path ? `${basePath}/${path}` : basePath;
 
             // Auto-update dataset path only if requested (skip when editing existing instance)
             if (updatePathField) {
