@@ -624,6 +624,15 @@
             background: rgba(255, 255, 255, 0.05);
         }
 
+        .folder-item.selected {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+        }
+
+        .folder-item.selected:hover {
+            background: rgba(59, 130, 246, 0.3);
+        }
+
         .folder-name {
             display: flex;
             align-items: center;

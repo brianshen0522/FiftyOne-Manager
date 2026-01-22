@@ -198,6 +198,9 @@ const API_BASE = window.location.origin;
                     loadClassFiles(fullPath);
                 }
 
+                // Re-render folder list to update highlight
+                renderFolderList(currentPath);
+
                 return; // Don't navigate into the folder
             }
 
@@ -291,9 +294,19 @@ const API_BASE = window.location.origin;
             // Sort and render all items
             const sortedItems = Array.from(allItems.values()).sort((a, b) => a.name.localeCompare(b.name));
 
+            // Get current selected path for highlighting
+            const datasetPathInput = document.getElementById('datasetPath');
+            const selectedFullPath = datasetPathInput ? datasetPathInput.value : '';
+            const basePath = config.datasetBasePath || '/data/datasets';
+            let selectedRelativePath = selectedFullPath;
+            if (selectedRelativePath.startsWith(basePath)) {
+                selectedRelativePath = selectedRelativePath.slice(basePath.length).replace(/^\//, '');
+            }
+
             sortedItems.forEach(item => {
+                const isSelected = item.path === selectedRelativePath;
                 html += `
-                    <div class="folder-item" onclick="navigateToPath('${item.path}')">
+                    <div class="folder-item${isSelected ? ' selected' : ''}" onclick="navigateToPath('${item.path}')">
                         <div class="folder-name">${item.name}</div>
                     </div>
                 `;
@@ -1059,20 +1072,25 @@ const API_BASE = window.location.origin;
                 // Navigate to the parent folder of the selected dataset
                 // But don't update the path field - preserve the existing instance path
                 if (instance.datasetPath) {
-                    const matchingDataset = datasets.find(d => d.path === instance.datasetPath);
-                    if (matchingDataset) {
-                        const parts = matchingDataset.name.split('/');
-                        if (parts.length > 1) {
-                            // Navigate to parent folder for browsing, but don't update the path field
-                            const parentPath = parts.slice(0, -1).join('/');
-                            navigateToPath(parentPath, false);
-                        } else {
-                            // Root level dataset
-                            navigateToPath('', false);
-                        }
+                    const basePath = config.datasetBasePath || '/data/datasets';
+                    // Get relative path from datasetPath
+                    let relativePath = instance.datasetPath;
+                    if (relativePath.startsWith(basePath)) {
+                        relativePath = relativePath.slice(basePath.length).replace(/^\//, '');
+                    }
+
+                    // Navigate to parent folder
+                    const parts = relativePath.split('/').filter(p => p);
+                    if (parts.length > 1) {
+                        const parentPath = parts.slice(0, -1).join('/');
+                        currentPath = parentPath; // Set directly to avoid async issues
+                        renderBreadcrumb(parentPath);
+                        renderFolderList(parentPath);
                     } else {
-                        // Dataset not found in tree, navigate to root
-                        navigateToPath('', false);
+                        // Root level dataset
+                        currentPath = '';
+                        renderBreadcrumb('');
+                        renderFolderList('');
                     }
                 }
 
