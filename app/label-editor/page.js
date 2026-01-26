@@ -9,6 +9,9 @@ export default function LabelEditorPage() {
   const { t, isReady } = useTranslation();
 
   useEffect(() => {
+    if (!isReady) {
+      return;
+    }
     let active = true;
     import('@/lib/label-editor-ui').then((mod) => {
       if (!active) return;
@@ -20,7 +23,7 @@ export default function LabelEditorPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [isReady]);
 
   const callApi = (method, ...args) => {
     const api = apiRef.current;

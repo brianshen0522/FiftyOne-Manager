@@ -100,8 +100,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
 
         // Canvas
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+        let canvas = null;
+        let ctx = null;
 
         // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
@@ -154,8 +154,6 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 filterBaseList = [...allImageList]; // Initialize filter base list
                 if (startImageParam && imageList.includes(startImageParam)) {
                     currentImageIndex = imageList.indexOf(startImageParam);
-                } else {
-                    currentImageIndex = 0;
                 }
 
                 if (imageList.length === 0) {
@@ -173,7 +171,14 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         }
 
         // Initialize
-        async function init() {
+        async function initLabelEditor() {
+            canvas = document.getElementById('canvas');
+            if (!canvas) {
+                console.error('Canvas element not found!');
+                return;
+            }
+            ctx = canvas.getContext('2d');
+
             await initI18n();
             onLanguageChange(() => {
                 updateObbModeDisplay();
@@ -1272,12 +1277,13 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         async function loadThumbnail(index) {
             try {
                 const imagePath = imageList[index];
+                const cacheBuster = `&_v=${new Date().getTime()}`;
 
                 // Use direct image URL (much faster than base64)
                 if (basePath) {
-                    return `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imagePath)}`;
+                    return `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imagePath)}${cacheBuster}`;
                 } else {
-                    return `/api/image?fullPath=${encodeURIComponent(imagePath)}`;
+                    return `/api/image?fullPath=${encodeURIComponent(imagePath)}${cacheBuster}`;
                 }
             } catch (error) {
                 console.error('Failed to load thumbnail:', error);
@@ -1385,10 +1391,11 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
                 // Build image URL for direct loading (much faster than base64)
                 let imageUrl;
+                const cacheBuster = `&_v=${new Date().getTime()}`;
                 if (basePath) {
-                    imageUrl = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(currentImage)}`;
+                    imageUrl = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(currentImage)}${cacheBuster}`;
                 } else {
-                    imageUrl = `/api/image?fullPath=${encodeURIComponent(currentImage)}`;
+                    imageUrl = `/api/image?fullPath=${encodeURIComponent(currentImage)}${cacheBuster}`;
                 }
 
                 // Build label URL
@@ -1493,11 +1500,12 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
                 const img = new Image();
+                const cacheBuster = `&_v=${new Date().getTime()}`;
 
                 if (basePath) {
-                    img.src = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imgPath)}`;
+                    img.src = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imgPath)}${cacheBuster}`;
                 } else {
-                    img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}`;
+                    img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}${cacheBuster}`;
                 }
 
                 // Optional: Add to cache tracking if needed
@@ -3759,11 +3767,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }).catch(() => {});
         }
 
-        export function initLabelEditor() {
-            init();
-        }
 
         export {
+            initLabelEditor,
             previousImage,
             nextImage,
             loadImage,
