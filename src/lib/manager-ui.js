@@ -669,11 +669,11 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                             ? `<button class="btn secondary" onclick="restartInstance('${instance.name}')">${t('common.restart')}</button>
                                <button class="btn danger" onclick="stopInstance('${instance.name}')">${t('common.stop')}</button>
                                <button class="btn secondary" onclick="openInstance(${instance.port})" ${serviceDown ? `disabled title="${t('manager.hint.serviceDown')}"` : ''}>${t('common.open')}</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : `disabled title="${t('manager.hint.datasetPathRequired')}"`}>${t('manager.openEditor')}</button>`
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.name)}')" ${instance.datasetPath ? '' : `disabled title="${t('manager.hint.datasetPathRequired')}"`}>${t('manager.openEditor')}</button>`
                             : `<button class="btn success" onclick="startInstance('${instance.name}')">${t('common.start')}</button>
                                <button class="btn ghost" onclick="editInstance('${instance.name}')">${t('common.edit')}</button>
                                <button class="btn danger" onclick="deleteInstance('${instance.name}')">${t('common.remove')}</button>
-                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.datasetPath || '')}', '${encodeURIComponent(instance.lastImagePath || '')}', '${instance.obbMode || 'rectangle'}')" ${instance.datasetPath ? '' : `disabled title="${t('manager.hint.datasetPathRequired')}"`}>${t('manager.openEditor')}</button>`
+                               <button class="btn secondary" onclick="openLabelEditor('${encodeURIComponent(instance.name)}')" ${instance.datasetPath ? '' : `disabled title="${t('manager.hint.datasetPathRequired')}"`}>${t('manager.openEditor')}</button>`
                         }
                         <button class="btn ghost" onclick="showLogs('${instance.name}')">${t('manager.logs')}</button>
                     </div>
@@ -872,47 +872,13 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             window.open(`http://${window.location.hostname}:${port}`, '_blank');
         }
 
-        async function openLabelEditor(encodedDatasetPath, encodedLastImagePath, obbMode = 'rectangle') {
-            const datasetPath = decodeURIComponent(encodedDatasetPath || '');
-            if (!datasetPath) {
+        async function openLabelEditor(encodedInstanceName) {
+            const instanceName = decodeURIComponent(encodedInstanceName || '');
+            if (!instanceName) {
                 alert(t('manager.errors.datasetPathMissing'));
                 return;
             }
-
-            const rawBasePath = config.datasetBasePath || '/data/datasets';
-            const basePath = rawBasePath.replace(/\/+$/, '');
-            const matchesBase = datasetPath === basePath || datasetPath.startsWith(`${basePath}/`);
-            if (!matchesBase) {
-                alert(t('manager.errors.datasetPathMustBeInBase'));
-                return;
-            }
-
-            const relativePath = datasetPath.slice(basePath.length).replace(/^\/+/, '');
-            if (!relativePath) {
-                alert(t('manager.errors.datasetFolderRequired'));
-                return;
-            }
-
-            const normalizedRelative = relativePath.replace(/\/+$/, '');
-            const folderPath = normalizedRelative.endsWith('/images') || normalizedRelative === 'images'
-                ? normalizedRelative
-                : `${normalizedRelative}/images`;
-            let lastImagePath = decodeURIComponent(encodedLastImagePath || '');
-            try {
-                const response = await fetch(`${API_BASE}/api/instances/last-image?datasetPath=${encodeURIComponent(datasetPath)}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.lastImagePath) {
-                        lastImagePath = data.lastImagePath;
-                    }
-                }
-            } catch (err) {
-                // Ignore fetch errors and fall back to cached data
-            }
-            const normalizedStart = normalizeStartImagePath(lastImagePath, folderPath);
-            const startParam = normalizedStart ? `&start=${encodeURIComponent(normalizedStart)}` : '';
-            const obbModeParam = `&obbMode=${encodeURIComponent(obbMode || 'rectangle')}`;
-            const editorUrl = `${window.location.origin}/label-editor?base=${encodeURIComponent(basePath)}&folder=${encodeURIComponent(folderPath)}${startParam}${obbModeParam}`;
+            const editorUrl = `${window.location.origin}/label-editor?instance=${encodeURIComponent(instanceName)}`;
             window.open(editorUrl, '_blank');
         }
 

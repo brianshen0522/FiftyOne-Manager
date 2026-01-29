@@ -10,13 +10,28 @@ export const GET = withApiLogging(async (req) => {
   try {
     const { searchParams } = new URL(req.url);
     const basePath = searchParams.get('basePath');
+    const instanceName = searchParams.get('instanceName');
     const defaultClasses = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
+
+    const instances = loadInstances();
+
+    // Direct lookup by instance name — no ambiguity
+    if (instanceName) {
+      const inst = instances.find((i) => i.name === instanceName);
+      if (inst && inst.classFile && fs.existsSync(inst.classFile)) {
+        const content = fs.readFileSync(inst.classFile, 'utf-8');
+        const classes = content.split('\n').map((line) => line.trim()).filter(Boolean);
+        if (classes.length > 0) {
+          return NextResponse.json({ classes, source: 'classFile', classFile: inst.classFile });
+        }
+      }
+      return NextResponse.json({ classes: defaultClasses, source: 'default' });
+    }
 
     if (!basePath) {
       return NextResponse.json({ classes: defaultClasses, source: 'default' });
     }
 
-    const instances = loadInstances();
     const normalizedBase = path.resolve(basePath);
     const baseCandidates = new Set([normalizedBase]);
     if (fs.existsSync(normalizedBase)) {

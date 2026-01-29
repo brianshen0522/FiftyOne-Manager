@@ -112,13 +112,14 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         basePath = urlParams.get('base') || '';
         const relativeImage = urlParams.get('img');
         const relativeLabel = urlParams.get('lbl');
-        const folderParam = urlParams.get('folder');
-        const startImageParam = urlParams.get('start');
+        let folderParam = urlParams.get('folder');
+        const instanceNameParam = urlParams.get('instance') || '';
+        let startImageParam = urlParams.get('start');
         let lastKnownImageParam = startImageParam || '';
 
         // Get OBB creation mode from URL parameter (set by admin in manager)
         // Default is 'rectangle' if not specified
-        const obbModeParam = urlParams.get('obbMode') || 'rectangle';
+        let obbModeParam = urlParams.get('obbMode') || 'rectangle';
 
         // Support multiple images (comma-separated)
         const imageListParam = urlParams.get('images');
@@ -189,6 +190,25 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 refreshStatusBar();
                 refreshFilterWarning();
             });
+
+            // Fetch config from instance if instance parameter is provided
+            if (instanceNameParam && !basePath) {
+                try {
+                    const cfgResp = await fetch(`/api/label-editor/instance-config?name=${encodeURIComponent(instanceNameParam)}`);
+                    if (cfgResp.ok) {
+                        const cfg = await cfgResp.json();
+                        basePath = cfg.basePath || '';
+                        folderParam = folderParam || cfg.folder || '';
+                        obbModeParam = obbModeParam !== 'rectangle' ? obbModeParam : (cfg.obbMode || 'rectangle');
+                        if (!startImageParam && cfg.lastImagePath) {
+                            startImageParam = cfg.lastImagePath;
+                            lastKnownImageParam = startImageParam;
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Failed to load instance config:', err);
+                }
+            }
 
             // Set OBB creation mode from URL parameter (admin-controlled)
             obbCreationMode = obbModeParam;
@@ -326,6 +346,22 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         }
 
         async function loadClassNames() {
+            // Prefer instance name for exact lookup; fall back to path-based matching
+            if (instanceNameParam) {
+                try {
+                    const response = await fetch(`/api/label-editor/classes?instanceName=${encodeURIComponent(instanceNameParam)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (Array.isArray(data.classes) && data.classes.length > 0) {
+                            CLASSES = data.classes;
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Failed to load classes by instance name:', error);
+                }
+            }
+
             const classBasePath = resolveClassBasePath();
             if (!classBasePath) {
                 CLASSES = [...DEFAULT_CLASSES];
