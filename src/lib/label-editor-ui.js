@@ -4034,5 +4034,6 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             toggleImageSelectMode,
             selectAllImages,
             deselectAllImages,
-            deleteSelectedImages
+            deleteSelectedImages,
+            updateDeleteButton
         };

@@ -25,6 +25,12 @@ export default function LabelEditorPage() {
     };
   }, [isReady]);
 
+  useEffect(() => {
+    if (apiRef.current?.updateDeleteButton) {
+      apiRef.current.updateDeleteButton();
+    }
+  });
+
   const callApi = (method, ...args) => {
     const api = apiRef.current;
     if (!api || typeof api[method] !== 'function') {
