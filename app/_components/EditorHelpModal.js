@@ -16,6 +16,7 @@ function ChineseContent() {
             <li><a href="#editor-actions">編輯操作</a></li>
             <li><a href="#editor-save">儲存變更</a></li>
             <li><a href="#editor-shortcuts">快速鍵</a></li>
+            <li><a href="#editor-select-delete">選取與刪除圖片</a></li>
           </ul>
         </nav>
         <div className={styles.main}>
@@ -157,9 +158,30 @@ function ChineseContent() {
             <tr><td><code>Q</code></td><td>逆時針旋轉選取的標註（5°）</td></tr>
             <tr><td><code>E</code></td><td>順時針旋轉選取的標註（5°）</td></tr>
             <tr><td><code>Delete</code> 或 <code>Backspace</code></td><td>刪除選取的標註</td></tr>
+            <tr><td><code>X</code></td><td>選取/取消選取當前圖片</td></tr>
             <tr><td><code>Escape</code></td><td>取消目前操作（繪製、框選）</td></tr>
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h3 id="editor-select-delete">選取與刪除圖片</h3>
+        <p>標籤編輯器支援從預覽列批次選取並刪除多張圖片。</p>
+
+        <h4>步驟一：進入選取模式</h4>
+        <p>點擊預覽列中圖片縮圖上的<strong>勾選框</strong>，或按 <code>X</code> 鍵選取當前圖片。編輯器會自動進入選取模式，顯示操作按鈕（全選、取消全選、刪除所選）。</p>
+        <img src="/doc-images/11_select_mode_checkbox.png" alt="勾選框出現在縮圖上" className={styles.image} />
+
+        <h4>步驟二：選取圖片</h4>
+        <p>點擊縮圖上的勾選框來選取圖片，選取的圖片會以藍色邊框和勾號標示。使用<strong>全選</strong>選取所有篩選結果中的圖片，或<strong>取消全選</strong>清除選取。<strong>刪除所選 (N)</strong> 按鈕會即時更新選取數量。</p>
+        <img src="/doc-images/12_image_selected.png" alt="已選取的圖片" className={styles.image} />
+
+        <h4>步驟三：刪除選取的圖片</h4>
+        <p>點擊<strong>刪除所選</strong>按鈕，確認對話框會出現，點擊<strong>確定</strong>確認刪除。圖片檔案及對應的標籤檔案將被永久刪除。</p>
+        <img src="/doc-images/13_delete_confirm.png" alt="刪除確認對話框" className={styles.image} />
+        <div className={styles.warning}>
+          <strong>注意：</strong>刪除圖片無法復原，圖片與標籤檔案將永久從磁碟中移除。
+        </div>
       </section>
         </div>
       </div>
@@ -179,6 +201,7 @@ function EnglishContent() {
             <li><a href="#editor-actions">Editing Operations</a></li>
             <li><a href="#editor-save">Save Changes</a></li>
             <li><a href="#editor-shortcuts">Keyboard Shortcuts</a></li>
+            <li><a href="#editor-select-delete">Select & Delete Images</a></li>
           </ul>
         </nav>
         <div className={styles.main}>
@@ -320,9 +343,30 @@ function EnglishContent() {
             <tr><td><code>Q</code></td><td>Rotate selected counter-clockwise (5°)</td></tr>
             <tr><td><code>E</code></td><td>Rotate selected clockwise (5°)</td></tr>
             <tr><td><code>Delete</code> or <code>Backspace</code></td><td>Delete selected annotations</td></tr>
+            <tr><td><code>X</code></td><td>Toggle select/deselect current image</td></tr>
             <tr><td><code>Escape</code></td><td>Cancel current operation (drawing, box-selecting)</td></tr>
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h3 id="editor-select-delete">Select & Delete Images</h3>
+        <p>The label editor supports selecting multiple images for batch deletion from the preview bar.</p>
+
+        <h4>Step 1: Enter Select Mode</h4>
+        <p>Click the <strong>checkbox</strong> on any image thumbnail in the preview bar, or press <code>X</code> to toggle the current image. The editor enters select mode and shows action buttons (Select All, Deselect All, Delete Selected).</p>
+        <img src="/doc-images/11_select_mode_checkbox.png" alt="Checkbox on thumbnail" className={styles.image} />
+
+        <h4>Step 2: Select Images</h4>
+        <p>Click checkboxes on thumbnails to select images. Selected images show a blue border and checkmark. Use <strong>Select All</strong> to select all images in the current filtered view, or <strong>Deselect All</strong> to clear. The <strong>Delete Selected (N)</strong> button updates with the count.</p>
+        <img src="/doc-images/12_image_selected.png" alt="Selected images with checkmarks" className={styles.image} />
+
+        <h4>Step 3: Delete Selected Images</h4>
+        <p>Click <strong>Delete Selected</strong> to remove the selected images. A confirmation dialog appears — click <strong>OK</strong> to confirm. Both image files and their corresponding label files are permanently deleted.</p>
+        <img src="/doc-images/13_delete_confirm.png" alt="Delete confirmation dialog" className={styles.image} />
+        <div className={styles.warning}>
+          <strong>Warning:</strong> Deleting images cannot be undone. Image and label files are permanently removed from disk.
+        </div>
       </section>
         </div>
       </div>

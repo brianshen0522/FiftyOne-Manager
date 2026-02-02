@@ -87,6 +87,30 @@ To change a label's class:
 2. Drag the corner handles to resize
 3. The coordinates update automatically
 
+### Selecting and Deleting Images
+
+The label editor supports selecting multiple images for batch deletion directly from the preview bar.
+
+#### Step 1: Enter Select Mode
+
+Click the checkbox that appears on any image thumbnail in the preview bar. The editor automatically enters **Select Mode** and shows the action buttons (Select All, Deselect All, Delete Selected).
+
+![Checkbox appears on hover](public/doc-images/11_select_mode_checkbox.png)
+
+#### Step 2: Select Images
+
+Click checkboxes on the thumbnails you want to select. Selected images are highlighted with a blue border and checkmark. Use **Select All** to select every image in the current filtered view, or **Deselect All** to clear the selection. The **Delete Selected (N)** button updates to show the count.
+
+![Images selected with checkmarks](public/doc-images/12_image_selected.png)
+
+#### Step 3: Delete Selected Images
+
+Click **Delete Selected** to remove the selected images. A confirmation dialog appears — click **OK** to confirm. Both the image files and their corresponding label files are permanently deleted.
+
+![Delete confirmation dialog](public/doc-images/13_delete_confirm.png)
+
+> **Warning**: Deleting images cannot be undone. The image and label files are permanently removed from disk.
+
 ### Step 4: Save Changes
 
 1. Click the "Save Labels" button in the header
@@ -96,9 +120,25 @@ To change a label's class:
 
 ## Keyboard Shortcuts
 
-- **Delete** or **Backspace**: Delete selected annotation
-- **Click + Drag**: Create new bounding box
-- **Click**: Select annotation
+- **A** or **←**: Previous image
+- **D** or **→**: Next image
+- **W**: Switch to previous class
+- **S**: Switch to next class
+- **X**: Toggle select/deselect current image
+- **Q**: Rotate selected counter-clockwise (5°)
+- **E**: Rotate selected clockwise (5°)
+- **Ctrl+A**: Select all annotations
+- **Ctrl+C**: Copy selected annotations
+- **Ctrl+V**: Paste annotations
+- **Ctrl+Z**: Undo
+- **Ctrl+Shift+Z**: Redo
+- **Ctrl+S**: Save labels
+- **Ctrl+Click**: Multi-select annotations
+- **Shift+Drag**: Box-select multiple annotations
+- **Delete** or **Backspace**: Delete selected annotations
+- **Escape**: Cancel current operation
+- **Middle-click drag**: Pan view
+- **Scroll wheel**: Zoom in/out
 
 ## File Format
 
@@ -204,11 +244,7 @@ The FiftyOne plugin (`fiftyone_plugins/edit_label/__init__.py`) provides:
 ## Future Enhancements
 
 Potential improvements:
-- Undo/redo functionality
-- Keyboard shortcuts for class selection
 - Bulk reclass operations
-- Image zoom and pan
-- Copy/paste annotations
 - Polygon annotations (beyond bounding boxes)
 - Integration with FiftyOne's evaluation/tagging system
 

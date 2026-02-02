@@ -270,7 +270,12 @@
       "escapeClear": "<strong>Escape</strong> to clear selection",
       "dragResizeSingle": "Drag corners to resize single annotation",
       "navKeys": "<strong>← → or A D keys</strong> to switch images",
-      "undoRedo": "<strong>Ctrl Z / Ctrl Shift Z</strong> to undo/redo"
+      "undoRedo": "<strong>Ctrl Z / Ctrl Shift Z</strong> to undo/redo",
+      "copyPaste": "<strong>Ctrl C / Ctrl V</strong> to copy/paste annotation",
+      "middleClickPan": "<strong>Middle-click drag</strong> to pan, <strong>scroll</strong> to zoom",
+      "xToggleSelect": "<strong>X</strong> to toggle select/deselect current image",
+      "checkboxSelect": "Click <strong>checkbox</strong> on preview thumbnail to select images",
+      "deleteImages": "Use <strong>Delete Selected</strong> to batch delete images and labels"
     }
   },
   "help": {

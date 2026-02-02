@@ -467,6 +467,11 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 <li>${t('editor.instructions.dragResizeSingle')}</li>
                 <li>${t('editor.instructions.navKeys')}</li>
                 <li>${t('editor.instructions.undoRedo')}</li>
+                <li>${t('editor.instructions.copyPaste')}</li>
+                <li>${t('editor.instructions.middleClickPan')}</li>
+                <li>${t('editor.instructions.xToggleSelect')}</li>
+                <li>${t('editor.instructions.checkboxSelect')}</li>
+                <li>${t('editor.instructions.deleteImages')}</li>
             `;
 
             instructionsList.innerHTML = instructions;

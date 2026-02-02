@@ -270,7 +270,12 @@
       "escapeClear": "<strong>Escape</strong> 清除選取",
       "dragResizeSingle": "拖曳角點調整單一標註大小",
       "navKeys": "<strong>← → 或 A D</strong> 切換圖片",
-      "undoRedo": "<strong>Ctrl Z / Ctrl Shift Z</strong> 復原/重做"
+      "undoRedo": "<strong>Ctrl Z / Ctrl Shift Z</strong> 復原/重做",
+      "copyPaste": "<strong>Ctrl C / Ctrl V</strong> 複製/貼上標註",
+      "middleClickPan": "<strong>中鍵拖曳</strong>平移，<strong>滾輪</strong>縮放",
+      "xToggleSelect": "<strong>X</strong> 選取/取消選取當前圖片",
+      "checkboxSelect": "點擊預覽縮圖的<strong>勾選框</strong>選取圖片",
+      "deleteImages": "使用<strong>刪除所選</strong>批次刪除圖片與標籤"
     }
   },
   "help": {
