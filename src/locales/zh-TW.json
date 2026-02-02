@@ -213,6 +213,16 @@
       "copied": "已複製 {count} 個標註",
       "pasted": "已貼上 {count} 個標註"
     },
+    "selectMode": {
+      "toggle": "選取",
+      "selectAll": "全選",
+      "deselectAll": "取消全選",
+      "deleteSelected": "刪除選取（{count}）",
+      "confirmDelete": "刪除 {count} 張圖片及其標籤？此操作無法復原。",
+      "deleting": "正在刪除 {count} 張圖片...",
+      "deleted": "已刪除 {count} 張圖片",
+      "deleteFailed": "刪除圖片失敗：{error}"
+    },
     "preview": {
       "images": "圖片",
       "nameAsc": "名稱（A-Z）",

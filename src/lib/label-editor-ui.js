@@ -93,6 +93,11 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let redoStack = [];
         let historySnapshot = null;
 
+        // Image select mode
+        let selectedImages = new Set();
+        let imageSelectMode = false;
+        let currentInstanceName = '';
+
         // Filter support
         let labelCache = {}; // Cache label info for filtering: { imagePath: { classes: [0,1,2], count: 3 } }
         let filterActive = false;
@@ -210,6 +215,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             }
 
+            // Store instance name for persistence
+            currentInstanceName = instanceNameParam;
+
             // Set OBB creation mode from URL parameter (admin-controlled)
             obbCreationMode = obbModeParam;
 
@@ -224,8 +232,13 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 return;
             }
 
-            if (startImageParam && imageList.includes(startImageParam)) {
-                currentImageIndex = imageList.indexOf(startImageParam);
+            if (startImageParam) {
+                if (imageList.includes(startImageParam)) {
+                    currentImageIndex = imageList.indexOf(startImageParam);
+                } else {
+                    const idx = imageList.findIndex(p => p.split('/').pop() === startImageParam);
+                    if (idx >= 0) currentImageIndex = idx;
+                }
             }
             await applyLastImageSelection();
             applyPreviewSort(true);
@@ -238,6 +251,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             updateNavigationButtons();
             setupImagePreview();
             await loadImage();
+            await loadSelectedImages();
         }
 
         // === FILTER FUNCTIONS ===
@@ -819,6 +833,12 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 const normalizedStart = normalizeStartImagePathForList(lastKnownImageParam);
                 if (normalizedStart && imageList.includes(normalizedStart)) {
                     currentImageIndex = imageList.indexOf(normalizedStart);
+                } else {
+                    // Match by filename only (lastImagePath may be just a filename)
+                    const idx = imageList.findIndex(p => p.split('/').pop() === lastKnownImageParam);
+                    if (idx >= 0) {
+                        currentImageIndex = idx;
+                    }
                 }
             }
         }
@@ -1049,6 +1069,20 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 label.title = filename; // Show full name on hover
             } else {
                 label.textContent = filename;
+            }
+
+            // Checkbox overlay for selection
+            const checkbox = document.createElement('div');
+            checkbox.className = 'preview-checkbox';
+            checkbox.textContent = selectedImages.has(imagePath) ? '✓' : '';
+            checkbox.onclick = (e) => {
+                e.stopPropagation();
+                toggleImageSelection(imagePath);
+            };
+            previewItem.appendChild(checkbox);
+
+            if (selectedImages.has(imagePath)) {
+                previewItem.classList.add('selected-image');
             }
 
             previewItem.appendChild(img);
@@ -2884,6 +2918,15 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             }
 
+            // Toggle selection of current image
+            if (e.key === 'x' || e.key === 'X') {
+                e.preventDefault();
+                if (imageList.length > 0 && imageList[currentImageIndex]) {
+                    toggleImageSelection(imageList[currentImageIndex]);
+                }
+                return;
+            }
+
             // Navigate between images with arrow keys or A/D keys
             if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
                 e.preventDefault();
@@ -3798,11 +3841,173 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     basePath: basePath,
-                    imagePath: imagePath
+                    imagePath: imagePath.split('/').pop(),
+                    instanceName: currentInstanceName
                 })
             }).catch(() => {});
         }
 
+
+        function toggleImageSelectMode() {
+            imageSelectMode = !imageSelectMode;
+            if (!imageSelectMode) {
+                selectedImages.clear();
+            }
+            updateSelectModeUI();
+            updateImagePreview();
+        }
+
+        let saveSelectedDebounce = null;
+        function persistSelectedImages() {
+            if (!currentInstanceName) return;
+            clearTimeout(saveSelectedDebounce);
+            saveSelectedDebounce = setTimeout(() => {
+                fetch('/api/label-editor/selected-images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentInstanceName, selectedImages: Array.from(selectedImages).map(p => p.split('/').pop()) })
+                }).catch(() => {});
+            }, 300);
+        }
+
+        async function loadSelectedImages() {
+            if (!currentInstanceName) return;
+            try {
+                const resp = await fetch(`/api/label-editor/selected-images?name=${encodeURIComponent(currentInstanceName)}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (Array.isArray(data.selectedImages) && data.selectedImages.length > 0) {
+                        const savedNames = new Set(data.selectedImages);
+                        const matched = allImageList.filter(p => savedNames.has(p.split('/').pop()));
+                        if (matched.length === 0) return;
+                        selectedImages = new Set(matched);
+                        imageSelectMode = true;
+                        updateSelectModeUI();
+                        updateImagePreview();
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to load selected images:', err);
+            }
+        }
+
+        function updateSelectModeUI() {
+            const actions = document.getElementById('selectModeActions');
+            const previewBar = document.getElementById('previewBar');
+
+            if (actions) {
+                actions.style.display = imageSelectMode ? 'flex' : 'none';
+            }
+            if (previewBar) {
+                previewBar.classList.toggle('select-mode', imageSelectMode);
+            }
+            // Always sync the delete button state
+            updateDeleteButton();
+        }
+
+        function updateDeleteButton() {
+            const btn = document.getElementById('deleteSelectedBtn');
+            if (!btn) return;
+            const count = selectedImages.size;
+            btn.disabled = count === 0;
+            btn.textContent = t('editor.selectMode.deleteSelected', { count: String(count) });
+        }
+
+        function toggleImageSelection(imagePath) {
+            if (selectedImages.has(imagePath)) {
+                selectedImages.delete(imagePath);
+            } else {
+                selectedImages.add(imagePath);
+            }
+            // Auto-enter/exit select mode based on selection
+            const shouldBeInSelectMode = selectedImages.size > 0;
+            if (shouldBeInSelectMode !== imageSelectMode) {
+                imageSelectMode = shouldBeInSelectMode;
+                updateSelectModeUI();
+            }
+            updateDeleteButton();
+            updateImagePreview();
+            persistSelectedImages();
+        }
+
+        function selectAllImages() {
+            imageList.forEach(p => selectedImages.add(p));
+            imageSelectMode = true;
+            updateSelectModeUI();
+            updateDeleteButton();
+            updateImagePreview();
+            persistSelectedImages();
+        }
+
+        function deselectAllImages() {
+            selectedImages.clear();
+            imageSelectMode = false;
+            updateSelectModeUI();
+            updateDeleteButton();
+            updateImagePreview();
+            persistSelectedImages();
+        }
+
+        async function deleteSelectedImages() {
+            if (selectedImages.size === 0) return;
+
+            const count = selectedImages.size;
+            const msg = t('editor.selectMode.confirmDelete', { count: String(count) });
+            if (!confirm(msg)) return;
+
+            const statusBar = document.getElementById('statusBar');
+            if (statusBar) statusBar.textContent = t('editor.selectMode.deleting', { count: String(count) });
+
+            try {
+                const res = await fetch('/api/label-editor/delete-images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ basePath, images: Array.from(selectedImages) })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Delete failed');
+
+                // Remove deleted paths from all lists
+                const deletedSet = new Set(selectedImages);
+                const currentPath = imageList[currentImageIndex];
+
+                allImageList = allImageList.filter(p => !deletedSet.has(p));
+                imageList = imageList.filter(p => !deletedSet.has(p));
+                filterBaseList = filterBaseList.filter(p => !deletedSet.has(p));
+
+                // Clean caches
+                for (const p of deletedSet) {
+                    delete imageThumbnails[p];
+                    delete labelCache[p];
+                    delete imageMetaByPath[p];
+                }
+
+                // Fix current index
+                if (deletedSet.has(currentPath)) {
+                    currentImageIndex = Math.min(currentImageIndex, imageList.length - 1);
+                    if (currentImageIndex < 0) currentImageIndex = 0;
+                    if (imageList.length > 0) {
+                        await loadImage();
+                    }
+                } else {
+                    const newIdx = imageList.indexOf(currentPath);
+                    if (newIdx >= 0) currentImageIndex = newIdx;
+                }
+
+                // Clear selection and exit select mode
+                selectedImages.clear();
+                imageSelectMode = false;
+                updateSelectModeUI();
+                updateNavigationButtons();
+                updateImagePreview();
+                updateFilterStats();
+                persistSelectedImages();
+
+                if (statusBar) statusBar.textContent = t('editor.selectMode.deleted', { count: String(data.deleted) });
+            } catch (err) {
+                if (statusBar) statusBar.textContent = t('editor.selectMode.deleteFailed', { error: err.message });
+            }
+        }
 
         export {
             initLabelEditor,
@@ -3816,5 +4021,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             clearFilters,
             setLineWidthScale,
             handlePreviewSortChange,
-            handlePreviewSearch
+            handlePreviewSearch,
+            toggleImageSelectMode,
+            selectAllImages,
+            deselectAllImages,
+            deleteSelectedImages
         };

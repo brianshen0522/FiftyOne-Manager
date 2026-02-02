@@ -225,8 +225,21 @@ export default function LabelEditorPage() {
 
       <div className="preview-bar" id="previewBar">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-          <div style={{ color: '#aaa', fontSize: '12px' }} id="imagePreviewCount">
-            {t('editor.preview.images')}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ color: '#aaa', fontSize: '12px' }} id="imagePreviewCount">
+              {t('editor.preview.images')}
+            </div>
+            <div className="select-mode-actions" id="selectModeActions" style={{ display: 'none' }}>
+              <button className="btn btn-secondary btn-small" onClick={() => callApi('selectAllImages')}>
+                {t('editor.selectMode.selectAll')}
+              </button>
+              <button className="btn btn-secondary btn-small" onClick={() => callApi('deselectAllImages')}>
+                {t('editor.selectMode.deselectAll')}
+              </button>
+              <button className="btn-delete-selected" id="deleteSelectedBtn" onClick={() => callApi('deleteSelectedImages')}>
+                {t('editor.selectMode.deleteSelected', { count: '0' })}
+              </button>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select id="previewSort" className="preview-sort-select" onChange={() => callApi('handlePreviewSortChange')}>

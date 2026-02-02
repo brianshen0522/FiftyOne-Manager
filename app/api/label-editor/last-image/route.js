@@ -8,17 +8,22 @@ export const dynamic = 'force-dynamic';
 export const POST = withApiLogging(async (req) => {
   try {
     const body = await req.json();
-    const { basePath, imagePath } = body;
+    const { basePath, imagePath, instanceName } = body;
     if (!basePath || !imagePath) {
       return NextResponse.json({ error: 'Missing basePath or imagePath' }, { status: 400 });
     }
 
     const instances = loadInstances();
-    const fullImagePath = path.resolve(path.join(basePath, imagePath));
-    const instance = instances.find((item) => {
-      const datasetRoot = path.resolve(item.datasetPath);
-      return fullImagePath.startsWith(`${datasetRoot}${path.sep}`) || fullImagePath === datasetRoot;
-    });
+    let instance;
+    if (instanceName) {
+      instance = instances.find((item) => item.name === instanceName);
+    } else {
+      const fullImagePath = path.resolve(path.join(basePath, imagePath));
+      instance = instances.find((item) => {
+        const datasetRoot = path.resolve(item.datasetPath);
+        return fullImagePath.startsWith(`${datasetRoot}${path.sep}`) || fullImagePath === datasetRoot;
+      });
+    }
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }

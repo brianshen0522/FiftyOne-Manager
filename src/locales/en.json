@@ -213,6 +213,16 @@
       "copied": "Copied {count} label(s)",
       "pasted": "Pasted {count} label(s)"
     },
+    "selectMode": {
+      "toggle": "Select",
+      "selectAll": "Select All",
+      "deselectAll": "Deselect All",
+      "deleteSelected": "Delete Selected ({count})",
+      "confirmDelete": "Delete {count} image(s) and their labels? This cannot be undone.",
+      "deleting": "Deleting {count} image(s)...",
+      "deleted": "Deleted {count} image(s)",
+      "deleteFailed": "Failed to delete images: {error}"
+    },
     "preview": {
       "images": "Images",
       "nameAsc": "Name (A-Z)",
