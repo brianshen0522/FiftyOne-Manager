@@ -49,7 +49,7 @@ export default function LabelEditorPage() {
           <button className="btn btn-secondary" id="nextBtn" onClick={() => callApi('nextImage')}>
             {t('editor.next')}
           </button>
-          <button className="btn btn-secondary" onClick={() => callApi('loadImage')}>
+          <button className="btn btn-secondary" onClick={() => callApi('loadImage', true)}>
             {t('editor.reload')}
           </button>
           <button

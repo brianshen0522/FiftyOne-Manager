@@ -191,7 +191,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 updateInstructions();
                 updateFilterStats();
                 handlePreviewSearch();
-                updateImagePreview();
+                updateImagePreview(true);
                 refreshStatusBar();
                 refreshFilterWarning();
             });
@@ -572,7 +572,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     currentImageIndex = 0;
                     await loadImage();
                     updateNavigationButtons();
-                    updateImagePreview();
+                    updateImagePreview(true);
                     showStatusMessage('editor.filter.noFiltersActive');
                     return;
                 }
@@ -625,7 +625,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 if (imageList.length > 0) {
                     await loadImage();
                     updateNavigationButtons();
-                    updateImagePreview();
+                    updateImagePreview(true);
                     showStatusMessage('editor.filter.foundMatching', { count: imageList.length });
                 } else {
                     showError(t('editor.filter.noImagesMatchFilter'));
@@ -752,7 +752,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             clearFilterWarning();
             loadImage();
             updateNavigationButtons();
-            updateImagePreview();
+            updateImagePreview(true);
             showStatusMessage('editor.filter.filtersCleared');
         }
 
@@ -863,7 +863,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             previewSortMode = select.value;
             applyPreviewSort(true);
             updateNavigationButtons();
-            updateImagePreview();
+            updateImagePreview(true);
         }
 
         function handlePreviewSearch() {
@@ -902,7 +902,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
                 updateFilterStats();
                 updateNavigationButtons();
-                updateImagePreview();
+                updateImagePreview(true);
                 return;
             }
 
@@ -967,7 +967,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
 
                 updateNavigationButtons();
-                updateImagePreview();
+                updateImagePreview(true);
 
                 if (imageList.length === 0) {
                     showStatusMessage('editor.filter.noImagesMatchFilter');
@@ -978,18 +978,35 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
         }
 
-        async function updateImagePreview() {
+        async function updateImagePreview(forceRebuild) {
             // Show preview bar if there are multiple images in total (even if filtered to 1)
             if (allImageList.length <= 1) return;
 
             const previewContainer = document.getElementById('imagePreview');
-            previewContainer.innerHTML = '';
 
             // If no images in filtered list, show message
             if (imageList.length === 0) {
                 previewContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: #aaa;">${t('editor.preview.noMatchingImages')}</div>`;
                 return;
             }
+
+            // Lightweight update: if current index is within the rendered window, just swap classes
+            if (!forceRebuild && currentImageIndex >= previewRenderStart && currentImageIndex < previewRenderEnd) {
+                const items = previewContainer.querySelectorAll('.preview-item');
+                items.forEach(item => {
+                    const idx = parseInt(item.dataset.previewIndex, 10);
+                    const imgPath = imageList[idx];
+                    item.classList.toggle('active', idx === currentImageIndex);
+                    // Update selection state
+                    item.classList.toggle('selected-image', selectedImages.has(imgPath));
+                    const cb = item.querySelector('.preview-checkbox');
+                    if (cb) cb.textContent = selectedImages.has(imgPath) ? '✓' : '';
+                });
+                applyPendingPreviewCenter();
+                return;
+            }
+
+            previewContainer.innerHTML = '';
 
             // Create a wrapper for thumbnails to ensure horizontal layout
             const thumbnailsWrapper = document.createElement('div');
@@ -1442,7 +1459,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             });
         }
 
-        async function loadImage() {
+        async function loadImage(forceReload) {
             try {
                 showStatusMessage('editor.status.loadingImage');
 
@@ -1460,8 +1477,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 saveLastImageSelection(currentImage);
 
                 // Build image URL for direct loading (much faster than base64)
+                // Only bust cache on explicit reload to allow browser caching of preloaded images
                 let imageUrl;
-                const cacheBuster = `&_v=${new Date().getTime()}`;
+                const cacheBuster = forceReload ? `&_v=${new Date().getTime()}` : '';
                 if (basePath) {
                     imageUrl = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(currentImage)}${cacheBuster}`;
                 } else {
@@ -1566,26 +1584,17 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             }
 
-            // Preload all images in the list
+            // Preload all images in the list (no cache buster so browser can cache them)
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
                 const img = new Image();
-                const cacheBuster = `&_v=${new Date().getTime()}`;
 
                 if (basePath) {
-                    img.src = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imgPath)}${cacheBuster}`;
+                    img.src = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imgPath)}`;
                 } else {
-                    img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}${cacheBuster}`;
+                    img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}`;
                 }
-
-                // Optional: Add to cache tracking if needed
-                img.onload = () => {
-                    // Image is now in browser cache
-                };
             });
-
-            // Log preloading info (can be removed in production)
-            console.log(`Preloading ${preloadIndexes.length} images around index ${currentImageIndex}`);
         }
 
         function orderPointsClockwiseFromTopLeft(points) {
@@ -3999,7 +4008,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 imageSelectMode = false;
                 updateSelectModeUI();
                 updateNavigationButtons();
-                updateImagePreview();
+                updateImagePreview(true);
                 updateFilterStats();
                 persistSelectedImages();
 
