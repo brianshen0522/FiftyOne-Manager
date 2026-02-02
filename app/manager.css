@@ -603,6 +603,48 @@
             user-select: none;
         }
 
+        .folder-search {
+            padding: 8px 8px 0;
+            position: relative;
+        }
+
+        .folder-search-clear {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--subtle);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 2px 6px;
+            line-height: 1;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .folder-search-clear:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .folder-search input {
+            width: 100%;
+            padding: 6px 28px 6px 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 13px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .folder-search input:focus {
+            border-color: var(--blue);
+        }
+
         .folder-list {
             max-height: 200px;
             overflow-y: auto;

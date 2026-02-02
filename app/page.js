@@ -148,6 +148,10 @@ export default function Page() {
               <label htmlFor="datasetPath">{t('manager.modal.datasetPath')} *</label>
               <div className="dataset-browser">
                 <div className="breadcrumb" id="breadcrumb" />
+                <div className="folder-search">
+                  <input type="text" id="folderSearch" placeholder={t('manager.folder.searchPlaceholder')} onInput={() => callApi('filterFolderList')} />
+                  <button type="button" className="folder-search-clear" id="folderSearchClear" onClick={() => callApi('clearFolderSearch')}>✕</button>
+                </div>
                 <div className="folder-list" id="folderList">
                   <div className="folder-item">{t('common.loading')}</div>
                 </div>
@@ -165,6 +169,10 @@ export default function Page() {
               <label htmlFor="classFile">{t('manager.modal.classFile')}</label>
               <div className="dataset-browser">
                 <div className="breadcrumb" id="classBreadcrumb" />
+                <div className="folder-search">
+                  <input type="text" id="classFolderSearch" placeholder={t('manager.folder.searchPlaceholder')} onInput={() => callApi('filterClassFolderList')} />
+                  <button type="button" className="folder-search-clear" id="classFolderSearchClear" onClick={() => callApi('clearClassFolderSearch')}>✕</button>
+                </div>
                 <div className="folder-list" id="classFolderList">
                   <div className="folder-item">{t('common.loading')}</div>
                 </div>

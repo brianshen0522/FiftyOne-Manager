@@ -225,6 +225,10 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const basePath = config.datasetBasePath || '/data/datasets';
             const fullPath = path ? `${basePath}/${path}` : basePath;
 
+            // Clear search filter on navigation
+            const searchInput = document.getElementById('folderSearch');
+            if (searchInput) searchInput.value = '';
+
             // Check if this folder only contains images/labels - if so, don't enter it
             if (path && await isDatasetFolder(fullPath)) {
                 // Select this folder as dataset path without entering it
@@ -343,8 +347,14 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 }
             });
 
-            // Sort and render all items
-            const sortedItems = Array.from(allItems.values()).sort((a, b) => a.name.localeCompare(b.name));
+            // Sort and filter items
+            let sortedItems = Array.from(allItems.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+            const searchInput = document.getElementById('folderSearch');
+            const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            if (searchTerm) {
+                sortedItems = sortedItems.filter(item => item.name.toLowerCase().includes(searchTerm));
+            }
 
             // Get current selected path for highlighting
             const datasetPathInput = document.getElementById('datasetPath');
@@ -371,6 +381,32 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             folderList.innerHTML = html;
         }
 
+        function filterFolderList() {
+            const btn = document.getElementById('folderSearchClear');
+            const input = document.getElementById('folderSearch');
+            if (btn) btn.style.display = input && input.value ? 'block' : 'none';
+            renderFolderList(currentPath);
+        }
+
+        function clearFolderSearch() {
+            const input = document.getElementById('folderSearch');
+            if (input) input.value = '';
+            filterFolderList();
+        }
+
+        function filterClassFolderList() {
+            const btn = document.getElementById('classFolderSearchClear');
+            const input = document.getElementById('classFolderSearch');
+            if (btn) btn.style.display = input && input.value ? 'block' : 'none';
+            renderClassFolderList(currentClassPath);
+        }
+
+        function clearClassFolderSearch() {
+            const input = document.getElementById('classFolderSearch');
+            if (input) input.value = '';
+            filterClassFolderList();
+        }
+
         async function refreshDatasetOptions() {
             await loadDatasets();
         }
@@ -390,6 +426,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             if (typeof window !== 'undefined') {
                 window.currentClassPath = currentClassPath;
             }
+            const classSearchInput = document.getElementById('classFolderSearch');
+            if (classSearchInput) classSearchInput.value = '';
             await renderClassBreadcrumb(path);
             await renderClassFolderList(path);
         }
@@ -432,9 +470,20 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
                 let html = '';
 
+                // Apply search filter
+                const classSearchInput = document.getElementById('classFolderSearch');
+                const classSearchTerm = classSearchInput ? classSearchInput.value.trim().toLowerCase() : '';
+
                 // Show folders first
-                if (data.folders && data.folders.length > 0) {
-                    data.folders.forEach(folder => {
+                let folders = data.folders || [];
+                let files = data.files || [];
+                if (classSearchTerm) {
+                    folders = folders.filter(f => f.toLowerCase().includes(classSearchTerm));
+                    files = files.filter(f => f.toLowerCase().includes(classSearchTerm));
+                }
+
+                if (folders.length > 0) {
+                    folders.forEach(folder => {
                         const folderPath = path ? `${path}/${folder}` : folder;
                         html += `
                             <div class="folder-item" onclick="navigateToClassPath('${folderPath}')">
@@ -445,8 +494,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 }
 
                 // Show .txt files containing "class"
-                if (data.files && data.files.length > 0) {
-                    data.files.forEach(file => {
+                if (files.length > 0) {
+                    files.forEach(file => {
                         if (file.toLowerCase().endsWith('.txt') && file.toLowerCase().includes('class')) {
                             const filePath = path ? `${path}/${file}` : file;
                             const absolutePath = path ? `${basePath}/${filePath}` : `${basePath}/${file}`;
@@ -1475,6 +1524,10 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             window.deleteInstance = deleteInstance;
             window.showLogs = showLogs;
             window.selectClassFile = selectClassFile;
+            window.filterFolderList = filterFolderList;
+            window.clearFolderSearch = clearFolderSearch;
+            window.filterClassFolderList = filterClassFolderList;
+            window.clearClassFolderSearch = clearClassFolderSearch;
             window.currentClassPath = currentClassPath;
         }
 
@@ -1551,5 +1604,9 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             editInstance,
             deleteInstance,
             showLogs,
-            selectClassFile
+            selectClassFile,
+            filterFolderList,
+            clearFolderSearch,
+            filterClassFolderList,
+            clearClassFolderSearch
         };
