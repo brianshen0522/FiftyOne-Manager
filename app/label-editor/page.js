@@ -76,6 +76,63 @@ export default function LabelEditorPage() {
         </div>
 
         <div className="sidebar">
+          <div className="sidebar-section">
+            <h2>{t('editor.imageInfo.title')}</h2>
+            <div className="info-field">
+              <div className="info-label">{t('editor.imageInfo.filename')}</div>
+              <div className="info-value" id="filename">
+                -
+              </div>
+            </div>
+            <div className="info-field">
+              <div className="info-label">{t('editor.imageInfo.imageSize')}</div>
+              <div className="info-value" id="imageSize">
+                -
+              </div>
+            </div>
+          </div>
+
+          <div className="sidebar-section" id="obbModeSection" style={{ display: 'none' }}>
+            <h2>{t('editor.obbMode.title')}</h2>
+            <div className="info-field">
+              <div className="info-value" id="obbModeDisplay" style={{ color: '#4ECDC4', fontWeight: 500 }}>
+                -
+              </div>
+            </div>
+          </div>
+
+          <div className="sidebar-section">
+            <h2>
+              {t('editor.selectClass.title')} <span style={{ fontSize: '12px', color: '#aaa' }}>({t('editor.selectClass.hint')})</span>
+            </h2>
+            <div className="class-selector" id="classSelector" />
+          </div>
+
+          <div className="sidebar-section">
+            <h2>
+              {t('editor.annotations.title')} (<span id="annotationCount">0</span>)
+            </h2>
+            <div className="annotations-list" id="annotationsList" />
+          </div>
+
+          <div className="sidebar-section">
+            <h2>{t('editor.display.title')}</h2>
+            <div className="line-width-control">
+              <label className="filter-label" htmlFor="lineWidthScale">
+                {t('editor.display.lineWidth')} <span id="lineWidthScaleValue">66%</span>
+              </label>
+              <input
+                type="range"
+                id="lineWidthScale"
+                min="0.3"
+                max="1.5"
+                step="0.05"
+                defaultValue="0.66"
+                onInput={(event) => callApi('setLineWidthScale', event.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="sidebar-section filter-section" data-tour="editor-filters">
             <div className="filter-toggle" onClick={() => callApi('toggleFilterSection')}>
               <h2>{t('editor.filter.title')}</h2>
@@ -155,63 +212,6 @@ export default function LabelEditorPage() {
                 {t('editor.filter.minCannotBeGreaterThanMax')}
               </div>
             </div>
-          </div>
-
-          <div className="sidebar-section">
-            <h2>{t('editor.imageInfo.title')}</h2>
-            <div className="info-field">
-              <div className="info-label">{t('editor.imageInfo.filename')}</div>
-              <div className="info-value" id="filename">
-                -
-              </div>
-            </div>
-            <div className="info-field">
-              <div className="info-label">{t('editor.imageInfo.imageSize')}</div>
-              <div className="info-value" id="imageSize">
-                -
-              </div>
-            </div>
-          </div>
-
-          <div className="sidebar-section" id="obbModeSection" style={{ display: 'none' }}>
-            <h2>{t('editor.obbMode.title')}</h2>
-            <div className="info-field">
-              <div className="info-value" id="obbModeDisplay" style={{ color: '#4ECDC4', fontWeight: 500 }}>
-                -
-              </div>
-            </div>
-          </div>
-
-          <div className="sidebar-section">
-            <h2>{t('editor.display.title')}</h2>
-            <div className="line-width-control">
-              <label className="filter-label" htmlFor="lineWidthScale">
-                {t('editor.display.lineWidth')} <span id="lineWidthScaleValue">66%</span>
-              </label>
-              <input
-                type="range"
-                id="lineWidthScale"
-                min="0.3"
-                max="1.5"
-                step="0.05"
-                defaultValue="0.66"
-                onInput={(event) => callApi('setLineWidthScale', event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="sidebar-section">
-            <h2>
-              {t('editor.selectClass.title')} <span style={{ fontSize: '12px', color: '#aaa' }}>({t('editor.selectClass.hint')})</span>
-            </h2>
-            <div className="class-selector" id="classSelector" />
-          </div>
-
-          <div className="sidebar-section">
-            <h2>
-              {t('editor.annotations.title')} (<span id="annotationCount">0</span>)
-            </h2>
-            <div className="annotations-list" id="annotationsList" />
           </div>
 
           <div className="sidebar-section">
