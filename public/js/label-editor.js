@@ -4000,18 +4000,31 @@
             document.getElementById('statusBar').style.color = '#dc3545';
         }
 
+        let lastImageSaveTimer = null;
+        const LAST_IMAGE_SAVE_DELAY = 1500; // Only save if user stays on image for 1.5s
+
         function saveLastImageSelection(imagePath) {
             if (!basePath || !imagePath) {
                 return;
             }
-            fetch('/api/label-editor/last-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    basePath: basePath,
-                    imagePath: imagePath
-                })
-            }).catch(() => {});
+
+            // Cancel any pending save
+            if (lastImageSaveTimer) {
+                clearTimeout(lastImageSaveTimer);
+            }
+
+            // Delay save - only save if user stays on this image for 1.5s
+            lastImageSaveTimer = setTimeout(() => {
+                fetch('/api/label-editor/last-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        basePath: basePath,
+                        imagePath: imagePath
+                    })
+                }).catch(() => {});
+                lastImageSaveTimer = null;
+            }, LAST_IMAGE_SAVE_DELAY);
         }
 
         // Initialize on load

@@ -4181,19 +4181,32 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             updateStatusBar(`${t('common.error')}: ${message}`, '#dc3545');
         }
 
+        let lastImageSaveTimer = null;
+        const LAST_IMAGE_SAVE_DELAY = 1500; // Only save if user stays on image for 1.5s
+
         function saveLastImageSelection(imagePath) {
             if (!basePath || !imagePath) {
                 return;
             }
-            fetch('/api/label-editor/last-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    basePath: basePath,
-                    imagePath: imagePath.split('/').pop(),
-                    instanceName: currentInstanceName
-                })
-            }).catch(() => {});
+
+            // Cancel any pending save
+            if (lastImageSaveTimer) {
+                clearTimeout(lastImageSaveTimer);
+            }
+
+            // Delay save - only save if user stays on this image for 1.5s
+            lastImageSaveTimer = setTimeout(() => {
+                fetch('/api/label-editor/last-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        basePath: basePath,
+                        imagePath: imagePath.split('/').pop(),
+                        instanceName: currentInstanceName
+                    })
+                }).catch(() => {});
+                lastImageSaveTimer = null;
+            }, LAST_IMAGE_SAVE_DELAY);
         }
 
 
