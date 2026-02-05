@@ -2941,7 +2941,17 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 activeElement.isContentEditable
             );
 
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+            const keyIs = (event, code, keyLower) => {
+                if (event.code === code) {
+                    return true;
+                }
+                if (typeof event.key !== 'string') {
+                    return false;
+                }
+                return event.key.toLowerCase() === keyLower;
+            };
+
+            if ((e.ctrlKey || e.metaKey) && keyIs(e, 'KeyS', 's')) {
                 e.preventDefault();
                 saveLabels(true);
                 return;
@@ -2957,21 +2967,21 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 return;
             }
 
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+            if ((e.ctrlKey || e.metaKey) && keyIs(e, 'KeyC', 'c')) {
                 e.preventDefault();
                 copySelectedAnnotations();
                 return;
             }
 
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+            if ((e.ctrlKey || e.metaKey) && keyIs(e, 'KeyV', 'v')) {
                 e.preventDefault();
                 pasteAnnotations();
                 return;
             }
 
-            if (e.key === 'q' || e.key === 'Q' || e.key === 'e' || e.key === 'E') {
+            if (keyIs(e, 'KeyQ', 'q') || keyIs(e, 'KeyE', 'e')) {
                 e.preventDefault();
-                const delta = (e.key === 'q' || e.key === 'Q') ? -Math.PI / 36 : Math.PI / 36;
+                const delta = keyIs(e, 'KeyQ', 'q') ? -Math.PI / 36 : Math.PI / 36;
                 rotateSelectionBy(delta);
                 return;
             }
@@ -2998,7 +3008,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
 
             // Select all annotations
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+            if ((e.ctrlKey || e.metaKey) && keyIs(e, 'KeyA', 'a')) {
                 e.preventDefault();
                 selectedAnnotations = annotations.map((_, idx) => idx);
                 selectedAnnotation = selectedAnnotations.length > 0 ? selectedAnnotations[selectedAnnotations.length - 1] : null;
@@ -3007,7 +3017,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 return;
             }
 
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+            if ((e.ctrlKey || e.metaKey) && keyIs(e, 'KeyZ', 'z')) {
                 e.preventDefault();
                 if (e.shiftKey) {
                     redoAction();
@@ -3026,7 +3036,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
 
             // Switch class with W/S keys
-            if (e.key === 'w' || e.key === 'W') {
+            if (keyIs(e, 'KeyW', 'w')) {
                 e.preventDefault();
                 if (selectedAnnotations.length > 0) {
                     // Change class of all selected annotations
@@ -3043,7 +3053,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     selectedClass = (selectedClass - 1 + CLASSES.length) % CLASSES.length;
                     updateClassSelector();
                 }
-            } else if (e.key === 's' || e.key === 'S') {
+            } else if (keyIs(e, 'KeyS', 's')) {
                 e.preventDefault();
                 if (selectedAnnotations.length > 0) {
                     // Change class of all selected annotations
@@ -3063,7 +3073,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
 
             // Toggle selection of current image
-            if (e.key === 'x' || e.key === 'X') {
+            if (keyIs(e, 'KeyX', 'x')) {
                 e.preventDefault();
                 if (imageList.length > 0 && imageList[currentImageIndex]) {
                     toggleImageSelection(imageList[currentImageIndex]);
@@ -3072,10 +3082,10 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
 
             // Navigate between images with arrow keys or A/D keys
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A' ||
-                e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            if (e.key === 'ArrowLeft' || keyIs(e, 'KeyA', 'a') ||
+                e.key === 'ArrowRight' || keyIs(e, 'KeyD', 'd')) {
                 e.preventDefault();
-                const isBack = e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A';
+                const isBack = e.key === 'ArrowLeft' || keyIs(e, 'KeyA', 'a');
 
                 // First press (not a repeat): navigate normally
                 if (navKeyHeldSince === null) {
@@ -3114,8 +3124,18 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         }
 
         function handleKeyUp(e) {
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A' ||
-                e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            const keyIs = (event, code, keyLower) => {
+                if (event.code === code) {
+                    return true;
+                }
+                if (typeof event.key !== 'string') {
+                    return false;
+                }
+                return event.key.toLowerCase() === keyLower;
+            };
+
+            if (e.key === 'ArrowLeft' || keyIs(e, 'KeyA', 'a') ||
+                e.key === 'ArrowRight' || keyIs(e, 'KeyD', 'd')) {
                 if (navKeyHeld) {
                     // Key was held — load the image at the final index
                     loadImage();
