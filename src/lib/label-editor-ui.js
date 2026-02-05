@@ -1786,26 +1786,35 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             }
 
-            // Build sets of URLs/paths to keep (current + preload range)
-            const keepImageUrls = new Set();
+            // Build sets of paths to keep (current + preload range)
+            const keepImagePaths = new Set();
             const keepLabelPaths = new Set();
 
             // Always keep current image
             const currentImgPath = imageList[currentImageIndex];
-            keepImageUrls.add(buildImageUrl(currentImgPath));
+            keepImagePaths.add(currentImgPath);
             keepLabelPaths.add(currentImgPath);
 
             // Add preload range to keep sets
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
-                keepImageUrls.add(buildImageUrl(imgPath));
+                keepImagePaths.add(imgPath);
                 keepLabelPaths.add(imgPath);
             });
 
             // Evict images outside preload range to save RAM
+            // Check by image path (extracted from URL) to handle cache buster URLs
             let evictedCount = 0;
             for (const [url, img] of preloadedImages) {
-                if (!keepImageUrls.has(url)) {
+                // Extract image path from URL to check against keep set
+                // URL format: /api/image?i=xxx&n=filename or similar
+                const urlParams = new URLSearchParams(url.split('?')[1]);
+                const filename = urlParams.get('n') || urlParams.get('relativePath') || urlParams.get('fullPath') || '';
+                const imgPath = [...keepImagePaths].find(p => p.endsWith(filename));
+
+                if (!imgPath) {
+                    img.onload = null;  // Clear handlers before evicting
+                    img.onerror = null;
                     img.src = ''; // Release image data from memory
                     preloadedImages.delete(url);
                     evictedCount++;
