@@ -266,6 +266,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             setupImagePreview();
             await loadImage();
             await loadSelectedImages();
+
+            // Preload all labels in the background for instant navigation
+            preloadAllLabels();
         }
 
         // === FILTER FUNCTIONS ===
@@ -1598,7 +1601,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         function updateClassSelector() {
             // Highlight the class of the selected annotation
             document.querySelectorAll('.class-btn').forEach((btn, idx) => {
-                if (selectedAnnotation !== null) {
+                if (selectedAnnotation !== null && annotations[selectedAnnotation]) {
                     btn.classList.toggle('active', idx === annotations[selectedAnnotation].class);
                 } else {
                     btn.classList.toggle('active', idx === selectedClass);
@@ -1646,23 +1649,23 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 const loadSeq = ++imageLoadSeq;
                 activeImageLoadSeq = loadSeq;
 
-                // Check if label is already preloaded
+                // Check if label is already preloaded (skip cache if forceReload)
                 const cachedLabel = preloadedLabels.get(currentImage);
-                if (cachedLabel && !cachedLabel.loading) {
+                if (!forceReload && cachedLabel && !cachedLabel.loading) {
                     // Use cached label - no network request needed
-                    labelData = cachedLabel.labelContent;
+                    labelData = cachedLabel.labelContent || '';
                 } else {
-                    // Fetch label from server
+                    // Fetch label from server (always fetch on forceReload)
                     const labelUrl = buildLabelUrl(currentImage);
                     const labelResponse = await fetch(labelUrl);
                     const labelResult = await labelResponse.json();
                     labelData = labelResult.labelContent || '';
-                    // Cache for future use
+                    // Update cache with fresh data
                     preloadedLabels.set(currentImage, { loading: false, labelContent: labelData });
                 }
-                annotations = parseLabelData(labelData);
+                annotations = (parseLabelData(labelData) || []).filter(ann => ann && typeof ann.class !== 'undefined');
                 // Detect annotation type from existing labels (set by admin)
-                defaultAnnotationType = annotations.some(ann => ann.type === 'obb') ? 'obb' : 'bbox';
+                defaultAnnotationType = annotations.some(ann => ann && ann.type === 'obb') ? 'obb' : 'bbox';
 
                 // Show/hide OBB mode section based on detected format
                 const obbModeSection = document.getElementById('obbModeSection');
@@ -1682,7 +1685,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 historySnapshot = null;
 
                 // Cache label info for filtering
-                const classes = [...new Set(annotations.map(ann => ann.class))];
+                const classes = [...new Set(annotations.filter(ann => ann).map(ann => ann.class))];
                 labelCache[currentImage] = {
                     classes: classes,
                     count: annotations.length
@@ -1760,6 +1763,57 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             return `/api/label-editor/load-label?label=${encodeURIComponent(labelPath)}`;
         }
 
+        // Preload all labels at startup for instant navigation
+        async function preloadAllLabels() {
+            if (!basePath) return; // Batch API requires basePath
+
+            const BATCH_SIZE = 10000; // Large batch for efficient loading
+            const total = imageList.length;
+            let loaded = 0;
+
+            console.log(`Starting to preload ${total} labels...`);
+
+            for (let i = 0; i < total; i += BATCH_SIZE) {
+                const batch = imageList.slice(i, Math.min(i + BATCH_SIZE, total));
+                // Filter out already loaded labels
+                const toLoad = batch.filter(imgPath => !preloadedLabels.has(imgPath));
+
+                if (toLoad.length === 0) {
+                    loaded += batch.length;
+                    continue;
+                }
+
+                // Mark as loading
+                toLoad.forEach(imgPath => preloadedLabels.set(imgPath, { loading: true }));
+
+                try {
+                    // Single API call for the entire batch
+                    const response = await fetch('/api/label-editor/load-labels-batch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ basePath, imagePaths: toLoad })
+                    });
+                    const data = await response.json();
+
+                    // Store all labels from response
+                    for (const [imgPath, labelContent] of Object.entries(data.labels || {})) {
+                        preloadedLabels.set(imgPath, {
+                            loading: false,
+                            labelContent: labelContent || ''
+                        });
+                    }
+                } catch (err) {
+                    // On error, remove loading markers
+                    toLoad.forEach(imgPath => preloadedLabels.delete(imgPath));
+                }
+
+                loaded += batch.length;
+                console.log(`Preloaded labels: ${loaded}/${total}`);
+            }
+
+            console.log(`Finished preloading ${preloadedLabels.size} labels`);
+        }
+
         // Preload next and previous images and labels for instant navigation
         function preloadAdjacentImages() {
             const PRELOAD_COUNT = 20;
@@ -1786,20 +1840,16 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             }
 
-            // Build sets of paths to keep (current + preload range)
+            // Build set of image paths to keep (current + preload range)
             const keepImagePaths = new Set();
-            const keepLabelPaths = new Set();
 
             // Always keep current image
             const currentImgPath = imageList[currentImageIndex];
             keepImagePaths.add(currentImgPath);
-            keepLabelPaths.add(currentImgPath);
 
-            // Add preload range to keep sets
+            // Add preload range to keep set
             preloadIndexes.forEach(idx => {
-                const imgPath = imageList[idx];
-                keepImagePaths.add(imgPath);
-                keepLabelPaths.add(imgPath);
+                keepImagePaths.add(imageList[idx]);
             });
 
             // Evict images outside preload range to save RAM
@@ -1821,54 +1871,23 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             }
 
-            // Evict labels outside preload range
-            for (const [path] of preloadedLabels) {
-                if (!keepLabelPaths.has(path)) {
-                    preloadedLabels.delete(path);
-                }
-            }
-
-            // Preload only images and labels not already in cache
+            // Preload only images not already in cache (labels are preloaded at startup)
             let newImageCount = 0;
-            let newLabelCount = 0;
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
-
-                // Preload image
                 const imageUrl = buildImageUrl(imgPath);
                 if (!preloadedImages.has(imageUrl)) {
                     const img = new Image();
                     img.onerror = () => {
-                        // Remove failed image from cache so it can be retried
                         preloadedImages.delete(imageUrl);
                     };
                     img.src = imageUrl;
                     preloadedImages.set(imageUrl, img);
                     newImageCount++;
                 }
-
-                // Preload label (async, fire and forget)
-                if (!preloadedLabels.has(imgPath)) {
-                    // Mark as loading to prevent duplicate requests
-                    preloadedLabels.set(imgPath, { loading: true });
-                    const labelUrl = buildLabelUrl(imgPath);
-                    fetch(labelUrl)
-                        .then(res => res.json())
-                        .then(data => {
-                            preloadedLabels.set(imgPath, {
-                                loading: false,
-                                labelContent: data.labelContent || ''
-                            });
-                        })
-                        .catch(() => {
-                            // On error, remove from cache so it can be retried
-                            preloadedLabels.delete(imgPath);
-                        });
-                    newLabelCount++;
-                }
             });
-            if (newImageCount > 0 || newLabelCount > 0 || evictedCount > 0) {
-                console.log(`Preload: +${newImageCount} images, +${newLabelCount} labels, -${evictedCount} evicted (${preloadedImages.size} images, ${preloadedLabels.size} labels in cache)`);
+            if (newImageCount > 0 || evictedCount > 0) {
+                console.log(`Preload: +${newImageCount} images, -${evictedCount} evicted (${preloadedImages.size} in cache)`);
             }
         }
 
@@ -2053,35 +2072,43 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         }
 
         function parseLabelData(content) {
-            if (!content || content.trim() === '') return [];
+            if (!content || typeof content !== 'string' || content.trim() === '') return [];
 
-            const lines = content.trim().split('\n');
-            return lines.map(line => {
-                const parts = line.trim().split(/\s+/);
-                if (parts.length < 5) return null;
+            try {
+                const lines = content.trim().split('\n');
+                return lines.map(line => {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length < 5) return null;
 
-                if (parts.length >= 9) {
-                    const points = [];
-                    for (let i = 1; i < 9; i += 2) {
-                        points.push({ x: parseFloat(parts[i]), y: parseFloat(parts[i + 1]) });
+                    const classIdx = parseInt(parts[0]);
+                    if (isNaN(classIdx)) return null;
+
+                    if (parts.length >= 9) {
+                        const points = [];
+                        for (let i = 1; i < 9; i += 2) {
+                            points.push({ x: parseFloat(parts[i]), y: parseFloat(parts[i + 1]) });
+                        }
+                        const ordered = ensureClockwisePreserveStart(points);
+                        return {
+                            type: 'obb',
+                            class: classIdx,
+                            points: ordered
+                        };
                     }
-                    const ordered = ensureClockwisePreserveStart(points);
-                    return {
-                        type: 'obb',
-                        class: parseInt(parts[0]),
-                        points: ordered
-                    };
-                }
 
-                return {
-                    type: 'bbox',
-                    class: parseInt(parts[0]),
-                    x: parseFloat(parts[1]),
-                    y: parseFloat(parts[2]),
-                    w: parseFloat(parts[3]),
-                    h: parseFloat(parts[4])
-                };
-            }).filter(a => a !== null);
+                    return {
+                        type: 'bbox',
+                        class: classIdx,
+                        x: parseFloat(parts[1]),
+                        y: parseFloat(parts[2]),
+                        w: parseFloat(parts[3]),
+                        h: parseFloat(parts[4])
+                    };
+                }).filter(a => a !== null);
+            } catch (err) {
+                console.error('Error parsing label data:', err);
+                return [];
+            }
         }
 
         function setupCanvas() {
@@ -2120,7 +2147,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             ctx.drawImage(image, 0, 0);
 
             // Draw annotations (now in image coordinate space)
-            annotations.forEach((ann, idx) => {
+            annotations.filter(ann => ann).forEach((ann, idx) => {
                 const isSelected = selectedAnnotations.includes(idx);
                 const color = getClassColor(ann.class);
 
@@ -2872,7 +2899,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 // Find all annotations inside the selection box
                 const selectedIndices = [];
                 annotations.forEach((ann, idx) => {
-                    if (isAnnotationInBox(ann, x1, y1, x2, y2)) {
+                    if (ann && isAnnotationInBox(ann, x1, y1, x2, y2)) {
                         selectedIndices.push(idx);
                     }
                 });
@@ -3179,12 +3206,12 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             // Switch class with W/S keys
             if (keyIs(e, 'KeyW', 'w')) {
                 e.preventDefault();
-                if (selectedAnnotations.length > 0) {
+                if (selectedAnnotations.length > 0 && annotations[selectedAnnotations[0]]) {
                     // Change class of all selected annotations
                     const currentClass = annotations[selectedAnnotations[0]].class;
                     const newClass = (currentClass - 1 + CLASSES.length) % CLASSES.length;
                     changeMultipleAnnotationsClass(selectedAnnotations, newClass);
-                } else if (selectedAnnotation !== null) {
+                } else if (selectedAnnotation !== null && annotations[selectedAnnotation]) {
                     // Change class of single selected annotation
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass - 1 + CLASSES.length) % CLASSES.length;
@@ -3196,12 +3223,12 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             } else if (keyIs(e, 'KeyS', 's')) {
                 e.preventDefault();
-                if (selectedAnnotations.length > 0) {
+                if (selectedAnnotations.length > 0 && annotations[selectedAnnotations[0]]) {
                     // Change class of all selected annotations
                     const currentClass = annotations[selectedAnnotations[0]].class;
                     const newClass = (currentClass + 1) % CLASSES.length;
                     changeMultipleAnnotationsClass(selectedAnnotations, newClass);
-                } else if (selectedAnnotation !== null) {
+                } else if (selectedAnnotation !== null && annotations[selectedAnnotation]) {
                     // Change class of single selected annotation
                     const currentClass = annotations[selectedAnnotation].class;
                     const newClass = (currentClass + 1) % CLASSES.length;
@@ -3730,6 +3757,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         }
 
         function changeAnnotationClass(idx, newClass) {
+            if (!annotations[idx]) return;
             const prevState = captureState();
             annotations[idx].class = newClass;
             recordHistory(prevState);
@@ -3742,7 +3770,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             if (indices.length === 0) return;
             const prevState = captureState();
             indices.forEach(idx => {
-                annotations[idx].class = newClass;
+                if (annotations[idx]) annotations[idx].class = newClass;
             });
             recordHistory(prevState);
             setUnsavedChanges(true);
@@ -3798,7 +3826,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             const list = document.getElementById('annotationsList');
             list.innerHTML = '';
 
-            annotations.forEach((ann, idx) => {
+            annotations.filter(ann => ann).forEach((ann, idx) => {
                 const item = document.createElement('div');
                 item.className = 'annotation-item';
                 if (selectedAnnotations.includes(idx)) {
@@ -4090,7 +4118,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 if (showMessage) showStatusMessage('editor.status.savingLabels');
 
                 // Convert annotations to YOLO format
-                const yoloContent = annotations.map(ann => {
+                const yoloContent = annotations.filter(ann => ann).map(ann => {
                     if (ann.type === 'obb') {
                         const ordered = ensureClockwisePreserveStart(ann.points);
                         const coords = ordered
@@ -4132,11 +4160,18 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
                 // Update label cache for current image
                 const currentImage = imageList[currentImageIndex];
-                const classes = [...new Set(annotations.map(ann => ann.class))];
+                const classes = [...new Set(annotations.filter(ann => ann).map(ann => ann.class))];
                 labelCache[currentImage] = {
                     classes: classes,
                     count: annotations.length
                 };
+
+                // Update preloaded labels cache with saved content
+                preloadedLabels.set(currentImage, {
+                    loading: false,
+                    labelContent: yoloContent
+                });
+
                 setUnsavedChanges(false);
 
             } catch (error) {
