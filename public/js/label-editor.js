@@ -97,6 +97,7 @@
         let filterActive = false;
         let filterDebounceTimer = null;
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
+        let currentInstanceName = '';
 
         // Canvas
         const canvas = document.getElementById('canvas');
@@ -192,6 +193,9 @@
                     console.warn('Failed to load instance config:', err);
                 }
             }
+
+            // Store instance name for short URLs
+            currentInstanceName = instanceNameParam;
 
             // Set OBB creation mode from URL parameter (admin-controlled)
             obbCreationMode = obbModeParam;
@@ -1261,16 +1265,23 @@
             previewDragInitialized = true;
         }
 
+        // Build image URL - use short format when instance name is available
+        function buildImageUrl(imagePath, cacheBuster = '') {
+            if (currentInstanceName) {
+                const filename = imagePath.split('/').pop();
+                return `/api/image?i=${encodeURIComponent(currentInstanceName)}&n=${encodeURIComponent(filename)}${cacheBuster}`;
+            }
+            // Fallback to old format
+            if (basePath) {
+                return `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imagePath)}${cacheBuster}`;
+            }
+            return `/api/image?fullPath=${encodeURIComponent(imagePath)}${cacheBuster}`;
+        }
+
         async function loadThumbnail(index) {
             try {
                 const imagePath = imageList[index];
-
-                // Use direct image URL (much faster than base64)
-                if (basePath) {
-                    return `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imagePath)}`;
-                } else {
-                    return `/api/image?fullPath=${encodeURIComponent(imagePath)}`;
-                }
+                return buildImageUrl(imagePath);
             } catch (error) {
                 console.error('Failed to load thumbnail:', error);
                 return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/></svg>';
@@ -1376,12 +1387,7 @@
                 saveLastImageSelection(currentImage);
 
                 // Build image URL for direct loading (much faster than base64)
-                let imageUrl;
-                if (basePath) {
-                    imageUrl = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(currentImage)}`;
-                } else {
-                    imageUrl = `/api/image?fullPath=${encodeURIComponent(currentImage)}`;
-                }
+                const imageUrl = buildImageUrl(currentImage);
 
                 // Build label URL
                 let labelUrl;
@@ -1485,12 +1491,7 @@
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
                 const img = new Image();
-
-                if (basePath) {
-                    img.src = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imgPath)}`;
-                } else {
-                    img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}`;
-                }
+                img.src = buildImageUrl(imgPath);
 
                 // Optional: Add to cache tracking if needed
                 img.onload = () => {

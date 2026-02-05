@@ -1371,17 +1371,25 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             previewDragInitialized = true;
         }
 
+        // Build image URL - use short format when instance name is available
+        function buildImageUrl(imagePath, cacheBuster = '') {
+            if (currentInstanceName) {
+                const filename = imagePath.split('/').pop();
+                return `/api/image?i=${encodeURIComponent(currentInstanceName)}&n=${encodeURIComponent(filename)}${cacheBuster}`;
+            }
+            // Fallback to old format
+            if (basePath) {
+                return `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imagePath)}${cacheBuster}`;
+            }
+            return `/api/image?fullPath=${encodeURIComponent(imagePath)}${cacheBuster}`;
+        }
+
         async function loadThumbnail(index) {
             try {
                 const imagePath = imageList[index];
                 const cacheBuster = `&_v=${new Date().getTime()}`;
 
-                // Use direct image URL (much faster than base64)
-                if (basePath) {
-                    return `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imagePath)}${cacheBuster}`;
-                } else {
-                    return `/api/image?fullPath=${encodeURIComponent(imagePath)}${cacheBuster}`;
-                }
+                return buildImageUrl(imagePath, cacheBuster);
             } catch (error) {
                 console.error('Failed to load thumbnail:', error);
                 return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/></svg>';
@@ -1488,13 +1496,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
                 // Build image URL for direct loading (much faster than base64)
                 // Only bust cache on explicit reload to allow browser caching of preloaded images
-                let imageUrl;
                 const cacheBuster = forceReload ? `&_v=${new Date().getTime()}` : '';
-                if (basePath) {
-                    imageUrl = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(currentImage)}${cacheBuster}`;
-                } else {
-                    imageUrl = `/api/image?fullPath=${encodeURIComponent(currentImage)}${cacheBuster}`;
-                }
+                const imageUrl = buildImageUrl(currentImage, cacheBuster);
 
                 // Build label URL
                 let labelUrl;
@@ -1598,12 +1601,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
                 const img = new Image();
-
-                if (basePath) {
-                    img.src = `/api/image?basePath=${encodeURIComponent(basePath)}&relativePath=${encodeURIComponent(imgPath)}`;
-                } else {
-                    img.src = `/api/image?fullPath=${encodeURIComponent(imgPath)}`;
-                }
+                img.src = buildImageUrl(imgPath);
             });
         }
 
