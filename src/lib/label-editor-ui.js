@@ -56,6 +56,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let currentImageIndex = 0;
         let basePath = '';
         let imageThumbnails = {}; // Store thumbnails for preview
+        let preloadedImages = new Map(); // Cache preloaded Image objects by URL
+        let preloadedLabels = new Map(); // Cache preloaded label data by image path
         let currentLabelPath = ''; // Current label path for saving
         let imageMetaByPath = {};
         let previewDragInitialized = false;
@@ -163,6 +165,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 imageMetaByPath = data.imageMeta || {};
                 imageList = [...allImageList]; // Initialize filtered list
                 filterBaseList = [...allImageList]; // Initialize filter base list
+                preloadedImages.clear(); // Clear preload cache
+                preloadedLabels.clear();
                 if (startImageParam && imageList.includes(startImageParam)) {
                     currentImageIndex = imageList.indexOf(startImageParam);
                 }
@@ -577,6 +581,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     // No filters active, show all
                     imageList = sortImageList(allImageList);
                     filterBaseList = [...imageList]; // Reset filter base
+                    preloadedImages.clear(); // Clear preload cache
+                preloadedLabels.clear();
                     filterActive = false;
                     updateFilterStats();
                     currentImageIndex = 0;
@@ -619,6 +625,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 imageList = filteredImages;
                 imageList = sortImageList(imageList);
                 filterBaseList = [...imageList]; // Update filter base for preview search
+                preloadedImages.clear(); // Clear preload cache
+                preloadedLabels.clear();
                 filterActive = true;
 
                 // Update stats
@@ -754,6 +762,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             // Reset to all images
             imageList = sortImageList(allImageList);
             filterBaseList = [...imageList]; // Reset filter base
+            preloadedImages.clear(); // Clear preload cache
+                preloadedLabels.clear();
             filterActive = false;
             currentImageIndex = 0;
 
@@ -1387,9 +1397,15 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         async function loadThumbnail(index) {
             try {
                 const imagePath = imageList[index];
-                const cacheBuster = `&_v=${new Date().getTime()}`;
-
-                return buildImageUrl(imagePath, cacheBuster);
+                // No cache buster - use same URL as main image so browser cache is shared
+                const url = buildImageUrl(imagePath);
+                // Create and cache Image object for reuse when navigating to this image
+                if (!preloadedImages.has(url)) {
+                    const img = new Image();
+                    img.src = url;
+                    preloadedImages.set(url, img);
+                }
+                return url;
             } catch (error) {
                 console.error('Failed to load thumbnail:', error);
                 return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/></svg>';
@@ -1499,22 +1515,20 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 const cacheBuster = forceReload ? `&_v=${new Date().getTime()}` : '';
                 const imageUrl = buildImageUrl(currentImage, cacheBuster);
 
-                // Build label URL
-                let labelUrl;
-                if (basePath) {
-                    labelUrl = `/api/label-editor/load-label?basePath=${encodeURIComponent(basePath)}&relativeLabel=${encodeURIComponent(currentLabel)}`;
+                // Check if label is already preloaded
+                const cachedLabel = preloadedLabels.get(currentImage);
+                if (cachedLabel && !cachedLabel.loading) {
+                    // Use cached label - no network request needed
+                    labelData = cachedLabel.labelContent;
                 } else {
-                    labelUrl = `/api/label-editor/load-label?label=${encodeURIComponent(currentLabel)}`;
+                    // Fetch label from server
+                    const labelUrl = buildLabelUrl(currentImage);
+                    const labelResponse = await fetch(labelUrl);
+                    const labelResult = await labelResponse.json();
+                    labelData = labelResult.labelContent || '';
+                    // Cache for future use
+                    preloadedLabels.set(currentImage, { loading: false, labelContent: labelData });
                 }
-
-                // Load image and label in parallel for better performance
-                const [labelResponse] = await Promise.all([
-                    fetch(labelUrl),
-                    // Image loading is handled separately through Image object
-                ]);
-
-                const labelResult = await labelResponse.json();
-                labelData = labelResult.labelContent || '';
                 annotations = parseLabelData(labelData);
                 // Detect annotation type from existing labels (set by admin)
                 defaultAnnotationType = annotations.some(ann => ann.type === 'obb') ? 'obb' : 'bbox';
@@ -1543,22 +1557,37 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     count: annotations.length
                 };
 
-                // Load image directly via URL (browser caching works)
-                image = new Image();
-                image.onload = () => {
+                // Check if image is already preloaded and ready
+                const cachedImage = preloadedImages.get(imageUrl);
+                if (cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) {
+                    // Use the preloaded image directly - no new network request
+                    image = cachedImage;
                     setupCanvas();
                     document.getElementById('loading').style.display = 'none';
                     canvas.style.display = 'block';
                     showStatusMessage('editor.status.ready');
                     updateUI();
-
-                    // Preload adjacent images for faster navigation
                     preloadAdjacentImages();
-                };
-                image.onerror = () => {
-                    showError(t('editor.status.failedToLoadImage'));
-                };
-                image.src = imageUrl;
+                } else {
+                    // Load image (not yet preloaded or still loading)
+                    image = new Image();
+                    image.onload = () => {
+                        setupCanvas();
+                        document.getElementById('loading').style.display = 'none';
+                        canvas.style.display = 'block';
+                        showStatusMessage('editor.status.ready');
+                        updateUI();
+
+                        // Preload adjacent images for faster navigation
+                        preloadAdjacentImages();
+                    };
+                    image.onerror = () => {
+                        showError(t('editor.status.failedToLoadImage'));
+                    };
+                    // Cache this image for future use
+                    preloadedImages.set(imageUrl, image);
+                    image.src = imageUrl;
+                }
 
                 const filename = currentImage.split('/').pop();
                 document.getElementById('filename').textContent = filename;
@@ -1571,7 +1600,16 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
         }
 
-        // Preload next and previous images for instant navigation
+        // Build label URL for a given image path
+        function buildLabelUrl(imagePath) {
+            const labelPath = imagePath.replace('images/', 'labels/').replace(/\.(jpg|jpeg|png)$/i, '.txt');
+            if (basePath) {
+                return `/api/label-editor/load-label?basePath=${encodeURIComponent(basePath)}&relativeLabel=${encodeURIComponent(labelPath)}`;
+            }
+            return `/api/label-editor/load-label?label=${encodeURIComponent(labelPath)}`;
+        }
+
+        // Preload next and previous images and labels for instant navigation
         function preloadAdjacentImages() {
             const PRELOAD_COUNT = 20;
             const preloadIndexes = [];
@@ -1597,12 +1635,44 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
             }
 
-            // Preload all images in the list (no cache buster so browser can cache them)
+            // Preload only images and labels not already in cache
+            let newImageCount = 0;
+            let newLabelCount = 0;
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
-                const img = new Image();
-                img.src = buildImageUrl(imgPath);
+
+                // Preload image
+                const imageUrl = buildImageUrl(imgPath);
+                if (!preloadedImages.has(imageUrl)) {
+                    const img = new Image();
+                    img.src = imageUrl;
+                    preloadedImages.set(imageUrl, img);
+                    newImageCount++;
+                }
+
+                // Preload label (async, fire and forget)
+                if (!preloadedLabels.has(imgPath)) {
+                    // Mark as loading to prevent duplicate requests
+                    preloadedLabels.set(imgPath, { loading: true });
+                    const labelUrl = buildLabelUrl(imgPath);
+                    fetch(labelUrl)
+                        .then(res => res.json())
+                        .then(data => {
+                            preloadedLabels.set(imgPath, {
+                                loading: false,
+                                labelContent: data.labelContent || ''
+                            });
+                        })
+                        .catch(() => {
+                            // On error, remove from cache so it can be retried
+                            preloadedLabels.delete(imgPath);
+                        });
+                    newLabelCount++;
+                }
             });
+            if (newImageCount > 0 || newLabelCount > 0) {
+                console.log(`Preloaded ${newImageCount} images, ${newLabelCount} labels (${preloadedImages.size} images, ${preloadedLabels.size} labels cached)`);
+            }
         }
 
         function orderPointsClockwiseFromTopLeft(points) {
