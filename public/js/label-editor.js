@@ -1295,6 +1295,10 @@
                 // Create and cache Image object for reuse when navigating to this image
                 if (!preloadedImages.has(url)) {
                     const img = new Image();
+                    img.onerror = () => {
+                        // Remove failed image from cache so it can be retried
+                        preloadedImages.delete(url);
+                    };
                     img.src = url;
                     preloadedImages.set(url, img);
                 }
@@ -1448,34 +1452,37 @@
                     count: annotations.length
                 };
 
-                // Check if image is already preloaded and ready
+                // Check if image is already preloaded
                 const cachedImage = preloadedImages.get(imageUrl);
-                if (cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) {
-                    // Use the preloaded image directly - no new network request
-                    image = cachedImage;
+
+                const onImageReady = () => {
                     setupCanvas();
                     document.getElementById('loading').style.display = 'none';
                     canvas.style.display = 'block';
                     showStatus('Ready');
                     updateUI();
                     preloadAdjacentImages();
-                } else {
-                    // Load image (not yet preloaded or still loading)
-                    image = new Image();
-                    image.onload = () => {
-                        setupCanvas();
-                        document.getElementById('loading').style.display = 'none';
-                        canvas.style.display = 'block';
-                        showStatus('Ready');
-                        updateUI();
+                };
 
-                        // Preload adjacent images for faster navigation
-                        preloadAdjacentImages();
-                    };
-                    image.onerror = () => {
-                        showError('Failed to load image');
-                    };
-                    // Cache this image for future use
+                const onImageError = () => {
+                    preloadedImages.delete(imageUrl);
+                    showError('Failed to load image');
+                };
+
+                if (cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) {
+                    // Use the preloaded image directly - no new network request
+                    image = cachedImage;
+                    onImageReady();
+                } else if (cachedImage && !cachedImage.complete) {
+                    // Image is still loading, wait for it
+                    image = cachedImage;
+                    image.onload = onImageReady;
+                    image.onerror = onImageError;
+                } else {
+                    // No cached image or it failed - load fresh
+                    image = new Image();
+                    image.onload = onImageReady;
+                    image.onerror = onImageError;
                     preloadedImages.set(imageUrl, image);
                     image.src = imageUrl;
                 }
@@ -1526,6 +1533,39 @@
                 }
             }
 
+            // Build sets of URLs/paths to keep (current + preload range)
+            const keepImageUrls = new Set();
+            const keepLabelPaths = new Set();
+
+            // Always keep current image
+            const currentImgPath = imageList[currentImageIndex];
+            keepImageUrls.add(buildImageUrl(currentImgPath));
+            keepLabelPaths.add(currentImgPath);
+
+            // Add preload range to keep sets
+            preloadIndexes.forEach(idx => {
+                const imgPath = imageList[idx];
+                keepImageUrls.add(buildImageUrl(imgPath));
+                keepLabelPaths.add(imgPath);
+            });
+
+            // Evict images outside preload range to save RAM
+            let evictedCount = 0;
+            for (const [url, img] of preloadedImages) {
+                if (!keepImageUrls.has(url)) {
+                    img.src = ''; // Release image data from memory
+                    preloadedImages.delete(url);
+                    evictedCount++;
+                }
+            }
+
+            // Evict labels outside preload range
+            for (const [path] of preloadedLabels) {
+                if (!keepLabelPaths.has(path)) {
+                    preloadedLabels.delete(path);
+                }
+            }
+
             // Preload only images and labels not already in cache
             let newImageCount = 0;
             let newLabelCount = 0;
@@ -1536,6 +1576,10 @@
                 const imageUrl = buildImageUrl(imgPath);
                 if (!preloadedImages.has(imageUrl)) {
                     const img = new Image();
+                    img.onerror = () => {
+                        // Remove failed image from cache so it can be retried
+                        preloadedImages.delete(imageUrl);
+                    };
                     img.src = imageUrl;
                     preloadedImages.set(imageUrl, img);
                     newImageCount++;
@@ -1561,8 +1605,8 @@
                     newLabelCount++;
                 }
             });
-            if (newImageCount > 0 || newLabelCount > 0) {
-                console.log(`Preloaded ${newImageCount} images, ${newLabelCount} labels (${preloadedImages.size} images, ${preloadedLabels.size} labels cached)`);
+            if (newImageCount > 0 || newLabelCount > 0 || evictedCount > 0) {
+                console.log(`Preload: +${newImageCount} images, +${newLabelCount} labels, -${evictedCount} evicted (${preloadedImages.size} images, ${preloadedLabels.size} labels in cache)`);
             }
         }
 
