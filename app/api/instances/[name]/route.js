@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import {
   CONFIG,
   execPromise,
-  isPortInUse,
-  loadInstances,
-  saveInstances,
   validatePort
 } from '@/lib/manager';
+import {
+  getInstanceByName,
+  updateInstance,
+  deleteInstance,
+  isPortInUse
+} from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -17,14 +20,13 @@ export const PUT = withApiLogging(async (req, { params }) => {
     const body = await req.json();
     const { port, datasetPath, threshold, debug, pentagonFormat, obbMode, classFile, autoSync } = body;
 
-    const instances = loadInstances();
-    const index = instances.findIndex((instance) => instance.name === name);
+    const instance = await getInstanceByName(name);
 
-    if (index === -1) {
+    if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    if (instances[index].status === 'online') {
+    if (instance.status === 'online') {
       return NextResponse.json({ error: 'Cannot update running instance. Stop it first.' }, { status: 400 });
     }
 
@@ -36,23 +38,23 @@ export const PUT = withApiLogging(async (req, { params }) => {
           { status: 400 }
         );
       }
-      if (numericPort !== instances[index].port && isPortInUse(instances, numericPort, name)) {
+      if (numericPort !== instance.port && await isPortInUse(numericPort, name)) {
         return NextResponse.json({ error: 'Port already in use' }, { status: 400 });
       }
-      instances[index].port = numericPort;
     }
 
-    if (datasetPath !== undefined) instances[index].datasetPath = datasetPath;
-    if (threshold !== undefined) instances[index].threshold = threshold;
-    if (debug !== undefined) instances[index].debug = debug;
-    if (pentagonFormat !== undefined) instances[index].pentagonFormat = pentagonFormat;
-    if (obbMode !== undefined) instances[index].obbMode = obbMode || 'rectangle';
-    if (classFile !== undefined) instances[index].classFile = classFile || null;
-    if (autoSync !== undefined) instances[index].autoSync = autoSync;
-    instances[index].updatedAt = new Date().toISOString();
+    const updatedInstance = await updateInstance(name, {
+      port: port !== undefined ? Number(port) : undefined,
+      datasetPath,
+      threshold,
+      debug,
+      pentagonFormat,
+      obbMode,
+      classFile,
+      autoSync
+    });
 
-    saveInstances(instances);
-    return NextResponse.json(instances[index]);
+    return NextResponse.json(updatedInstance);
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -61,19 +63,17 @@ export const PUT = withApiLogging(async (req, { params }) => {
 export const DELETE = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
-    const instances = loadInstances();
-    const index = instances.findIndex((instance) => instance.name === name);
+    const instance = await getInstanceByName(name);
 
-    if (index === -1) {
+    if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    if (instances[index].status === 'online') {
+    if (instance.status === 'online') {
       await execPromise(`pm2 delete ${name}`);
     }
 
-    instances.splice(index, 1);
-    saveInstances(instances);
+    await deleteInstance(name);
 
     return NextResponse.json({ message: 'Instance deleted successfully' });
   } catch (err) {

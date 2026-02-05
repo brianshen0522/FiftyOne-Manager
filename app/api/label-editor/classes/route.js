@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { loadInstances } from '@/lib/manager';
+import { getInstanceByName, getInstanceByDatasetPath } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -13,11 +13,9 @@ export const GET = withApiLogging(async (req) => {
     const instanceName = searchParams.get('instanceName');
     const defaultClasses = ['one', 'two', 'three', 'four', 'five', 'six', 'invalid'];
 
-    const instances = loadInstances();
-
     // Direct lookup by instance name — no ambiguity
     if (instanceName) {
-      const inst = instances.find((i) => i.name === instanceName);
+      const inst = await getInstanceByName(instanceName);
       if (inst && inst.classFile && fs.existsSync(inst.classFile)) {
         const content = fs.readFileSync(inst.classFile, 'utf-8');
         const classes = content.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -46,27 +44,11 @@ export const GET = withApiLogging(async (req) => {
       }
     });
 
-    const matchScore = (base, datasetPath) => {
-      if (base === datasetPath) return 100000 + datasetPath.length;
-      if (base.startsWith(`${datasetPath}${path.sep}`)) return datasetPath.length;
-      if (datasetPath.startsWith(`${base}${path.sep}`)) return base.length - 1;
-      return -1;
-    };
-
     let instance = null;
-    let bestScore = -1;
     for (const cand of baseCandidates) {
-      for (const inst of instances) {
-        if (!inst.datasetPath) {
-          continue;
-        }
-        const resolved = path.resolve(inst.datasetPath);
-        const resolvedReal = fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
-        const score = Math.max(matchScore(cand, resolved), matchScore(cand, resolvedReal));
-        if (score > bestScore) {
-          bestScore = score;
-          instance = inst;
-        }
+      instance = await getInstanceByDatasetPath(cand);
+      if (instance) {
+        break;
       }
     }
 

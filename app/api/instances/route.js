@@ -3,20 +3,23 @@ import {
   CONFIG,
   checkServiceHealth,
   execPromise,
-  isNameInUse,
-  isPortInUse,
-  loadInstances,
-  saveInstances,
   validateInstanceNameFormat,
   validatePort
 } from '@/lib/manager';
+import {
+  getAllInstances,
+  createInstance,
+  updateInstanceFields,
+  isNameInUse,
+  isPortInUse
+} from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
 
 export const GET = withApiLogging(async () => {
   try {
-    const instances = loadInstances();
+    const instances = await getAllInstances();
 
     let pm2List = [];
     try {
@@ -53,6 +56,13 @@ export const GET = withApiLogging(async () => {
           instance.serviceHealth = 'n/a';
           instance.healthDetails = null;
         }
+
+        await updateInstanceFields(instance.name, {
+          status: instance.status,
+          pid: instance.pid,
+          serviceHealth: instance.serviceHealth,
+          healthDetails: instance.healthDetails
+        });
       } catch (err) {
         instance.status = 'unknown';
         instance.serviceHealth = 'unknown';
@@ -60,7 +70,6 @@ export const GET = withApiLogging(async () => {
       }
     }
 
-    saveInstances(instances);
     return NextResponse.json(instances);
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -101,17 +110,15 @@ export const POST = withApiLogging(async (req) => {
       );
     }
 
-    const instances = loadInstances();
-
-    if (isNameInUse(instances, name)) {
+    if (await isNameInUse(name)) {
       return NextResponse.json({ error: 'Instance name already exists' }, { status: 400 });
     }
 
-    if (isPortInUse(instances, numericPort)) {
+    if (await isPortInUse(numericPort)) {
       return NextResponse.json({ error: 'Port already in use' }, { status: 400 });
     }
 
-    const newInstance = {
+    const newInstance = await createInstance({
       name,
       port: numericPort,
       datasetPath,
@@ -123,10 +130,7 @@ export const POST = withApiLogging(async (req) => {
       autoSync: autoSync !== undefined ? autoSync : true,
       status: 'stopped',
       createdAt: new Date().toISOString()
-    };
-
-    instances.push(newInstance);
-    saveInstances(instances);
+    });
 
     return NextResponse.json(newInstance, { status: 201 });
   } catch (err) {

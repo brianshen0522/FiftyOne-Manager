@@ -33,7 +33,8 @@
       "Bash(docker-compose up:*)",
       "Bash(wc:*)",
       "Bash(node:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git -C /home/brian/projects/test/FiftyOne-Manager log --oneline -20)"
     ],
     "deny": [],
     "ask": []

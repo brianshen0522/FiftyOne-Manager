@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { loadInstances, saveInstances } from '@/lib/manager';
+import { getInstanceByName, updateInstanceFields } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +13,7 @@ export const GET = withApiLogging(async (req) => {
       return NextResponse.json({ error: 'Missing instance name' }, { status: 400 });
     }
 
-    const instances = loadInstances();
-    const instance = instances.find((i) => i.name === name);
+    const instance = await getInstanceByName(name);
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
@@ -37,19 +36,19 @@ export const POST = withApiLogging(async (req) => {
       return NextResponse.json({ error: 'Missing instance name' }, { status: 400 });
     }
 
-    const instances = loadInstances();
-    const instance = instances.find((i) => i.name === name);
+    const instance = await getInstanceByName(name);
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
+    const fields = {};
     if (Object.prototype.hasOwnProperty.call(body, 'filter')) {
-      instance.filter = filter && typeof filter === 'object' ? filter : null;
+      fields.filter = filter && typeof filter === 'object' ? filter : null;
     }
     if (previewSortMode !== undefined) {
-      instance.previewSortMode = previewSortMode || null;
+      fields.previewSortMode = previewSortMode || null;
     }
-    saveInstances(instances);
+    await updateInstanceFields(name, fields);
 
     return NextResponse.json({ success: true });
   } catch (err) {

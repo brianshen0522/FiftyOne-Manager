@@ -3,10 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import {
   checkDatasetFormat,
-  convertDatasetToPentagonFormat,
-  loadInstances,
-  saveInstances
+  convertDatasetToPentagonFormat
 } from '@/lib/manager';
+import { getInstanceByName, updateInstanceFields } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -14,14 +13,12 @@ export const dynamic = 'force-dynamic';
 export const POST = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
-    const instances = loadInstances();
-    const index = instances.findIndex((instance) => instance.name === name);
+    const instance = await getInstanceByName(name);
 
-    if (index === -1) {
+    if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    const instance = instances[index];
     const datasetPath = path.resolve(instance.datasetPath);
 
     if (!fs.existsSync(datasetPath)) {
@@ -31,8 +28,7 @@ export const POST = withApiLogging(async (req, { params }) => {
     const formatCheck = await checkDatasetFormat(datasetPath);
 
     if (formatCheck.format === 'obb') {
-      instances[index].pentagonFormat = true;
-      saveInstances(instances);
+      await updateInstanceFields(name, { pentagonFormat: true });
       return NextResponse.json({
         message: 'Dataset is already in OBB format',
         alreadyConverted: true,
@@ -49,8 +45,7 @@ export const POST = withApiLogging(async (req, { params }) => {
 
     const result = await convertDatasetToPentagonFormat(datasetPath);
 
-    instances[index].pentagonFormat = true;
-    saveInstances(instances);
+    await updateInstanceFields(name, { pentagonFormat: true });
 
     return NextResponse.json({
       message: 'Dataset converted to OBB format successfully',

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { checkDatasetFormat, loadInstances } from '@/lib/manager';
+import { checkDatasetFormat } from '@/lib/manager';
+import { getInstanceByName } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -9,8 +10,7 @@ export const dynamic = 'force-dynamic';
 export const GET = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
-    const instances = loadInstances();
-    const instance = instances.find((item) => item.name === name);
+    const instance = await getInstanceByName(name);
 
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });

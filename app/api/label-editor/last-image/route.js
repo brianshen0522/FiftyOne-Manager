@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import path from 'path';
-import { loadInstances, saveInstances } from '@/lib/manager';
+import { getInstanceByDatasetPath, getInstanceByName, updateInstanceFields } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -13,24 +13,27 @@ export const POST = withApiLogging(async (req) => {
       return NextResponse.json({ error: 'Missing basePath or imagePath' }, { status: 400 });
     }
 
-    const instances = loadInstances();
     let instance;
     if (instanceName) {
-      instance = instances.find((item) => item.name === instanceName);
+      instance = await getInstanceByName(instanceName);
     } else {
       const fullImagePath = path.resolve(path.join(basePath, imagePath));
-      instance = instances.find((item) => {
-        const datasetRoot = path.resolve(item.datasetPath);
-        return fullImagePath.startsWith(`${datasetRoot}${path.sep}`) || fullImagePath === datasetRoot;
-      });
+      const imagesMarker = `${path.sep}images${path.sep}`;
+      const markerIndex = fullImagePath.indexOf(imagesMarker);
+      const datasetRoot = markerIndex > -1 ? fullImagePath.slice(0, markerIndex) : path.resolve(basePath);
+      instance = await getInstanceByDatasetPath(datasetRoot);
+      if (!instance && datasetRoot !== path.resolve(basePath)) {
+        instance = await getInstanceByDatasetPath(basePath);
+      }
     }
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    instance.lastImagePath = imagePath;
-    instance.updatedAt = new Date().toISOString();
-    saveInstances(instances);
+    await updateInstanceFields(instance.name, {
+      lastImagePath: imagePath,
+      updatedAt: new Date().toISOString()
+    });
     return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -46,7 +49,6 @@ export const GET = withApiLogging(async (req) => {
       return NextResponse.json({ error: 'Missing basePath' }, { status: 400 });
     }
 
-    const instances = loadInstances();
     let instance = null;
     const normalizedBase = path.resolve(basePath);
 
@@ -56,11 +58,11 @@ export const GET = withApiLogging(async (req) => {
       const datasetRoot = datasetSuffix
         ? path.resolve(path.join(basePath, datasetSuffix))
         : normalizedBase;
-      instance = instances.find((item) => path.resolve(item.datasetPath) === datasetRoot) || null;
+      instance = await getInstanceByDatasetPath(datasetRoot);
     }
 
     if (!instance) {
-      instance = instances.find((item) => path.resolve(item.datasetPath) === normalizedBase) || null;
+      instance = await getInstanceByDatasetPath(normalizedBase);
     }
 
     if (!instance) {

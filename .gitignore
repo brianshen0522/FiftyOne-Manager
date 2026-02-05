@@ -16,6 +16,7 @@ __pycache__/
 *.pyc
 duplicate/
 .pm2/
+postgres-data/
 npm-debug.log
 *.log
 # Claude Code local settings and files

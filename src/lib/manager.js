@@ -7,6 +7,7 @@ import util from 'util';
 
 export const execPromise = util.promisify(exec);
 
+
 // Parse duplicate rules from JSON environment variable
 function parseDuplicateRules() {
   const rulesJson = process.env.DUPLICATE_RULES;
@@ -84,39 +85,6 @@ export function getMatchingDuplicateRule(datasetPath) {
   };
 }
 
-const INSTANCES_FILE = path.join(process.cwd(), 'instances.json');
-
-export function getInstancesFilePath() {
-  if (fs.existsSync(INSTANCES_FILE)) {
-    const stat = fs.statSync(INSTANCES_FILE);
-    if (stat.isDirectory()) {
-      return path.join(INSTANCES_FILE, 'instances.json');
-    }
-  }
-  return INSTANCES_FILE;
-}
-
-export function loadInstances() {
-  const filePath = getInstancesFilePath();
-  try {
-    if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    }
-  } catch (err) {
-    console.error('Failed to read instances file:', err.message);
-  }
-  return [];
-}
-
-export function saveInstances(instances) {
-  const filePath = getInstancesFilePath();
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(filePath, JSON.stringify(instances, null, 2));
-}
-
 export function validatePort(port) {
   return port >= CONFIG.portRange.start && port <= CONFIG.portRange.end;
 }
@@ -125,38 +93,9 @@ export function validateInstanceNameFormat(name) {
   return typeof name === 'string' && /^[A-Za-z0-9_-]+$/.test(name);
 }
 
-export function isPortInUse(instances, port, excludeName = null) {
-  return instances.some((instance) => instance.port === port && instance.name !== excludeName);
-}
-
-export function isNameInUse(instances, name, excludeName = null) {
-  return instances.some((instance) => instance.name === name && instance.name !== excludeName);
-}
-
 export function getInstanceDbName(instance) {
   const datasetName = path.basename(instance.datasetPath || '');
   return `${datasetName || 'datasets'}_${instance.port}`;
-}
-
-export function findInstanceForLabel({ basePath, fullLabelPath }) {
-  const instances = loadInstances();
-  if (basePath) {
-    const normalizedBase = path.resolve(basePath);
-    const matched = instances.find((instance) => path.resolve(instance.datasetPath) === normalizedBase) || null;
-    if (matched) {
-      return matched;
-    }
-  }
-  if (fullLabelPath) {
-    const normalizedLabelPath = path.resolve(fullLabelPath);
-    return (
-      instances.find((instance) => {
-        const datasetRoot = path.resolve(instance.datasetPath);
-        return normalizedLabelPath.startsWith(`${datasetRoot}${path.sep}`);
-      }) || null
-    );
-  }
-  return null;
 }
 
 export function resolveImagePath(instance, relativeLabelPath, fullLabelPath) {

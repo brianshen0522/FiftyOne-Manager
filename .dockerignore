@@ -2,6 +2,7 @@ node_modules
 npm-debug.log
 .env
 instances.json
+postgres-data
 __pycache__
 *.pyc
 .git

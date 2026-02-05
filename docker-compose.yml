@@ -11,6 +11,19 @@ services:
     restart: unless-stopped
     command: mongod --quiet
 
+  postgres:
+    image: postgres:16
+    container_name: fiftyone-postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=fiftyone_manager
+      - POSTGRES_USER=fiftyone
+      - POSTGRES_PASSWORD=fiftyone
+    restart: unless-stopped
+
   fiftyone-manager:
     build: .
     container_name: fiftyone-manager_v3
@@ -24,12 +37,12 @@ services:
           memory: 2G
     depends_on:
       - mongodb
+      - postgres
     ports:
       - "${MANAGER_PORT:-3000}:${MANAGER_PORT:-3000}"
       - "${PORT_START}-${PORT_END}:${PORT_START}-${PORT_END}"
     volumes:
       - ${DATASET_BASE_PATH}:${DATASET_BASE_PATH}:rw
-      - ./instances.json:/app/instances.json
       - pm2-logs:/root/.pm2/logs
       - ./deletion_logs:/app/deletion_logs:rw
     environment:
@@ -41,6 +54,7 @@ services:
       - DEFAULT_IOU_THRESHOLD=${DEFAULT_IOU_THRESHOLD:-0.8}
       - DEFAULT_DEBUG_MODE=${DEFAULT_DEBUG_MODE:-false}
       - FIFTYONE_DATABASE_URI=mongodb://mongodb:27017
+      - DATABASE_URL=postgresql://fiftyone:fiftyone@postgres:5432/fiftyone_manager
       - AVAILABLE_OBB_MODES=${AVAILABLE_OBB_MODES:-rectangle,4point}
       - DUPLICATE_RULES=${DUPLICATE_RULES:-}
       - DUPLICATE_DEFAULT_ACTION=${DUPLICATE_DEFAULT_ACTION:-move}

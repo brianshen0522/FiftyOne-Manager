@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import path from 'path';
 import {
   CONFIG,
-  execPromise,
-  loadInstances
+  execPromise
 } from '@/lib/manager';
+import { getInstanceByName } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -12,8 +12,7 @@ export const dynamic = 'force-dynamic';
 export const POST = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
-    const instances = loadInstances();
-    const instance = instances.find((item) => item.name === name);
+    const instance = await getInstanceByName(name);
 
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });

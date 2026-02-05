@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import {
-  findInstanceForLabel,
-  resolveImagePath,
-  triggerLabelSync
-} from '@/lib/manager';
+import { resolveImagePath, triggerLabelSync } from '@/lib/manager';
+import { findInstanceForLabel } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +28,7 @@ export const POST = withApiLogging(async (req) => {
 
     fs.writeFileSync(fullLabelPath, content || '', 'utf-8');
 
-    const instance = findInstanceForLabel({ basePath, fullLabelPath });
+    const instance = await findInstanceForLabel({ basePath, fullLabelPath });
     if (instance && instance.autoSync) {
       let relativePath = relativeLabelPath
         ? relativeLabelPath.replace(/\\/g, '/')

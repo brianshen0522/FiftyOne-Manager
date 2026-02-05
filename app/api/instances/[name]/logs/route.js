@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
-import { getPm2LogInfo, loadInstances } from '@/lib/manager';
+import { getPm2LogInfo } from '@/lib/manager';
+import { getInstanceByName } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -21,8 +22,7 @@ export const GET = withApiLogging(async (req, { params }) => {
       }
     }
 
-    const instances = loadInstances();
-    const instance = instances.find((item) => item.name === name);
+    const instance = await getInstanceByName(name);
 
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });

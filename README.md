@@ -33,6 +33,7 @@ PORT_END=5160
 MANAGER_PORT=3000
 DEFAULT_IOU_THRESHOLD=0.8
 DEFAULT_DEBUG_MODE=false
+DATABASE_URL=postgres://postgres:postgres@postgres:5432/fiftyone_manager
 ```
 
 ### 2. Run with Docker
@@ -47,25 +48,13 @@ docker compose up -d
 
 Access the manager at `http://localhost:3000`
 
-#### Development Environment
+### 2a. Migrate Existing Instances
 
-For development, use the dev configuration which runs on different ports and uses different service names to avoid conflicts with production:
+If you previously used file-based instances (instances.json), migrate them to PostgreSQL:
 
 ```bash
-docker compose -f docker-compose.dev.yml --env-file .env.dev up -d
+node scripts/migrate-to-postgres.js
 ```
-
-Access the dev manager at `http://localhost:3001`
-
-**Key differences from production:**
-- Manager port: 3001 (instead of 3000)
-- MongoDB port: 27018 (instead of 27017)
-- FiftyOne instance port range: 5161-5170 (instead of 5151-5160)
-- Service names: `mongodb-dev`, `fiftyone-manager-dev`
-- Container names: `fiftyone-mongodb-dev`, `fiftyone-manager_v3-dev`
-- Volume names: `mongodb-data-dev`, `pm2-logs-dev`
-
-This allows running both production and development environments simultaneously on the same server.
 
 ### 3. Run Locally (without Docker)
 
@@ -163,20 +152,10 @@ Label files use YOLO format (normalized coordinates 0.0-1.0):
 
 ### Environment Files
 
-The project includes multiple environment configuration files:
+The project uses a single environment configuration file:
 
 - **`.env.example`**: Template file with all available configuration options
-- **`.env`**: Production environment configuration (copy from `.env.example`)
-- **`.env.dev`**: Development environment configuration with different ports
-
-**Production vs Development:**
-
-| Setting | Production (`.env`) | Development (`.env.dev`) |
-|---------|-------------------|------------------------|
-| Manager Port | 3000 | 3001 |
-| MongoDB Port | 27017 | 27018 |
-| FiftyOne Port Range | 5151-5160 | 5161-5170 |
-| Docker Compose File | `docker-compose.yml` | `docker-compose.dev.yml` |
+- **`.env`**: Environment configuration (copy from `.env.example`)
 
 ### Environment Variables
 
@@ -191,13 +170,14 @@ The project includes multiple environment configuration files:
 | `HEALTH_CHECK_INTERVAL` | Health check frequency (ms) | `5000` |
 | `HEALTH_CHECK_TIMEOUT` | Health check timeout (ms) | `3000` |
 | `FIFTYONE_DATABASE_URI` | MongoDB connection URI | `mongodb://mongodb:27017` |
+| `DATABASE_URL` | PostgreSQL connection URL | `postgres://postgres:postgres@postgres:5432/fiftyone_manager` |
 
 ### Docker Compose Volumes
 
 - `${DATASET_BASE_PATH}:/data/datasets` - Mount your datasets directory
-- `./instances.json:/app/instances.json` - Persist instance configurations
 - `pm2-logs:/root/.pm2/logs` - Persist PM2 logs
 - `mongodb-data:/data/db` - Persist MongoDB data
+- `./postgres-data:/var/lib/postgresql/data` - Persist PostgreSQL data
 
 ## Duplicate Detection
 

@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { Readable } from 'stream';
 import { withApiLogging } from '@/lib/api-logger';
+import { getInstanceByName } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,9 +14,6 @@ const MIME_TYPES = {
   '.bmp': 'image/bmp',
   '.gif': 'image/gif'
 };
-
-const INSTANCES_PATH = path.join(process.cwd(), 'instances.json', 'instances.json');
-
 
 export const GET = withApiLogging(async (req) => {
   try {
@@ -30,13 +28,7 @@ export const GET = withApiLogging(async (req) => {
 
     // Mode 1: Short URL with instance name + image filename (with extension)
     if (instanceName && imageName) {
-      // Look up instance from instances.json
-      if (!fs.existsSync(INSTANCES_PATH)) {
-        return NextResponse.json({ error: 'Instances config not found' }, { status: 500 });
-      }
-
-      const instances = JSON.parse(fs.readFileSync(INSTANCES_PATH, 'utf-8'));
-      const instance = instances.find(inst => inst.name === instanceName);
+      const instance = await getInstanceByName(instanceName);
 
       if (!instance) {
         return NextResponse.json({ error: `Instance not found: ${instanceName}` }, { status: 404 });

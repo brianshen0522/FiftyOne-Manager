@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { loadInstances, saveInstances } from '@/lib/manager';
+import { getInstanceByName, updateInstanceFields } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +13,7 @@ export const GET = withApiLogging(async (req) => {
       return NextResponse.json({ error: 'Missing instance name' }, { status: 400 });
     }
 
-    const instances = loadInstances();
-    const instance = instances.find((i) => i.name === name);
+    const instance = await getInstanceByName(name);
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
@@ -33,14 +32,14 @@ export const POST = withApiLogging(async (req) => {
       return NextResponse.json({ error: 'Missing instance name' }, { status: 400 });
     }
 
-    const instances = loadInstances();
-    const instance = instances.find((i) => i.name === name);
+    const instance = await getInstanceByName(name);
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
 
-    instance.selectedImages = Array.isArray(selectedImages) ? selectedImages : [];
-    saveInstances(instances);
+    await updateInstanceFields(name, {
+      selectedImages: Array.isArray(selectedImages) ? selectedImages : []
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

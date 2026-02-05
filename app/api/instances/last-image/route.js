@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import path from 'path';
-import { loadInstances } from '@/lib/manager';
+import { getInstanceByDatasetPath } from '@/lib/db';
 import { withApiLogging } from '@/lib/api-logger';
 
 export const dynamic = 'force-dynamic';
@@ -12,9 +11,7 @@ export const GET = withApiLogging(async (req) => {
     if (!datasetPath) {
       return NextResponse.json({ error: 'Missing datasetPath' }, { status: 400 });
     }
-    const instances = loadInstances();
-    const normalizedPath = path.resolve(datasetPath);
-    const instance = instances.find((item) => path.resolve(item.datasetPath) === normalizedPath);
+    const instance = await getInstanceByDatasetPath(datasetPath);
     if (!instance) {
       return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
     }
