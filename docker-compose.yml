@@ -14,6 +14,14 @@ services:
   fiftyone-manager:
     build: .
     container_name: fiftyone-manager_v3
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '1'
+          memory: 2G
     depends_on:
       - mongodb
     ports:

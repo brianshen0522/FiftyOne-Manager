@@ -45,6 +45,11 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let lastHitCycle = 0;
         let lastHitPoint = null;
 
+        // Navigation key-hold protection: skip image loading when key held > 300ms
+        let navKeyHeldSince = null; // timestamp when nav key first pressed
+        let navKeyHeld = false; // true once held past threshold
+        const NAV_KEY_HOLD_THRESHOLD = 300; // ms
+
         // Multi-image support
         let allImageList = []; // Full unfiltered list
         let imageList = []; // Filtered list (used for navigation)
@@ -2153,6 +2158,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 event.preventDefault();
             });
             document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
             document.addEventListener('mousemove', (event) => {
                 lastMouseClient = { x: event.clientX, y: event.clientY };
                 const shouldTrack = isRotating ||
@@ -2942,12 +2948,56 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
 
             // Navigate between images with arrow keys or A/D keys
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A' ||
+                e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
                 e.preventDefault();
-                previousImage();
-            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-                e.preventDefault();
-                nextImage();
+                const isBack = e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A';
+
+                // First press (not a repeat): navigate normally
+                if (navKeyHeldSince === null) {
+                    navKeyHeldSince = Date.now();
+                    navKeyHeld = false;
+                    if (isBack) {
+                        previousImage();
+                    } else {
+                        nextImage();
+                    }
+                } else if (!navKeyHeld) {
+                    // Key repeating — check if past threshold
+                    if (Date.now() - navKeyHeldSince >= NAV_KEY_HOLD_THRESHOLD) {
+                        navKeyHeld = true;
+                    } else {
+                        // Still within threshold, allow navigation
+                        if (isBack) {
+                            previousImage();
+                        } else {
+                            nextImage();
+                        }
+                    }
+                }
+
+                if (navKeyHeld) {
+                    // Past threshold: advance index only, no loading
+                    if (isBack && currentImageIndex > 0) {
+                        currentImageIndex--;
+                    } else if (!isBack && currentImageIndex < imageList.length - 1) {
+                        currentImageIndex++;
+                    }
+                    updateNavigationButtons();
+                    updateImagePreview();
+                }
+            }
+        }
+
+        function handleKeyUp(e) {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A' ||
+                e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                if (navKeyHeld) {
+                    // Key was held — load the image at the final index
+                    loadImage();
+                }
+                navKeyHeldSince = null;
+                navKeyHeld = false;
             }
         }
 
