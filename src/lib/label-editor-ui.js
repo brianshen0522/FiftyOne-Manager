@@ -58,6 +58,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let imageThumbnails = {}; // Store thumbnails for preview
         let preloadedImages = new Map(); // Cache preloaded Image objects by URL
         let preloadedLabels = new Map(); // Cache preloaded label data by image path
+        let imageLoadRetryCount = new Map(); // Track per-image load retries
         let currentLabelPath = ''; // Current label path for saving
         let imageMetaByPath = {};
         let previewDragInitialized = false;
@@ -1571,10 +1572,21 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     showStatusMessage('editor.status.ready');
                     updateUI();
                     preloadAdjacentImages();
+                    imageLoadRetryCount.delete(currentImage);
                 };
 
                 const onImageError = () => {
                     preloadedImages.delete(imageUrl);
+                    const retries = imageLoadRetryCount.get(currentImage) || 0;
+                    if (retries < 1) {
+                        imageLoadRetryCount.set(currentImage, retries + 1);
+                        setTimeout(() => {
+                            if (imageList[currentImageIndex] === currentImage) {
+                                loadImage(true);
+                            }
+                        }, 200);
+                        return;
+                    }
                     showError(t('editor.status.failedToLoadImage'));
                 };
 
