@@ -4084,6 +4084,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 // Prevent saving if no label path is available
                 if (!currentLabelPath) return;
 
+                // Skip save if no changes were made (only for auto-save, not explicit save)
+                if (!showMessage && !hasUnsavedChanges) return;
+
                 if (showMessage) showStatusMessage('editor.status.savingLabels');
 
                 // Convert annotations to YOLO format

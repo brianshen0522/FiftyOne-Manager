@@ -3924,6 +3924,9 @@
                 // Prevent saving if no label path is available
                 if (!currentLabelPath) return;
 
+                // Skip save if no changes were made (only for auto-save, not explicit save)
+                if (!showMessage && !hasUnsavedChanges) return;
+
                 if (showMessage) showStatus('Saving labels...');
 
                 // Convert annotations to YOLO format
