@@ -254,6 +254,9 @@ export default function LabelEditorPage() {
               <option value="created-desc">{t('editor.preview.createdNewest')}</option>
               <option value="created-asc">{t('editor.preview.createdOldest')}</option>
             </select>
+            <button className="btn btn-secondary btn-small" onClick={() => callApi('resetFilterAndSort')}>
+              {t('editor.filter.resetAll')}
+            </button>
             <input
               type="text"
               id="previewSearch"

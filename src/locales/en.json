@@ -172,6 +172,7 @@
       "max": "Max",
       "to": "to",
       "clearAll": "Clear All Filters",
+      "resetAll": "Reset Filter + Sort",
       "showingAll": "Showing all images",
       "showingFiltered": "Showing {shown} of {total} images",
       "showingAllCount": "Showing all {total} images",

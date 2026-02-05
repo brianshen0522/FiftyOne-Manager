@@ -99,6 +99,7 @@
         let filterActive = false;
         let filterDebounceTimer = null;
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
+        let isApplyingSavedFilter = false;
         let currentInstanceName = '';
 
         // Canvas
@@ -224,6 +225,7 @@
             loadLineWidthScale();
             setupClassSelector();
             setupFilterUI();
+            await loadSavedFilter();
             setupEventListeners();
             updateInstructions(); // Initialize instructions based on default format
             updateNavigationButtons();
@@ -326,6 +328,102 @@
                     classChips.appendChild(chip);
                 }
             });
+        }
+
+        function buildFilterState() {
+            const nameFilter = document.getElementById('filterName').value.trim();
+            const classMode = document.getElementById('filterClassMode').value;
+            const classLogic = document.getElementById('filterClassLogic').value;
+            const minLabels = parseInt(document.getElementById('filterMinLabels').value) || 0;
+            const maxLabelsInput = document.getElementById('filterMaxLabels').value.trim();
+            const maxLabels = maxLabelsInput === '' ? null : parseInt(maxLabelsInput);
+            const selectedClasses = [];
+            CLASSES.forEach((_, idx) => {
+                const checkbox = document.getElementById(`filter-class-${idx}`);
+                if (checkbox && checkbox.checked) {
+                    selectedClasses.push(idx);
+                }
+            });
+            return {
+                nameFilter,
+                classMode,
+                classLogic,
+                minLabels,
+                maxLabels,
+                selectedClasses
+            };
+        }
+
+        async function saveFilterState(filterState, sortMode = previewSortMode) {
+            if (!currentInstanceName) return;
+            if (isApplyingSavedFilter) return;
+            try {
+                await fetch('/api/label-editor/filter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentInstanceName, filter: filterState, previewSortMode: sortMode })
+                });
+            } catch (err) {
+                console.warn('Failed to save filter state:', err);
+            }
+        }
+
+        async function savePreviewSortMode(sortMode) {
+            if (!currentInstanceName) return;
+            if (isApplyingSavedFilter) return;
+            try {
+                await fetch('/api/label-editor/filter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentInstanceName, previewSortMode: sortMode })
+                });
+            } catch (err) {
+                console.warn('Failed to save preview sort mode:', err);
+            }
+        }
+
+        function applyFilterState(filterState) {
+            if (!filterState) return;
+            document.getElementById('filterName').value = filterState.nameFilter || '';
+            document.getElementById('filterClassMode').value = filterState.classMode || 'any';
+            document.getElementById('filterClassLogic').value = filterState.classLogic || 'or';
+            document.getElementById('filterMinLabels').value = filterState.minLabels || 0;
+            document.getElementById('filterMaxLabels').value = filterState.maxLabels ?? '';
+
+            const selected = new Set(Array.isArray(filterState.selectedClasses) ? filterState.selectedClasses : []);
+            CLASSES.forEach((_, idx) => {
+                const checkbox = document.getElementById(`filter-class-${idx}`);
+                if (checkbox) {
+                    checkbox.checked = selected.has(idx);
+                }
+            });
+            updateSelectedClassChips();
+        }
+
+        async function loadSavedFilter() {
+            if (!currentInstanceName) return;
+            try {
+                const resp = await fetch(`/api/label-editor/filter?name=${encodeURIComponent(currentInstanceName)}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (!data) return;
+                isApplyingSavedFilter = true;
+                if (data.previewSortMode) {
+                    previewSortMode = data.previewSortMode;
+                    applyPreviewSort(true);
+                }
+                if (data.filter) {
+                    applyFilterState(data.filter);
+                    await applyFilters();
+                } else if (data.previewSortMode) {
+                    updateNavigationButtons();
+                    updateImagePreview();
+                }
+            } catch (err) {
+                console.warn('Failed to load saved filter:', err);
+            } finally {
+                isApplyingSavedFilter = false;
+            }
         }
 
         function getClassColor(index) {
@@ -539,6 +637,14 @@
 
                 // Check if any filter is active
                 const hasActiveFilter = nameFilter || selectedClasses.length > 0 || minLabels > 0 || maxLabels !== null || classMode !== 'any';
+                await saveFilterState(hasActiveFilter ? {
+                    nameFilter,
+                    classMode,
+                    classLogic,
+                    minLabels,
+                    maxLabels,
+                    selectedClasses
+                } : null);
 
                 if (!hasActiveFilter) {
                     // No filters active, show all
@@ -709,10 +815,22 @@
             // Update UI
             updateFilterStats();
             clearFilterWarning();
+            saveFilterState(null);
             loadImage();
             updateNavigationButtons();
             updateImagePreview();
             showStatus('Filters cleared');
+        }
+
+        function resetFilterAndSort() {
+            previewSortMode = 'name-asc';
+            const sortSelect = document.getElementById('previewSort');
+            if (sortSelect) {
+                sortSelect.value = previewSortMode;
+            }
+            savePreviewSortMode(previewSortMode);
+            clearFilters();
+            showStatus('Filters and sort reset');
         }
 
         // === END FILTER FUNCTIONS ===
@@ -800,6 +918,9 @@
             if (!imagePath) {
                 return '';
             }
+            if (!folderParam) {
+                return imagePath;
+            }
             const normalizedFolder = folderParam.replace(/\/+$/, '');
             if (imagePath.startsWith(`${normalizedFolder}/`)) {
                 return imagePath;
@@ -814,6 +935,7 @@
         function handlePreviewSortChange() {
             const select = document.getElementById('previewSort');
             previewSortMode = select.value;
+            savePreviewSortMode(previewSortMode);
             applyPreviewSort(true);
             updateNavigationButtons();
             updateImagePreview();

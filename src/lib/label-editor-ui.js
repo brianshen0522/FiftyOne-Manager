@@ -59,6 +59,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let preloadedImages = new Map(); // Cache preloaded Image objects by URL
         let preloadedLabels = new Map(); // Cache preloaded label data by image path
         let imageLoadRetryCount = new Map(); // Track per-image load retries
+        let imageLoadSeq = 0; // Monotonic counter to ignore stale load callbacks
+        let activeImageLoadSeq = 0;
         let currentLabelPath = ''; // Current label path for saving
         let imageMetaByPath = {};
         let previewDragInitialized = false;
@@ -111,6 +113,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let filterActive = false;
         let filterDebounceTimer = null;
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
+        let isApplyingSavedFilter = false;
 
         // Canvas
         let canvas = null;
@@ -256,6 +259,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             loadLineWidthScale();
             setupClassSelector();
             setupFilterUI();
+            await loadSavedFilter();
             setupEventListeners();
             updateInstructions(); // Initialize instructions based on default format
             updateNavigationButtons();
@@ -359,6 +363,102 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     classChips.appendChild(chip);
                 }
             });
+        }
+
+        function buildFilterState() {
+            const nameFilter = document.getElementById('filterName').value.trim();
+            const classMode = document.getElementById('filterClassMode').value;
+            const classLogic = document.getElementById('filterClassLogic').value;
+            const minLabels = parseInt(document.getElementById('filterMinLabels').value) || 0;
+            const maxLabelsInput = document.getElementById('filterMaxLabels').value.trim();
+            const maxLabels = maxLabelsInput === '' ? null : parseInt(maxLabelsInput);
+            const selectedClasses = [];
+            CLASSES.forEach((_, idx) => {
+                const checkbox = document.getElementById(`filter-class-${idx}`);
+                if (checkbox && checkbox.checked) {
+                    selectedClasses.push(idx);
+                }
+            });
+            return {
+                nameFilter,
+                classMode,
+                classLogic,
+                minLabels,
+                maxLabels,
+                selectedClasses
+            };
+        }
+
+        async function saveFilterState(filterState, sortMode = previewSortMode) {
+            if (!currentInstanceName) return;
+            if (isApplyingSavedFilter) return;
+            try {
+                await fetch('/api/label-editor/filter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentInstanceName, filter: filterState, previewSortMode: sortMode })
+                });
+            } catch (err) {
+                console.warn('Failed to save filter state:', err);
+            }
+        }
+
+        async function savePreviewSortMode(sortMode) {
+            if (!currentInstanceName) return;
+            if (isApplyingSavedFilter) return;
+            try {
+                await fetch('/api/label-editor/filter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: currentInstanceName, previewSortMode: sortMode })
+                });
+            } catch (err) {
+                console.warn('Failed to save preview sort mode:', err);
+            }
+        }
+
+        function applyFilterState(filterState) {
+            if (!filterState) return;
+            document.getElementById('filterName').value = filterState.nameFilter || '';
+            document.getElementById('filterClassMode').value = filterState.classMode || 'any';
+            document.getElementById('filterClassLogic').value = filterState.classLogic || 'or';
+            document.getElementById('filterMinLabels').value = filterState.minLabels || 0;
+            document.getElementById('filterMaxLabels').value = filterState.maxLabels ?? '';
+
+            const selected = new Set(Array.isArray(filterState.selectedClasses) ? filterState.selectedClasses : []);
+            CLASSES.forEach((_, idx) => {
+                const checkbox = document.getElementById(`filter-class-${idx}`);
+                if (checkbox) {
+                    checkbox.checked = selected.has(idx);
+                }
+            });
+            updateSelectedClassChips();
+        }
+
+        async function loadSavedFilter() {
+            if (!currentInstanceName) return;
+            try {
+                const resp = await fetch(`/api/label-editor/filter?name=${encodeURIComponent(currentInstanceName)}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (!data) return;
+                isApplyingSavedFilter = true;
+                if (data.previewSortMode) {
+                    previewSortMode = data.previewSortMode;
+                    applyPreviewSort(true);
+                }
+                if (data.filter) {
+                    applyFilterState(data.filter);
+                    await applyFilters();
+                } else if (data.previewSortMode) {
+                    updateNavigationButtons();
+                    updateImagePreview(true);
+                }
+            } catch (err) {
+                console.warn('Failed to load saved filter:', err);
+            } finally {
+                isApplyingSavedFilter = false;
+            }
         }
 
         function getClassColor(index) {
@@ -577,6 +677,14 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
                 // Check if any filter is active
                 const hasActiveFilter = nameFilter || selectedClasses.length > 0 || minLabels > 0 || maxLabels !== null || classMode !== 'any';
+                await saveFilterState(hasActiveFilter ? {
+                    nameFilter,
+                    classMode,
+                    classLogic,
+                    minLabels,
+                    maxLabels,
+                    selectedClasses
+                } : null);
 
                 if (!hasActiveFilter) {
                     // No filters active, show all
@@ -771,10 +879,22 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             // Update UI
             updateFilterStats();
             clearFilterWarning();
+            saveFilterState(null);
             loadImage();
             updateNavigationButtons();
             updateImagePreview(true);
             showStatusMessage('editor.filter.filtersCleared');
+        }
+
+        function resetFilterAndSort() {
+            previewSortMode = 'name-asc';
+            const sortSelect = document.getElementById('previewSort');
+            if (sortSelect) {
+                sortSelect.value = previewSortMode;
+            }
+            savePreviewSortMode(previewSortMode);
+            clearFilters();
+            showStatusMessage('editor.filter.resetAll');
         }
 
         // === END FILTER FUNCTIONS ===
@@ -868,6 +988,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             if (!imagePath) {
                 return '';
             }
+            if (!folderParam) {
+                return imagePath;
+            }
             const normalizedFolder = folderParam.replace(/\/+$/, '');
             if (imagePath.startsWith(`${normalizedFolder}/`)) {
                 return imagePath;
@@ -882,6 +1005,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         function handlePreviewSortChange() {
             const select = document.getElementById('previewSort');
             previewSortMode = select.value;
+            savePreviewSortMode(previewSortMode);
             applyPreviewSort(true);
             updateNavigationButtons();
             updateImagePreview(true);
@@ -1519,6 +1643,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 // Only bust cache on explicit reload to allow browser caching of preloaded images
                 const cacheBuster = forceReload ? `&_v=${new Date().getTime()}` : '';
                 const imageUrl = buildImageUrl(currentImage, cacheBuster);
+                const loadSeq = ++imageLoadSeq;
+                activeImageLoadSeq = loadSeq;
 
                 // Check if label is already preloaded
                 const cachedLabel = preloadedLabels.get(currentImage);
@@ -1566,6 +1692,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 const cachedImage = preloadedImages.get(imageUrl);
 
                 const onImageReady = () => {
+                    if (loadSeq !== activeImageLoadSeq) {
+                        return;
+                    }
                     setupCanvas();
                     document.getElementById('loading').style.display = 'none';
                     canvas.style.display = 'block';
@@ -1576,12 +1705,15 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 };
 
                 const onImageError = () => {
+                    if (loadSeq !== activeImageLoadSeq) {
+                        return;
+                    }
                     preloadedImages.delete(imageUrl);
                     const retries = imageLoadRetryCount.get(currentImage) || 0;
                     if (retries < 1) {
                         imageLoadRetryCount.set(currentImage, retries + 1);
                         setTimeout(() => {
-                            if (imageList[currentImageIndex] === currentImage) {
+                            if (imageList[currentImageIndex] === currentImage && loadSeq === activeImageLoadSeq) {
                                 loadImage(true);
                             }
                         }, 200);
@@ -4227,6 +4359,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             applyFiltersDebounced,
             applyFilters,
             clearFilters,
+            resetFilterAndSort,
             setLineWidthScale,
             handlePreviewSortChange,
             handlePreviewSearch,

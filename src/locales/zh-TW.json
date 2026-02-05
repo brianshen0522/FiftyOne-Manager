@@ -172,6 +172,7 @@
       "max": "最大",
       "to": "到",
       "clearAll": "清除所有篩選",
+      "resetAll": "重設篩選與排序",
       "showingAll": "顯示所有圖片",
       "showingFiltered": "顯示 {shown} / {total} 張圖片",
       "showingAllCount": "顯示所有 {total} 張圖片",
