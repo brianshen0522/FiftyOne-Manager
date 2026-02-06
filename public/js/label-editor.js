@@ -2617,16 +2617,28 @@
                 ctx.setLineDash([]);
             }
 
-            if (showCrosshair && mouseCanvasPoint) {
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(mouseCanvasPoint.x, 0);
-                ctx.lineTo(mouseCanvasPoint.x, canvas.height);
-                ctx.moveTo(0, mouseCanvasPoint.y);
-                ctx.lineTo(canvas.width, mouseCanvasPoint.y);
-                ctx.stroke();
+            // Draw crosshair based on actual mouse position (avoids stale event state)
+            if (lastMouseClient) {
+                const rect = canvas.getBoundingClientRect();
+                const inside = lastMouseClient.x >= rect.left &&
+                    lastMouseClient.x <= rect.right &&
+                    lastMouseClient.y >= rect.top &&
+                    lastMouseClient.y <= rect.bottom;
+                if (inside) {
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+                    const cx = (lastMouseClient.x - rect.left) * scaleX;
+                    const cy = (lastMouseClient.y - rect.top) * scaleY;
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, 0);
+                    ctx.lineTo(cx, canvas.height);
+                    ctx.moveTo(0, cy);
+                    ctx.lineTo(canvas.width, cy);
+                    ctx.stroke();
+                }
             }
         }
 
@@ -3100,7 +3112,7 @@
                 currentBox.w = x - drawStart.x;
                 currentBox.h = y - drawStart.y;
                 draw();
-            } else if (showCrosshair) {
+            } else {
                 draw();
             }
         }
