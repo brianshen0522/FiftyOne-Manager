@@ -39,6 +39,7 @@ export const GET = withApiLogging(async (req) => {
       obbMode: instance.obbMode || 'rectangle',
       lastImagePath: instance.lastImagePath || '',
       instanceName: instance.name,
+      labelEditorPreloadCount: CONFIG.labelEditorPreloadCount,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

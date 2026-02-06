@@ -4,6 +4,7 @@
         let CLASSES = [...DEFAULT_CLASSES];
         const LABEL_CLIPBOARD_KEY = 'label_editor_clipboard';
         const LINE_WIDTH_SCALE_DEFAULT = 2 / 3;
+        const LABEL_EDITOR_PRELOAD_COUNT_DEFAULT = 20;
 
         // State
         let image = null;
@@ -101,6 +102,7 @@
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
         let isApplyingSavedFilter = false;
         let currentInstanceName = '';
+        let labelEditorPreloadCount = LABEL_EDITOR_PRELOAD_COUNT_DEFAULT;
 
         // Canvas
         const canvas = document.getElementById('canvas');
@@ -178,6 +180,13 @@
             }
         }
 
+        function applyLabelEditorPreloadCount(value) {
+            const parsed = parseInt(value, 10);
+            if (Number.isFinite(parsed) && parsed >= 0) {
+                labelEditorPreloadCount = parsed;
+            }
+        }
+
         // Initialize
         async function init() {
             // Fetch config from instance if instance parameter is provided
@@ -193,9 +202,26 @@
                             startImageParam = cfg.lastImagePath;
                             lastKnownImageParam = startImageParam;
                         }
+                        if (cfg.labelEditorPreloadCount !== undefined) {
+                            applyLabelEditorPreloadCount(cfg.labelEditorPreloadCount);
+                        }
                     }
                 } catch (err) {
                     console.warn('Failed to load instance config:', err);
+                }
+            }
+
+            if (labelEditorPreloadCount === LABEL_EDITOR_PRELOAD_COUNT_DEFAULT) {
+                try {
+                    const cfgResp = await fetch('/api/config');
+                    if (cfgResp.ok) {
+                        const cfg = await cfgResp.json();
+                        if (cfg.labelEditorPreloadCount !== undefined) {
+                            applyLabelEditorPreloadCount(cfg.labelEditorPreloadCount);
+                        }
+                    }
+                } catch (err) {
+                    // Ignore config errors and keep default
                 }
             }
 
@@ -1686,7 +1712,7 @@
 
         // Preload next and previous images and labels for instant navigation
         function preloadAdjacentImages() {
-            const PRELOAD_COUNT = 20;
+            const PRELOAD_COUNT = labelEditorPreloadCount;
             const preloadIndexes = [];
 
             // Preload images around current position

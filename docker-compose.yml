@@ -53,6 +53,7 @@ services:
       - PUBLIC_ADDRESS=${PUBLIC_ADDRESS:-localhost}
       - DEFAULT_IOU_THRESHOLD=${DEFAULT_IOU_THRESHOLD:-0.8}
       - DEFAULT_DEBUG_MODE=${DEFAULT_DEBUG_MODE:-false}
+      - LABEL_EDITOR_PRELOAD_COUNT=${LABEL_EDITOR_PRELOAD_COUNT:-20}
       - FIFTYONE_DATABASE_URI=mongodb://mongodb:27017
       - DATABASE_URL=postgresql://fiftyone:fiftyone@postgres:5432/fiftyone_manager
       - AVAILABLE_OBB_MODES=${AVAILABLE_OBB_MODES:-rectangle,4point}

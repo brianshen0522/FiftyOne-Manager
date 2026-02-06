@@ -39,6 +39,7 @@ export const CONFIG = {
   defaultDebug: process.env.DEFAULT_DEBUG_MODE === 'true',
   healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '5000', 10),
   healthCheckTimeout: parseInt(process.env.HEALTH_CHECK_TIMEOUT || '3000', 10),
+  labelEditorPreloadCount: Math.max(0, parseInt(process.env.LABEL_EDITOR_PRELOAD_COUNT || '20', 10)),
   availableObbModes: (process.env.AVAILABLE_OBB_MODES || 'rectangle,4point')
     .split(',')
     .map((mode) => mode.trim())

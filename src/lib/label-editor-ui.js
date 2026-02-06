@@ -6,6 +6,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let CLASSES = [...DEFAULT_CLASSES];
         const LABEL_CLIPBOARD_KEY = 'label_editor_clipboard';
         const LINE_WIDTH_SCALE_DEFAULT = 2 / 3;
+        const LABEL_EDITOR_PRELOAD_COUNT_DEFAULT = 20;
 
         // State
         let lastStatusKey = null;
@@ -115,6 +116,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let filterDebounceTimer = null;
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
         let isApplyingSavedFilter = false;
+        let labelEditorPreloadCount = LABEL_EDITOR_PRELOAD_COUNT_DEFAULT;
 
         // Canvas
         let canvas = null;
@@ -190,6 +192,13 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
         }
 
+        function applyLabelEditorPreloadCount(value) {
+            const parsed = parseInt(value, 10);
+            if (Number.isFinite(parsed) && parsed >= 0) {
+                labelEditorPreloadCount = parsed;
+            }
+        }
+
         // Initialize
         async function initLabelEditor() {
             canvas = document.getElementById('canvas');
@@ -211,6 +220,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             });
 
             // Fetch config from instance if instance parameter is provided
+            let preloadCountLoaded = false;
+
             if (instanceNameParam && !basePath) {
                 try {
                     const cfgResp = await fetch(`/api/label-editor/instance-config?name=${encodeURIComponent(instanceNameParam)}`);
@@ -223,9 +234,27 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                             startImageParam = cfg.lastImagePath;
                             lastKnownImageParam = startImageParam;
                         }
+                        if (cfg.labelEditorPreloadCount !== undefined) {
+                            applyLabelEditorPreloadCount(cfg.labelEditorPreloadCount);
+                            preloadCountLoaded = true;
+                        }
                     }
                 } catch (err) {
                     console.warn('Failed to load instance config:', err);
+                }
+            }
+
+            if (!preloadCountLoaded) {
+                try {
+                    const cfgResp = await fetch('/api/config');
+                    if (cfgResp.ok) {
+                        const cfg = await cfgResp.json();
+                        if (cfg.labelEditorPreloadCount !== undefined) {
+                            applyLabelEditorPreloadCount(cfg.labelEditorPreloadCount);
+                        }
+                    }
+                } catch (err) {
+                    // Ignore config errors and keep default
                 }
             }
 
@@ -1901,7 +1930,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
         // Preload next and previous images and labels for instant navigation
         function preloadAdjacentImages() {
-            const PRELOAD_COUNT = 20;
+            const PRELOAD_COUNT = labelEditorPreloadCount;
             const preloadIndexes = [];
 
             // Preload images around current position
