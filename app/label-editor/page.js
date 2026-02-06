@@ -31,6 +31,12 @@ export default function LabelEditorPage() {
     }
   });
 
+  useEffect(() => {
+    if (apiRef.current?.updateSaveButtonState) {
+      apiRef.current.updateSaveButtonState();
+    }
+  }, [t, isReady]);
+
   const callApi = (method, ...args) => {
     const api = apiRef.current;
     if (!api || typeof api[method] !== 'function') {
@@ -60,10 +66,12 @@ export default function LabelEditorPage() {
           </button>
           <button
             className="btn btn-primary"
+            id="saveBtn"
+            title={t('editor.saveNoChanges')}
             data-tour="editor-save"
             onClick={() => callApi('saveLabels')}
           >
-            {t('editor.saveLabels')}
+            <span id="saveBtnLabel">{t('editor.saveLabels')}</span>
           </button>
         </div>
       </div>

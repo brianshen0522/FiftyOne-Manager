@@ -255,6 +255,7 @@
             applyPreviewSort(true);
             await loadClassNames();
             loadLineWidthScale();
+            updateSaveButtonState();
             setupClassSelector();
             setupFilterUI();
             await loadSavedFilter();
@@ -2105,6 +2106,14 @@
             draw();
         }
 
+        function updateSaveButtonState() {
+            const saveBtn = document.getElementById('saveBtn');
+            if (!saveBtn) return;
+            saveBtn.disabled = !hasUnsavedChanges;
+            const label = document.getElementById('saveBtnLabel') || saveBtn;
+            label.textContent = hasUnsavedChanges ? 'Save Labels' : 'No changes to save';
+        }
+
         function scheduleAutoSave() {
             if (autoSaveTimeout) {
                 clearTimeout(autoSaveTimeout);
@@ -2116,7 +2125,10 @@
                 }
                 autoSaveInProgress = true;
                 try {
+                    showStatus('Saving labels...');
                     await saveLabels(false);
+                    showStatus('Labels saved successfully!');
+                    setTimeout(() => showStatus('Ready'), 1000);
                 } finally {
                     autoSaveInProgress = false;
                 }
@@ -2125,6 +2137,7 @@
 
         function setUnsavedChanges(value) {
             hasUnsavedChanges = value;
+            updateSaveButtonState();
             if (value) {
                 scheduleAutoSave();
             } else if (autoSaveTimeout) {

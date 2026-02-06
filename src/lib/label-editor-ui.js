@@ -223,6 +223,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 updateImagePreview(true);
                 refreshStatusBar();
                 refreshFilterWarning();
+                updateSaveButtonState();
             });
 
             // Fetch config from instance if instance parameter is provided
@@ -293,6 +294,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             applyPreviewSort(true);
             await loadClassNames();
             loadLineWidthScale();
+            updateSaveButtonState();
             setupClassSelector();
             setupFilterUI();
             await loadSavedFilter();
@@ -2322,6 +2324,14 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             draw();
         }
 
+        function updateSaveButtonState() {
+            const saveBtn = document.getElementById('saveBtn');
+            if (!saveBtn) return;
+            saveBtn.disabled = !hasUnsavedChanges;
+            const label = document.getElementById('saveBtnLabel') || saveBtn;
+            label.textContent = hasUnsavedChanges ? t('editor.saveLabels') : t('editor.saveNoChanges');
+        }
+
         function scheduleAutoSave() {
             if (autoSaveTimeout) {
                 clearTimeout(autoSaveTimeout);
@@ -2333,7 +2343,10 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
                 autoSaveInProgress = true;
                 try {
+                    showStatusMessage('editor.status.savingLabels');
                     await saveLabels(false);
+                    showStatusMessage('editor.status.labelsSaved');
+                    setTimeout(() => showStatusMessage('editor.status.ready'), 1000);
                 } finally {
                     autoSaveInProgress = false;
                 }
@@ -2342,6 +2355,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
         function setUnsavedChanges(value) {
             hasUnsavedChanges = value;
+            updateSaveButtonState();
             if (value) {
                 scheduleAutoSave();
             } else if (autoSaveTimeout) {
@@ -4694,6 +4708,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             nextImage,
             loadImage,
             saveLabels,
+            updateSaveButtonState,
             toggleFilterSection,
             applyFiltersDebounced,
             applyFilters,

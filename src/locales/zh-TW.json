@@ -156,6 +156,7 @@
     "next": "下一張 →",
     "reload": "重新載入",
     "saveLabels": "儲存標籤",
+    "saveNoChanges": "沒有變更可儲存",
     "filter": {
       "title": "篩選圖片",
       "imageName": "圖片名稱",

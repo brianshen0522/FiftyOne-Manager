@@ -156,6 +156,7 @@
     "next": "Next →",
     "reload": "Reload",
     "saveLabels": "Save Labels",
+    "saveNoChanges": "No changes to save",
     "filter": {
       "title": "Filter Images",
       "imageName": "Image Name",
