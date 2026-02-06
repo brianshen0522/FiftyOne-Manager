@@ -3340,20 +3340,21 @@
                 return;
             }
 
-            // Allow Delete/Backspace and Ctrl+C/V/X/A/Z in inputs
-            if (isTyping) {
-                if (e.key === 'Delete' || e.key === 'Backspace') {
-                    return;
+            // Helper: check if any text is selected (page text or input/textarea)
+            function hasTextSelection() {
+                const sel = window.getSelection();
+                if (sel && sel.toString().length > 0) return true;
+                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                    if (typeof activeElement.selectionStart === 'number' && activeElement.selectionStart !== activeElement.selectionEnd) {
+                        return true;
+                    }
                 }
-                if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a', 'z'].includes(e.key.toLowerCase())) {
-                    return;
-                }
-                return;
+                return false;
             }
 
+            // Ctrl+C: text selection has priority over annotation copy
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-                const sel = window.getSelection();
-                if (sel && sel.toString().length > 0) {
+                if (hasTextSelection()) {
                     return; // Let browser handle text copy
                 }
                 e.preventDefault();
@@ -3361,9 +3362,24 @@
                 return;
             }
 
+            // Ctrl+V: let browser handle paste in inputs, otherwise paste annotations
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+                if (isTyping) {
+                    return; // Let browser paste into input
+                }
                 e.preventDefault();
                 pasteAnnotations();
+                return;
+            }
+
+            // Allow Delete/Backspace and standard text shortcuts in inputs
+            if (isTyping) {
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    return;
+                }
+                if ((e.ctrlKey || e.metaKey) && ['x', 'a', 'z'].includes(e.key.toLowerCase())) {
+                    return;
+                }
                 return;
             }
 
