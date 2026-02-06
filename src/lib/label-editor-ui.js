@@ -511,6 +511,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         }
 
         async function loadClassNames() {
+            showStatusMessage('editor.status.loadingClasses');
             // Prefer instance name for exact lookup; fall back to path-based matching
             if (instanceNameParam) {
                 try {
@@ -519,6 +520,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                         const data = await response.json();
                         if (Array.isArray(data.classes) && data.classes.length > 0) {
                             CLASSES = data.classes;
+                            showStatusMessage('editor.status.ready');
                             return;
                         }
                     }
@@ -530,6 +532,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             const classBasePath = resolveClassBasePath();
             if (!classBasePath) {
                 CLASSES = [...DEFAULT_CLASSES];
+                showStatusMessage('editor.status.ready');
                 return;
             }
 
@@ -548,6 +551,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 console.warn('Failed to load class names:', error);
                 CLASSES = [...DEFAULT_CLASSES];
             }
+            showStatusMessage('editor.status.ready');
         }
 
         function resolveClassBasePath() {
@@ -2035,6 +2039,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             let loaded = 0;
 
             console.log(`Starting to preload ${total} labels...`);
+            showStatusMessage('editor.status.preloadingLabels', {
+                count: `${loaded}/${total} ${formatProgressBar(loaded, total)}`
+            });
 
             for (let i = 0; i < total; i += BATCH_SIZE) {
                 const batch = allImageList.slice(i, Math.min(i + BATCH_SIZE, total));
@@ -2071,6 +2078,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 }
 
                 loaded += batch.length;
+                showStatusMessage('editor.status.preloadingLabels', {
+                    count: `${loaded}/${total} ${formatProgressBar(loaded, total)}`
+                });
                 console.log(`Preloaded labels: ${loaded}/${total}`);
             }
 
@@ -2079,6 +2089,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             buildLabelCacheFromPreloaded();
             labelsPreloaded = true;
             console.log(`Label cache built: ${Object.keys(labelCache).length} entries, client-side filtering enabled`);
+            showStatusMessage('editor.status.labelsPreloaded');
         }
 
         // Preload next and previous images and labels for instant navigation
@@ -2362,6 +2373,17 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 clearTimeout(autoSaveTimeout);
                 autoSaveTimeout = null;
             }
+        }
+
+        function formatProgressBar(current, total, width = 20) {
+            if (!total || total <= 0) {
+                return '';
+            }
+            const ratio = Math.min(1, Math.max(0, current / total));
+            const filled = Math.round(width * ratio);
+            const empty = Math.max(0, width - filled);
+            const pct = Math.round(ratio * 100);
+            return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${pct}%`;
         }
 
         function parseLabelData(content) {

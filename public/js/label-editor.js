@@ -471,6 +471,7 @@
         }
 
         async function loadClassNames() {
+            showStatus('Loading class names...');
             // Prefer instance name for exact lookup; fall back to path-based matching
             if (instanceNameParam) {
                 try {
@@ -479,6 +480,7 @@
                         const data = await response.json();
                         if (Array.isArray(data.classes) && data.classes.length > 0) {
                             CLASSES = data.classes;
+                            showStatus('Ready');
                             return;
                         }
                     }
@@ -490,6 +492,7 @@
             const classBasePath = resolveClassBasePath();
             if (!classBasePath) {
                 CLASSES = [...DEFAULT_CLASSES];
+                showStatus('Ready');
                 return;
             }
 
@@ -508,6 +511,7 @@
                 console.warn('Failed to load class names:', error);
                 CLASSES = [...DEFAULT_CLASSES];
             }
+            showStatus('Ready');
         }
 
         function resolveClassBasePath() {
@@ -1821,6 +1825,7 @@
             let loaded = 0;
 
             console.log(`Starting to preload ${total} labels...`);
+            showStatus(`Preloading labels: ${loaded}/${total} ${formatProgressBar(loaded, total)}`);
 
             for (let i = 0; i < total; i += BATCH_SIZE) {
                 const batch = imageList.slice(i, Math.min(i + BATCH_SIZE, total));
@@ -1857,10 +1862,12 @@
                 }
 
                 loaded += batch.length;
+                showStatus(`Preloading labels: ${loaded}/${total} ${formatProgressBar(loaded, total)}`);
                 console.log(`Preloaded labels: ${loaded}/${total}`);
             }
 
             console.log(`Finished preloading ${preloadedLabels.size} labels`);
+            showStatus('Labels preloaded');
         }
 
         // Preload next and previous images and labels for instant navigation
@@ -2144,6 +2151,17 @@
                 clearTimeout(autoSaveTimeout);
                 autoSaveTimeout = null;
             }
+        }
+
+        function formatProgressBar(current, total, width = 20) {
+            if (!total || total <= 0) {
+                return '';
+            }
+            const ratio = Math.min(1, Math.max(0, current / total));
+            const filled = Math.round(width * ratio);
+            const empty = Math.max(0, width - filled);
+            const pct = Math.round(ratio * 100);
+            return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${pct}%`;
         }
 
         function parseLabelData(content) {
