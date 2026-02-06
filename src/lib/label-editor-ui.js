@@ -120,6 +120,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let labelEditorPreloadCount = LABEL_EDITOR_PRELOAD_COUNT_DEFAULT;
         let thumbnailBatchLoading = new Set();
         let thumbnailBatchPromises = new Map();
+        let totalThumbnailBytes = 0;
         let autoSaveTimeout = null;
         let autoSaveInProgress = false;
         const AUTO_SAVE_DELAY = 400;
@@ -1598,21 +1599,30 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
 
                 let name = '';
                 let contentLength = -1;
+                let contentType = 'image/jpeg';
                 headersStr.split('\r\n').forEach(function(line) {
                     const nameMatch = line.match(/Content-Disposition:.*name="([^"]+)"/i);
                     if (nameMatch) name = decodeURIComponent(nameMatch[1]);
                     const clMatch = line.match(/Content-Length:\s*(\d+)/i);
                     if (clMatch) contentLength = parseInt(clMatch[1], 10);
+                    const ctMatch = line.match(/Content-Type:\s*(.+)/i);
+                    if (ctMatch) contentType = ctMatch[1].trim();
                 });
 
                 if (name && contentLength > 0) {
                     const imageData = bytes.slice(pos, pos + contentLength);
-                    const blob = new Blob([imageData], { type: 'image/jpeg' });
+                    const blob = new Blob([imageData], { type: contentType });
                     thumbnails[name] = URL.createObjectURL(blob);
+                    totalThumbnailBytes += contentLength;
                     pos += contentLength;
                 }
 
                 if (pos + 1 < bytes.length && bytes[pos] === 0x0D && bytes[pos + 1] === 0x0A) pos += 2;
+            }
+            const count = Object.keys(thumbnails).length;
+            if (count > 0) {
+                const mb = (totalThumbnailBytes / (1024 * 1024)).toFixed(2);
+                console.log(`Thumbnails: +${count} loaded, total ${mb} MB in memory`);
             }
             return thumbnails;
         }
@@ -3566,17 +3576,22 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 return;
             }
 
-            // Allow Delete/Backspace in inputs
-            if (isTyping && (e.key === 'Delete' || e.key === 'Backspace')) {
-                return; // Let the input handle it
-            }
-
-            // Disable all other hotkeys when typing
+            // Allow Delete/Backspace and Ctrl+C/V/X/A/Z in inputs
             if (isTyping) {
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    return;
+                }
+                if ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a', 'z'].includes(e.key.toLowerCase())) {
+                    return;
+                }
                 return;
             }
 
             if ((e.ctrlKey || e.metaKey) && keyIs(e, 'KeyC', 'c')) {
+                const sel = window.getSelection();
+                if (sel && sel.toString().length > 0) {
+                    return; // Let browser handle text copy
+                }
                 e.preventDefault();
                 copySelectedAnnotations();
                 return;

@@ -600,6 +600,7 @@
 
         .crumb-sep {
             color: var(--subtle);
+            -webkit-user-select: none;
             user-select: none;
         }
 

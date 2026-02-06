@@ -300,6 +300,7 @@
             overflow-y: hidden;
             padding: 5px 0;
             cursor: grab;
+            -webkit-user-select: none;
             user-select: none;
         }
 
@@ -606,6 +607,7 @@
 
         .filter-toggle {
             cursor: pointer;
+            -webkit-user-select: none;
             user-select: none;
             display: flex;
             justify-content: space-between;

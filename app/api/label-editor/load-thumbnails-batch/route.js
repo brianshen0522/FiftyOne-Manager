@@ -4,6 +4,7 @@ import path from 'path';
 import sharp from 'sharp';
 import { withApiLogging } from '@/lib/api-logger';
 import { getInstanceByName } from '@/lib/db';
+import { CONFIG } from '@/lib/manager';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,20 +46,29 @@ export const POST = withApiLogging(async (req) => {
       }
 
       const buffer = fs.readFileSync(fullPath);
-      const resized = await sharp(buffer)
-        .resize({
-          width: resolvedMaxSize,
-          height: resolvedMaxSize,
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .jpeg({ quality: 70 })
-        .toBuffer();
-
       const safeName = encodeURIComponent(imagePath);
-      const header = `--${boundary}\r\nContent-Disposition: form-data; name="${safeName}"\r\nContent-Type: image/jpeg\r\nContent-Length: ${resized.length}\r\n\r\n`;
-      parts.push(Buffer.from(header));
-      parts.push(resized);
+
+      if (CONFIG.thumbnailQuality >= 100) {
+        const ext = path.extname(fullPath).toLowerCase();
+        const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.bmp': 'image/bmp' };
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+        const header = `--${boundary}\r\nContent-Disposition: form-data; name="${safeName}"\r\nContent-Type: ${contentType}\r\nContent-Length: ${buffer.length}\r\n\r\n`;
+        parts.push(Buffer.from(header));
+        parts.push(buffer);
+      } else {
+        const resized = await sharp(buffer)
+          .resize({
+            width: resolvedMaxSize,
+            height: resolvedMaxSize,
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .jpeg({ quality: CONFIG.thumbnailQuality })
+          .toBuffer();
+        const header = `--${boundary}\r\nContent-Disposition: form-data; name="${safeName}"\r\nContent-Type: image/jpeg\r\nContent-Length: ${resized.length}\r\n\r\n`;
+        parts.push(Buffer.from(header));
+        parts.push(resized);
+      }
       parts.push(Buffer.from('\r\n'));
     }
 

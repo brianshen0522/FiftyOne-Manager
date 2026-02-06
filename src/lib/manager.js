@@ -45,7 +45,8 @@ export const CONFIG = {
     .map((mode) => mode.trim())
     .filter(Boolean),
   duplicateRules: parseDuplicateRules(),
-  duplicateDefaultAction: process.env.DUPLICATE_DEFAULT_ACTION || 'move'
+  duplicateDefaultAction: process.env.DUPLICATE_DEFAULT_ACTION || 'move',
+  thumbnailQuality: Math.min(100, Math.max(1, parseInt(process.env.THUMBNAIL_QUALITY || '70', 10)))
 };
 
 /**
