@@ -267,6 +267,8 @@
 
             // Preload all labels in the background for instant navigation
             preloadAllLabels();
+            // Preload all images in batches
+            preloadAllImagesInBatches();
         }
 
         // === FILTER FUNCTIONS ===
@@ -1466,10 +1468,64 @@
             });
         }
 
-        async function fetchThumbnailBatch(imagePaths) {
-            if (!imagePaths.length) {
-                return {};
+        const THUMBNAIL_FALLBACK_BATCH_SIZE = 200;
+
+        function findBytes(haystack, needle, start) {
+            for (let i = start; i <= haystack.length - needle.length; i++) {
+                let found = true;
+                for (let j = 0; j < needle.length; j++) {
+                    if (haystack[i + j] !== needle[j]) {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found) return i;
             }
+            return -1;
+        }
+
+        function parseMultipartThumbnails(buffer, boundary) {
+            const bytes = new Uint8Array(buffer);
+            const decoder = new TextDecoder();
+            const separator = new TextEncoder().encode('\r\n\r\n');
+            const boundaryBytes = new TextEncoder().encode('--' + boundary);
+            const thumbnails = {};
+            let pos = 0;
+
+            while (pos < bytes.length) {
+                const bStart = findBytes(bytes, boundaryBytes, pos);
+                if (bStart === -1) break;
+                pos = bStart + boundaryBytes.length;
+                if (pos + 1 < bytes.length && bytes[pos] === 0x2D && bytes[pos + 1] === 0x2D) break;
+                if (pos + 1 < bytes.length && bytes[pos] === 0x0D && bytes[pos + 1] === 0x0A) pos += 2;
+
+                const headerEnd = findBytes(bytes, separator, pos);
+                if (headerEnd === -1) break;
+                const headersStr = decoder.decode(bytes.slice(pos, headerEnd));
+                pos = headerEnd + 4;
+
+                let name = '';
+                let contentLength = -1;
+                headersStr.split('\r\n').forEach(function(line) {
+                    const nameMatch = line.match(/Content-Disposition:.*name="([^"]+)"/i);
+                    if (nameMatch) name = decodeURIComponent(nameMatch[1]);
+                    const clMatch = line.match(/Content-Length:\s*(\d+)/i);
+                    if (clMatch) contentLength = parseInt(clMatch[1], 10);
+                });
+
+                if (name && contentLength > 0) {
+                    const imageData = bytes.slice(pos, pos + contentLength);
+                    const blob = new Blob([imageData], { type: 'image/jpeg' });
+                    thumbnails[name] = URL.createObjectURL(blob);
+                    pos += contentLength;
+                }
+
+                if (pos + 1 < bytes.length && bytes[pos] === 0x0D && bytes[pos + 1] === 0x0A) pos += 2;
+            }
+            return thumbnails;
+        }
+
+        async function fetchThumbnailBatchSingle(imagePaths) {
             const payload = { imagePaths: imagePaths, maxSize: THUMBNAIL_MAX_SIZE };
             if (basePath) {
                 payload.basePath = basePath;
@@ -1483,10 +1539,40 @@
                 body: JSON.stringify(payload)
             });
             if (!response.ok) {
+                throw new Error(`Thumbnail batch failed: ${response.status}`);
+            }
+            const contentType = response.headers.get('Content-Type') || '';
+            const boundaryMatch = contentType.match(/boundary=([^\s;]+)/);
+            if (!boundaryMatch) {
+                throw new Error('Missing boundary in response');
+            }
+            const buffer = await response.arrayBuffer();
+            return parseMultipartThumbnails(buffer, boundaryMatch[1]);
+        }
+
+        async function fetchThumbnailBatch(imagePaths) {
+            if (!imagePaths.length) {
                 return {};
             }
-            const data = await response.json();
-            return data.thumbnails || {};
+            try {
+                return await fetchThumbnailBatchSingle(imagePaths);
+            } catch (err) {
+                if (imagePaths.length <= THUMBNAIL_FALLBACK_BATCH_SIZE) {
+                    return {};
+                }
+                console.warn(`Thumbnail batch of ${imagePaths.length} failed, retrying in chunks of ${THUMBNAIL_FALLBACK_BATCH_SIZE}...`);
+                const allThumbnails = {};
+                for (let i = 0; i < imagePaths.length; i += THUMBNAIL_FALLBACK_BATCH_SIZE) {
+                    const chunk = imagePaths.slice(i, i + THUMBNAIL_FALLBACK_BATCH_SIZE);
+                    try {
+                        const thumbnails = await fetchThumbnailBatchSingle(chunk);
+                        Object.assign(allThumbnails, thumbnails);
+                    } catch (chunkErr) {
+                        console.warn(`Thumbnail chunk at ${i} failed, skipping`);
+                    }
+                }
+                return allThumbnails;
+            }
         }
 
         async function preloadPreviewThumbnails(startIdx, endIdx) {
@@ -1872,8 +1958,24 @@
 
         // Preload next and previous images and labels for instant navigation
         function preloadAdjacentImages() {
+            // Full-dataset preload is always enabled; avoid evicting caches.
+            return;
             const PRELOAD_COUNT = labelEditorPreloadCount;
             const preloadIndexes = [];
+
+            if (PRELOAD_COUNT === 0) {
+                const keepImagePaths = new Set(imageList);
+                let newImageCount = 0;
+                const toPreload = imageList.filter((imgPath) => imgPath && !preloadedImages.has(imgPath));
+                if (toPreload.length) {
+                    preloadImageObjects(toPreload);
+                    newImageCount = toPreload.length;
+                }
+                if (newImageCount > 0) {
+                    console.log(`Preload: +${newImageCount} images, -0 evicted (${preloadedImages.size} in cache)`);
+                }
+                return;
+            }
 
             // Preload images around current position
             // Prioritize forward navigation (more images ahead than behind)
@@ -2162,6 +2264,26 @@
             const empty = Math.max(0, width - filled);
             const pct = Math.round(ratio * 100);
             return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${pct}%`;
+        }
+
+        async function preloadAllImagesInBatches() {
+            const total = allImageList.length;
+            if (!total) {
+                return;
+            }
+            const batchSize = labelEditorPreloadCount === 0
+                ? total
+                : Math.max(1, labelEditorPreloadCount);
+            let loaded = 0;
+            updateStatusBarRight(`Preloading images: ${loaded}/${total} ${formatProgressBar(loaded, total)}`);
+            for (let i = 0; i < total; i += batchSize) {
+                const batch = allImageList.slice(i, i + batchSize);
+                await preloadImageObjects(batch);
+                loaded += batch.length;
+                updateStatusBarRight(`Preloading images: ${loaded}/${total} ${formatProgressBar(loaded, total)}`);
+            }
+            updateStatusBarRight('Images preloaded');
+            setTimeout(() => updateStatusBarRight(''), 3000);
         }
 
         function parseLabelData(content) {
@@ -4244,8 +4366,16 @@
         }
 
         function showStatus(message) {
-            document.getElementById('statusBar').textContent = message;
-            document.getElementById('statusBar').style.color = '#aaa';
+            const el = document.getElementById('statusBarText') || document.getElementById('statusBar');
+            if (!el) return;
+            el.textContent = message;
+            el.style.color = '#aaa';
+        }
+
+        function updateStatusBarRight(message) {
+            const el = document.getElementById('statusBarRight');
+            if (!el) return;
+            el.textContent = message;
         }
 
         function showError(message) {
@@ -4258,8 +4388,11 @@
             errorEl.textContent = `Error: ${message}`;
             errorEl.style.display = 'block';
 
-            document.getElementById('statusBar').textContent = `Error: ${message}`;
-            document.getElementById('statusBar').style.color = '#dc3545';
+            const statusEl = document.getElementById('statusBarText') || document.getElementById('statusBar');
+            if (statusEl) {
+                statusEl.textContent = `Error: ${message}`;
+                statusEl.style.color = '#dc3545';
+            }
         }
 
         let lastImageSaveTimer = null;

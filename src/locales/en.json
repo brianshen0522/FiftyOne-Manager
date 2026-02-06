@@ -244,6 +244,8 @@
       "loadingClasses": "Loading class names...",
       "preloadingLabels": "Preloading labels: {count}",
       "labelsPreloaded": "Labels preloaded",
+      "preloadingImages": "Preloading images: {count}",
+      "imagesPreloaded": "Images preloaded",
       "savingLabels": "Saving labels...",
       "labelsSaved": "Labels saved successfully!",
       "failedToLoadImage": "Failed to load image",

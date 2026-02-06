@@ -30,8 +30,10 @@ export const POST = withApiLogging(async (req) => {
 
     const baseResolved = path.resolve(resolvedBasePath);
     const basePrefix = `${baseResolved}${path.sep}`;
-    const thumbnails = {};
     const resolvedMaxSize = Number.isFinite(parseInt(maxSize, 10)) ? parseInt(maxSize, 10) : 512;
+
+    const boundary = '----ThumbnailBatch';
+    const parts = [];
 
     for (const imagePath of imagePaths) {
       if (!imagePath || typeof imagePath !== 'string') {
@@ -52,10 +54,22 @@ export const POST = withApiLogging(async (req) => {
         })
         .jpeg({ quality: 70 })
         .toBuffer();
-      thumbnails[imagePath] = `data:image/jpeg;base64,${resized.toString('base64')}`;
+
+      const safeName = encodeURIComponent(imagePath);
+      const header = `--${boundary}\r\nContent-Disposition: form-data; name="${safeName}"\r\nContent-Type: image/jpeg\r\nContent-Length: ${resized.length}\r\n\r\n`;
+      parts.push(Buffer.from(header));
+      parts.push(resized);
+      parts.push(Buffer.from('\r\n'));
     }
 
-    return NextResponse.json({ thumbnails });
+    parts.push(Buffer.from(`--${boundary}--\r\n`));
+    const body = Buffer.concat(parts);
+
+    return new Response(body, {
+      headers: {
+        'Content-Type': `multipart/mixed; boundary=${boundary}`,
+      }
+    });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

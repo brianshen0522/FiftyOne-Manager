@@ -244,6 +244,8 @@
       "loadingClasses": "載入類別中...",
       "preloadingLabels": "預載標籤：{count}",
       "labelsPreloaded": "標籤預載完成",
+      "preloadingImages": "預載圖片：{count}",
+      "imagesPreloaded": "圖片預載完成",
       "savingLabels": "儲存標籤中...",
       "labelsSaved": "標籤已儲存！",
       "failedToLoadImage": "載入圖片失敗",

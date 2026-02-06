@@ -281,7 +281,8 @@ export default function LabelEditorPage() {
       </div>
 
       <div className="status-bar" id="statusBar">
-        {t('editor.status.ready')}
+        <span id="statusBarText">{t('editor.status.ready')}</span>
+        <span id="statusBarRight" style={{ opacity: 0.7 }}></span>
       </div>
     </>
   );
