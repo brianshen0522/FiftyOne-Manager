@@ -1656,6 +1656,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 Object.entries(thumbnails).forEach(([imagePath, dataUrl]) => {
                     if (dataUrl) {
                         imageThumbnails[imagePath] = dataUrl;
+                        setPreviewImageSrc(imagePath, dataUrl);
                         if (!preloadedImages.has(imagePath)) {
                             const img = new Image();
                             img.onerror = () => {

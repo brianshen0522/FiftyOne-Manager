@@ -1565,6 +1565,7 @@
                 Object.entries(thumbnails).forEach(([imagePath, dataUrl]) => {
                     if (dataUrl) {
                         imageThumbnails[imagePath] = dataUrl;
+                        setPreviewImageSrc(imagePath, dataUrl);
                         if (!preloadedImages.has(imagePath)) {
                             const img = new Image();
                             img.onerror = () => {
