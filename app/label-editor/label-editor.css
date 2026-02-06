@@ -53,6 +53,13 @@
             gap: 10px;
         }
 
+        #imageCounter {
+            display: inline-block;
+            min-width: 90px;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+        }
+
         .btn {
             padding: 8px 16px;
             border: none;

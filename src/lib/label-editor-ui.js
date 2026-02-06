@@ -893,6 +893,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         }
 
         function clearFilters() {
+            const currentImagePath = imageList[currentImageIndex];
             // Clear all filter inputs
             document.getElementById('filterName').value = '';
             document.getElementById('filterClassMode').value = 'any';
@@ -927,7 +928,11 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             filterBaseList = [...imageList]; // Reset filter base
             preloadedImages.clear(); // Clear preload cache
             filterActive = false;
-            currentImageIndex = 0;
+            if (currentImagePath && imageList.includes(currentImagePath)) {
+                currentImageIndex = imageList.indexOf(currentImagePath);
+            } else {
+                currentImageIndex = 0;
+            }
 
             // Update UI
             updateFilterStats();
@@ -1802,6 +1807,9 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             const counter = document.getElementById('imageCounter');
 
             if (imageList.length > 1) {
+                counter.style.display = '';
+                prevBtn.style.display = '';
+                nextBtn.style.display = '';
                 counter.textContent = `${currentImageIndex + 1} / ${imageList.length}`;
                 prevBtn.disabled = currentImageIndex === 0;
                 nextBtn.disabled = currentImageIndex === imageList.length - 1;
