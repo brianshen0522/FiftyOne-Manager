@@ -111,6 +111,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         // Filter support
         let labelCache = {}; // Cache label info for filtering: { imagePath: { classes: [0,1,2], count: 3 } }
         let filterActive = false;
+        let labelsPreloaded = false;
         let filterDebounceTimer = null;
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
         let isApplyingSavedFilter = false;
@@ -694,7 +695,6 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     imageList = sortImageList(allImageList);
                     filterBaseList = [...imageList]; // Reset filter base
                     preloadedImages.clear(); // Clear preload cache
-                preloadedLabels.clear();
                     filterActive = false;
                     updateFilterStats();
                     currentImageIndex = 0;
@@ -705,32 +705,40 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     return;
                 }
 
-                // Call backend to filter images
-                const response = await fetch('/api/label-editor/filter-images', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        basePath: basePath,
-                        images: allImageList,
-                        filters: {
-                            nameFilter: nameFilter,
-                            selectedClasses: selectedClasses,
-                            classMode: classMode,
-                            classLogic: classLogic,
-                            minLabels: minLabels,
-                            maxLabels: maxLabels !== null ? maxLabels : undefined
-                        }
-                    })
-                });
+                let filteredImages;
+                const filterParams = {
+                    nameFilter,
+                    selectedClasses,
+                    classMode,
+                    classLogic,
+                    minLabels,
+                    maxLabels: maxLabels !== null ? maxLabels : undefined
+                };
 
-                if (!response.ok) {
-                    throw new Error(t('editor.filter.failedToFilter'));
+                if (labelsPreloaded) {
+                    // Client-side filtering (instant, no network)
+                    filteredImages = filterImagesLocally(allImageList, filterParams);
+                    console.log(`Filtered ${allImageList.length} images down to ${filteredImages.length} (client-side)`);
+                } else {
+                    // Fallback: server-side filtering (before preload completes)
+                    const response = await fetch('/api/label-editor/filter-images', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            basePath: basePath,
+                            images: allImageList,
+                            filters: filterParams
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(t('editor.filter.failedToFilter'));
+                    }
+
+                    const data = await response.json();
+                    filteredImages = data.filteredImages;
+                    console.log(`Filtered ${data.totalCount} images down to ${data.filteredCount} (server-side)`);
                 }
-
-                const data = await response.json();
-                const filteredImages = data.filteredImages;
-
-                console.log(`Filtered ${data.totalCount} images down to ${data.filteredCount}`);
 
                 // Update image list
                 const previousImage = imageList[currentImageIndex];
@@ -738,7 +746,6 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 imageList = sortImageList(imageList);
                 filterBaseList = [...imageList]; // Update filter base for preview search
                 preloadedImages.clear(); // Clear preload cache
-                preloadedLabels.clear();
                 filterActive = true;
 
                 // Update stats
@@ -875,7 +882,6 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             imageList = sortImageList(allImageList);
             filterBaseList = [...imageList]; // Reset filter base
             preloadedImages.clear(); // Clear preload cache
-                preloadedLabels.clear();
             filterActive = false;
             currentImageIndex = 0;
 
@@ -1054,75 +1060,48 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 return;
             }
 
-            try {
-                // Call backend API to search
-                const response = await fetch('/api/label-editor/filter-images', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        basePath: basePath,
-                        images: filterBaseList,
-                        filters: {
-                            nameFilter: query,
-                            selectedClasses: [],
-                            minLabels: 0,
-                            maxLabels: null,
-                            classMode: 'any',
-                            classLogic: 'any'
-                        }
-                    })
-                });
+            // Client-side string matching (no network request needed)
+            const searchResults = filterBaseList.filter(p => p.toLowerCase().includes(query.toLowerCase()));
 
-                if (!response.ok) {
-                    throw new Error('Search failed');
-                }
+            // Store current image path before updating list
+            const currentPath = imageList[currentImageIndex];
 
-                const data = await response.json();
-                const searchResults = data.filteredImages;
+            // Update image list with search results
+            imageList = searchResults;
 
-                // Store current image path before updating list
-                const currentPath = imageList[currentImageIndex];
-
-                // Update image list with search results
-                imageList = searchResults;
-
-                // Try to keep current image if it's in search results
-                if (currentPath) {
-                    const newIndex = imageList.indexOf(currentPath);
-                    if (newIndex >= 0) {
-                        currentImageIndex = newIndex;
-                    } else if (imageList.length > 0) {
-                        // Current image not in results, go to first result
-                        currentImageIndex = 0;
-                        await loadImage();
-                    }
+            // Try to keep current image if it's in search results
+            if (currentPath) {
+                const newIndex = imageList.indexOf(currentPath);
+                if (newIndex >= 0) {
+                    currentImageIndex = newIndex;
                 } else if (imageList.length > 0) {
+                    // Current image not in results, go to first result
                     currentImageIndex = 0;
+                    await loadImage();
                 }
+            } else if (imageList.length > 0) {
+                currentImageIndex = 0;
+            }
 
-                // Update count display
-                if (filterActive) {
-                    countDisplay.innerHTML = t('editor.preview.countSearchFilteredAll', {
-                        shown: `<span style="color: #007bff;">${imageList.length}</span>`,
-                        total: `<span style="color: #007bff;">${filterBaseList.length}</span>`,
-                        all: allImageList.length
-                    });
-                } else {
-                    countDisplay.innerHTML = t('editor.preview.countFiltered', {
-                        shown: `<span style="color: #007bff;">${imageList.length}</span>`,
-                        total: filterBaseList.length
-                    });
-                }
+            // Update count display
+            if (filterActive) {
+                countDisplay.innerHTML = t('editor.preview.countSearchFilteredAll', {
+                    shown: `<span style="color: #007bff;">${imageList.length}</span>`,
+                    total: `<span style="color: #007bff;">${filterBaseList.length}</span>`,
+                    all: allImageList.length
+                });
+            } else {
+                countDisplay.innerHTML = t('editor.preview.countFiltered', {
+                    shown: `<span style="color: #007bff;">${imageList.length}</span>`,
+                    total: filterBaseList.length
+                });
+            }
 
-                updateNavigationButtons();
-                updateImagePreview(true);
+            updateNavigationButtons();
+            updateImagePreview(true);
 
-                if (imageList.length === 0) {
-                    showStatusMessage('editor.filter.noImagesMatchFilter');
-                }
-            } catch (error) {
-                console.error('Preview search error:', error);
-                showError(t('editor.filter.filterError', { error: error.message }));
+            if (imageList.length === 0) {
+                showStatusMessage('editor.filter.noImagesMatchFilter');
             }
         }
 
@@ -1763,18 +1742,120 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             return `/api/label-editor/load-label?label=${encodeURIComponent(labelPath)}`;
         }
 
+        // Build labelCache from preloaded label data for client-side filtering
+        function buildLabelCacheFromPreloaded() {
+            for (const [imgPath, cached] of preloadedLabels) {
+                if (cached.loading) continue;
+                const labelContent = cached.labelContent || '';
+                const lines = labelContent.trim().split('\n').filter(line => line.trim());
+                const classIds = [];
+                for (const line of lines) {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length >= 5) {
+                        const classId = parseInt(parts[0], 10);
+                        if (!Number.isNaN(classId)) {
+                            classIds.push(classId);
+                        }
+                    }
+                }
+                labelCache[imgPath] = {
+                    classes: [...new Set(classIds)],
+                    count: classIds.length
+                };
+            }
+        }
+
+        // Client-side image filtering using labelCache (mirrors server-side filter-images/route.js)
+        function filterImagesLocally(images, filters) {
+            const { nameFilter, selectedClasses, minLabels, maxLabels, classMode, classLogic } = filters || {};
+            const resolvedClassMode = classMode || 'any';
+            const resolvedClassLogic = classLogic || 'any';
+
+            const filteredImages = [];
+
+            for (const imagePath of images) {
+                let passFilter = true;
+
+                if (nameFilter && nameFilter.trim()) {
+                    if (!imagePath.toLowerCase().includes(nameFilter.toLowerCase().trim())) {
+                        passFilter = false;
+                    }
+                }
+
+                const max = maxLabels !== undefined && maxLabels !== null ? maxLabels : Infinity;
+                if (
+                    passFilter &&
+                    (selectedClasses?.length > 0 || minLabels > 0 || max < Infinity || resolvedClassMode !== 'any')
+                ) {
+                    const cached = labelCache[imagePath];
+                    const classes = cached ? cached.classes : [];
+                    const count = cached ? cached.count : 0;
+
+                    const min = minLabels || 0;
+                    if (count < min || count > max) {
+                        passFilter = false;
+                    }
+
+                    if (passFilter) {
+                        if (resolvedClassMode === 'none') {
+                            if (count !== 0) {
+                                passFilter = false;
+                            }
+                        } else if (resolvedClassMode === 'only') {
+                            if (!selectedClasses || selectedClasses.length === 0) {
+                                passFilter = false;
+                            } else {
+                                const hasOnlySelected = classes.every(cls => selectedClasses.includes(cls));
+                                if (!hasOnlySelected) {
+                                    passFilter = false;
+                                } else if (resolvedClassLogic === 'all') {
+                                    const hasAllClasses = selectedClasses.every(cls => classes.includes(cls));
+                                    if (!hasAllClasses) {
+                                        passFilter = false;
+                                    }
+                                } else {
+                                    const hasAnyClass = selectedClasses.some(cls => classes.includes(cls));
+                                    if (!hasAnyClass) {
+                                        passFilter = false;
+                                    }
+                                }
+                            }
+                        } else if (selectedClasses && selectedClasses.length > 0) {
+                            if (resolvedClassLogic === 'all') {
+                                const hasAllClasses = selectedClasses.every(cls => classes.includes(cls));
+                                if (!hasAllClasses) {
+                                    passFilter = false;
+                                }
+                            } else {
+                                const hasAnyClass = selectedClasses.some(cls => classes.includes(cls));
+                                if (!hasAnyClass) {
+                                    passFilter = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (passFilter) {
+                    filteredImages.push(imagePath);
+                }
+            }
+
+            return filteredImages;
+        }
+
         // Preload all labels at startup for instant navigation
         async function preloadAllLabels() {
             if (!basePath) return; // Batch API requires basePath
 
             const BATCH_SIZE = 10000; // Large batch for efficient loading
-            const total = imageList.length;
+            const total = allImageList.length;
             let loaded = 0;
 
             console.log(`Starting to preload ${total} labels...`);
 
             for (let i = 0; i < total; i += BATCH_SIZE) {
-                const batch = imageList.slice(i, Math.min(i + BATCH_SIZE, total));
+                const batch = allImageList.slice(i, Math.min(i + BATCH_SIZE, total));
                 // Filter out already loaded labels
                 const toLoad = batch.filter(imgPath => !preloadedLabels.has(imgPath));
 
@@ -1812,6 +1893,10 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
 
             console.log(`Finished preloading ${preloadedLabels.size} labels`);
+
+            buildLabelCacheFromPreloaded();
+            labelsPreloaded = true;
+            console.log(`Label cache built: ${Object.keys(labelCache).length} entries, client-side filtering enabled`);
         }
 
         // Preload next and previous images and labels for instant navigation
