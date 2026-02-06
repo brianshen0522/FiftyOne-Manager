@@ -106,6 +106,9 @@
         let labelEditorPreloadCount = LABEL_EDITOR_PRELOAD_COUNT_DEFAULT;
         let thumbnailBatchLoading = new Set();
         let thumbnailBatchPromises = new Map();
+        let autoSaveTimeout = null;
+        let autoSaveInProgress = false;
+        const AUTO_SAVE_DELAY = 400;
 
         // Canvas
         const canvas = document.getElementById('canvas');
@@ -2101,8 +2104,32 @@
             draw();
         }
 
+        function scheduleAutoSave() {
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+            }
+            autoSaveTimeout = setTimeout(async () => {
+                autoSaveTimeout = null;
+                if (autoSaveInProgress || !hasUnsavedChanges) {
+                    return;
+                }
+                autoSaveInProgress = true;
+                try {
+                    await saveLabels(false);
+                } finally {
+                    autoSaveInProgress = false;
+                }
+            }, AUTO_SAVE_DELAY);
+        }
+
         function setUnsavedChanges(value) {
             hasUnsavedChanges = value;
+            if (value) {
+                scheduleAutoSave();
+            } else if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+                autoSaveTimeout = null;
+            }
         }
 
         function parseLabelData(content) {
