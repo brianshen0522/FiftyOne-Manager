@@ -7,6 +7,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         const LABEL_CLIPBOARD_KEY = 'label_editor_clipboard';
         const LINE_WIDTH_SCALE_DEFAULT = 2 / 3;
         const LABEL_EDITOR_PRELOAD_COUNT_DEFAULT = 20;
+        const THUMBNAIL_MAX_SIZE = 512;
 
         // State
         let lastStatusKey = null;
@@ -57,7 +58,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let currentImageIndex = 0;
         let basePath = '';
         let imageThumbnails = {}; // Store thumbnails for preview
-        let preloadedImages = new Map(); // Cache preloaded Image objects by URL
+        let preloadedImages = new Map(); // Cache preloaded Image objects by image path
         let preloadedLabels = new Map(); // Cache preloaded label data by image path
         let imageLoadRetryCount = new Map(); // Track per-image load retries
         let imageLoadSeq = 0; // Monotonic counter to ignore stale load callbacks
@@ -117,6 +118,8 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
         let lineWidthScale = LINE_WIDTH_SCALE_DEFAULT;
         let isApplyingSavedFilter = false;
         let labelEditorPreloadCount = LABEL_EDITOR_PRELOAD_COUNT_DEFAULT;
+        let thumbnailBatchLoading = new Set();
+        let thumbnailBatchPromises = new Map();
 
         // Canvas
         let canvas = null;
@@ -1197,6 +1200,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             setupPreviewDrag();
             setupPreviewInfiniteScroll();
             applyPendingPreviewCenter();
+            preloadPreviewThumbnails(previewRenderStart, previewRenderEnd);
 
             // Reapply search filter if there is one
             if (previewSearchQuery) {
@@ -1217,6 +1221,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             // Create image element
             const img = document.createElement('img');
             img.draggable = false;
+            img.dataset.imagePath = imagePath;
 
             // Use image path as cache key instead of index
             if (imageThumbnails[imagePath]) {
@@ -1224,12 +1229,6 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             } else {
                 const loadingText = encodeURIComponent(t('common.loading'));
                 img.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" fill="%23aaa" font-size="12">${loadingText}</text></svg>`;
-
-                // Load thumbnail asynchronously
-                loadThumbnail(index).then(dataUrl => {
-                    imageThumbnails[imagePath] = dataUrl; // Cache by path, not index
-                    img.src = dataUrl;
-                });
             }
 
             const label = document.createElement('div');
@@ -1357,6 +1356,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                         const newScrollWidth = previewContainer.scrollWidth;
                         previewContainer.scrollLeft += newScrollWidth - prevScrollWidth;
                         previewRenderStart = newStart;
+                        preloadPreviewThumbnails(newStart, previousStart);
 
                         // Apply search filter to new items
                         if (previewSearchQuery) {
@@ -1369,6 +1369,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                         for (let i = previewRenderEnd; i < newEnd; i++) {
                             wrapper.appendChild(createPreviewItem(i));
                         }
+                        preloadPreviewThumbnails(previewRenderEnd, newEnd);
                         previewRenderEnd = newEnd;
 
                         // Apply search filter to new items
@@ -1530,26 +1531,163 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             return `/api/image?fullPath=${encodeURIComponent(imagePath)}${cacheBuster}`;
         }
 
-        async function loadThumbnail(index) {
-            try {
-                const imagePath = imageList[index];
-                // No cache buster - use same URL as main image so browser cache is shared
-                const url = buildImageUrl(imagePath);
-                // Create and cache Image object for reuse when navigating to this image
-                if (!preloadedImages.has(url)) {
-                    const img = new Image();
-                    img.onerror = () => {
-                        // Remove failed image from cache so it can be retried
-                        preloadedImages.delete(url);
-                    };
-                    img.src = url;
-                    preloadedImages.set(url, img);
-                }
-                return url;
-            } catch (error) {
-                console.error('Failed to load thumbnail:', error);
-                return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/></svg>';
+        function getPreviewImageSelector(imagePath) {
+            const escaped = (window.CSS && CSS.escape)
+                ? CSS.escape(imagePath)
+                : imagePath.replace(/["\\]/g, '\\$&');
+            return `img[data-image-path="${escaped}"]`;
+        }
+
+        function setPreviewImageSrc(imagePath, dataUrl) {
+            const previewContainer = document.getElementById('imagePreview');
+            if (!previewContainer) {
+                return;
             }
+            const selector = getPreviewImageSelector(imagePath);
+            previewContainer.querySelectorAll(selector).forEach((img) => {
+                img.src = dataUrl;
+            });
+        }
+
+        async function fetchThumbnailBatch(imagePaths) {
+            if (!imagePaths.length) {
+                return {};
+            }
+            const payload = { imagePaths, maxSize: THUMBNAIL_MAX_SIZE };
+            if (basePath) {
+                payload.basePath = basePath;
+            }
+            if (currentInstanceName) {
+                payload.instanceName = currentInstanceName;
+            }
+            const response = await fetch('/api/label-editor/load-thumbnails-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                return {};
+            }
+            const data = await response.json();
+            return data.thumbnails || {};
+        }
+
+        async function preloadPreviewThumbnails(startIdx, endIdx) {
+            const batchPaths = [];
+            for (let i = startIdx; i < endIdx; i++) {
+                const imagePath = imageList[i];
+                if (!imagePath) {
+                    continue;
+                }
+                if (!imageThumbnails[imagePath]) {
+                    if (thumbnailBatchLoading.has(imagePath)) {
+                        continue;
+                    }
+                    thumbnailBatchLoading.add(imagePath);
+                    batchPaths.push(imagePath);
+                }
+            }
+
+            if (batchPaths.length === 0) {
+                return;
+            }
+
+            try {
+                const batchPromise = fetchThumbnailBatch(batchPaths);
+                batchPaths.forEach((imagePath) => {
+                    thumbnailBatchPromises.set(imagePath, batchPromise);
+                });
+                const thumbnails = await batchPromise;
+                Object.entries(thumbnails).forEach(([imagePath, dataUrl]) => {
+                    if (dataUrl) {
+                        imageThumbnails[imagePath] = dataUrl;
+                        setPreviewImageSrc(imagePath, dataUrl);
+                    }
+                });
+            } catch (err) {
+                // Ignore errors and allow retry on next batch
+            } finally {
+                batchPaths.forEach((imagePath) => {
+                    thumbnailBatchLoading.delete(imagePath);
+                    thumbnailBatchPromises.delete(imagePath);
+                });
+            }
+        }
+
+        async function preloadImageObjects(imagePaths) {
+            const toFetch = [];
+            imagePaths.forEach((imagePath) => {
+                if (!imagePath) {
+                    return;
+                }
+                if (imageThumbnails[imagePath]) {
+                    if (!preloadedImages.has(imagePath)) {
+                        const img = new Image();
+                        img.onerror = () => {
+                            preloadedImages.delete(imagePath);
+                        };
+                        img.src = imageThumbnails[imagePath];
+                        preloadedImages.set(imagePath, img);
+                    }
+                    return;
+                }
+                if (thumbnailBatchLoading.has(imagePath)) {
+                    return;
+                }
+                if (!thumbnailBatchLoading.has(imagePath)) {
+                    thumbnailBatchLoading.add(imagePath);
+                    toFetch.push(imagePath);
+                }
+            });
+
+            if (toFetch.length === 0) {
+                return;
+            }
+
+            try {
+                const batchPromise = fetchThumbnailBatch(toFetch);
+                toFetch.forEach((imagePath) => {
+                    thumbnailBatchPromises.set(imagePath, batchPromise);
+                });
+                const thumbnails = await batchPromise;
+                Object.entries(thumbnails).forEach(([imagePath, dataUrl]) => {
+                    if (dataUrl) {
+                        imageThumbnails[imagePath] = dataUrl;
+                        if (!preloadedImages.has(imagePath)) {
+                            const img = new Image();
+                            img.onerror = () => {
+                                preloadedImages.delete(imagePath);
+                            };
+                            img.src = dataUrl;
+                            preloadedImages.set(imagePath, img);
+                        }
+                    }
+                });
+            } finally {
+                toFetch.forEach((imagePath) => {
+                    thumbnailBatchLoading.delete(imagePath);
+                    thumbnailBatchPromises.delete(imagePath);
+                });
+            }
+        }
+
+        async function waitForThumbnail(imagePath, timeoutMs = 2000) {
+            if (imageThumbnails[imagePath]) {
+                return true;
+            }
+            const pending = thumbnailBatchPromises.get(imagePath);
+            if (!pending) {
+                return false;
+            }
+            try {
+                await Promise.race([
+                    pending,
+                    new Promise((resolve) => setTimeout(resolve, timeoutMs))
+                ]);
+            } catch (err) {
+                // ignore
+            }
+            return Boolean(imageThumbnails[imagePath]);
         }
 
         function updateNavigationButtons() {
@@ -1650,10 +1788,6 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 currentLabelPath = currentLabel;
                 saveLastImageSelection(currentImage);
 
-                // Build image URL for direct loading (much faster than base64)
-                // Only bust cache on explicit reload to allow browser caching of preloaded images
-                const cacheBuster = forceReload ? `&_v=${new Date().getTime()}` : '';
-                const imageUrl = buildImageUrl(currentImage, cacheBuster);
                 const loadSeq = ++imageLoadSeq;
                 activeImageLoadSeq = loadSeq;
 
@@ -1700,7 +1834,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                 };
 
                 // Check if image is already preloaded
-                const cachedImage = preloadedImages.get(imageUrl);
+                const cachedImage = preloadedImages.get(currentImage);
 
                 const onImageReady = () => {
                     if (loadSeq !== activeImageLoadSeq) {
@@ -1719,7 +1853,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     if (loadSeq !== activeImageLoadSeq) {
                         return;
                     }
-                    preloadedImages.delete(imageUrl);
+                    preloadedImages.delete(currentImage);
                     const retries = imageLoadRetryCount.get(currentImage) || 0;
                     if (retries < 1) {
                         imageLoadRetryCount.set(currentImage, retries + 1);
@@ -1733,22 +1867,35 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     showError(t('editor.status.failedToLoadImage'));
                 };
 
-                if (cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) {
+                if (!forceReload && cachedImage && cachedImage.complete && cachedImage.naturalWidth > 0) {
                     // Use the preloaded image directly - no new network request
                     image = cachedImage;
                     onImageReady();
-                } else if (cachedImage && !cachedImage.complete) {
+                } else if (!forceReload && cachedImage && !cachedImage.complete) {
                     // Image is still loading, wait for it
                     image = cachedImage;
                     image.onload = onImageReady;
                     image.onerror = onImageError;
                 } else {
-                    // No cached image or it failed - load fresh
+                    if (forceReload) {
+                        imageThumbnails[currentImage] = null;
+                    }
+                    if (!imageThumbnails[currentImage]) {
+                        await preloadImageObjects([currentImage]);
+                        if (!imageThumbnails[currentImage]) {
+                            await waitForThumbnail(currentImage);
+                        }
+                    }
+                    const dataUrl = imageThumbnails[currentImage];
+                    if (!dataUrl) {
+                        showError(t('editor.status.failedToLoadImage'));
+                        return;
+                    }
                     image = new Image();
                     image.onload = onImageReady;
                     image.onerror = onImageError;
-                    preloadedImages.set(imageUrl, image);
-                    image.src = imageUrl;
+                    preloadedImages.set(currentImage, image);
+                    image.src = dataUrl;
                 }
 
                 const filename = currentImage.split('/').pop();
@@ -1967,39 +2114,29 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             });
 
             // Evict images outside preload range to save RAM
-            // Check by image path (extracted from URL) to handle cache buster URLs
             let evictedCount = 0;
-            for (const [url, img] of preloadedImages) {
-                // Extract image path from URL to check against keep set
-                // URL format: /api/image?i=xxx&n=filename or similar
-                const urlParams = new URLSearchParams(url.split('?')[1]);
-                const filename = urlParams.get('n') || urlParams.get('relativePath') || urlParams.get('fullPath') || '';
-                const imgPath = [...keepImagePaths].find(p => p.endsWith(filename));
-
-                if (!imgPath) {
+            for (const [imgPath, img] of preloadedImages) {
+                if (!keepImagePaths.has(imgPath)) {
                     img.onload = null;  // Clear handlers before evicting
                     img.onerror = null;
                     img.src = ''; // Release image data from memory
-                    preloadedImages.delete(url);
+                    preloadedImages.delete(imgPath);
                     evictedCount++;
                 }
             }
 
-            // Preload only images not already in cache (labels are preloaded at startup)
             let newImageCount = 0;
+            const toPreload = [];
             preloadIndexes.forEach(idx => {
                 const imgPath = imageList[idx];
-                const imageUrl = buildImageUrl(imgPath);
-                if (!preloadedImages.has(imageUrl)) {
-                    const img = new Image();
-                    img.onerror = () => {
-                        preloadedImages.delete(imageUrl);
-                    };
-                    img.src = imageUrl;
-                    preloadedImages.set(imageUrl, img);
-                    newImageCount++;
+                if (imgPath && !preloadedImages.has(imgPath)) {
+                    toPreload.push(imgPath);
                 }
             });
+            if (toPreload.length) {
+                preloadImageObjects(toPreload);
+                newImageCount = toPreload.length;
+            }
             if (newImageCount > 0 || evictedCount > 0) {
                 console.log(`Preload: +${newImageCount} images, -${evictedCount} evicted (${preloadedImages.size} in cache)`);
             }
