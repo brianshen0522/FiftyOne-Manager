@@ -4243,7 +4243,16 @@
             }
 
             const prevState = captureState();
+            const PASTE_OFFSET = 0.02;
             const pasted = cloneAnnotations(payload.annotations);
+            pasted.forEach(ann => {
+                if (ann.type === 'obb') {
+                    ann.points.forEach(p => { p.x += PASTE_OFFSET; p.y += PASTE_OFFSET; });
+                } else {
+                    ann.x += PASTE_OFFSET;
+                    ann.y += PASTE_OFFSET;
+                }
+            });
             const startIndex = annotations.length;
             annotations = annotations.concat(pasted);
             selectedAnnotations = pasted.map((_, i) => startIndex + i);
