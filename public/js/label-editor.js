@@ -110,6 +110,7 @@
         let autoSaveTimeout = null;
         let autoSaveInProgress = false;
         const AUTO_SAVE_DELAY = 400;
+        let pasteCount = 0;
 
         // Canvas
         const canvas = document.getElementById('canvas');
@@ -4233,6 +4234,7 @@
                 version: 1,
                 annotations: copied
             }));
+            pasteCount = 0;
             showStatus(`Copied ${copied.length} label${copied.length === 1 ? '' : 's'}`);
         }
 
@@ -4255,14 +4257,16 @@
             }
 
             const prevState = captureState();
+            pasteCount++;
             const PASTE_OFFSET = 0.02;
+            const totalOffset = PASTE_OFFSET * pasteCount;
             const pasted = cloneAnnotations(payload.annotations);
             pasted.forEach(ann => {
                 if (ann.type === 'obb') {
-                    ann.points.forEach(p => { p.x += PASTE_OFFSET; p.y += PASTE_OFFSET; });
+                    ann.points.forEach(p => { p.x += totalOffset; p.y += totalOffset; });
                 } else {
-                    ann.x += PASTE_OFFSET;
-                    ann.y += PASTE_OFFSET;
+                    ann.x += totalOffset;
+                    ann.y += totalOffset;
                 }
             });
             const startIndex = annotations.length;
