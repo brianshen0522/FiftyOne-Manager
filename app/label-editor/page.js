@@ -77,16 +77,61 @@ export default function LabelEditorPage() {
       </div>
 
       <div className="main-container">
-        <div className="canvas-container" id="canvasContainer" data-tour="editor-canvas">
-          <div className="loading" id="loading">
-            {t('common.loading')}
+        <div className="editor-left">
+          <div className="canvas-container" id="canvasContainer" data-tour="editor-canvas">
+            <div className="loading" id="loading">
+              {t('common.loading')}
+            </div>
+            <div
+              className="error-message"
+              id="errorMessage"
+              style={{ display: 'none', color: '#dc3545', padding: '20px', textAlign: 'center' }}
+            />
+            <canvas id="canvas" />
           </div>
-          <div
-            className="error-message"
-            id="errorMessage"
-            style={{ display: 'none', color: '#dc3545', padding: '20px', textAlign: 'center' }}
-          />
-          <canvas id="canvas" />
+
+          <div className="preview-bar" id="previewBar">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ color: '#aaa', fontSize: '12px' }} id="imagePreviewCount">
+                  {t('editor.preview.images')}
+                </div>
+                <div className="select-mode-actions" id="selectModeActions" style={{ display: 'none' }}>
+                  <button className="btn btn-secondary btn-small" onClick={() => callApi('selectAllImages')}>
+                    {t('editor.selectMode.selectAll')}
+                  </button>
+                  <button className="btn btn-secondary btn-small" onClick={() => callApi('deselectAllImages')}>
+                    {t('editor.selectMode.deselectAll')}
+                  </button>
+                  <button className="btn-delete-selected" id="deleteSelectedBtn" onClick={() => callApi('deleteSelectedImages')}>
+                    {t('editor.selectMode.deleteSelected', { count: '0' })}
+                  </button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <select id="previewSort" className="preview-sort-select" onChange={() => callApi('handlePreviewSortChange')}>
+                  <option value="name-asc">{t('editor.preview.nameAsc')}</option>
+                  <option value="name-desc">{t('editor.preview.nameDesc')}</option>
+                  <option value="created-desc">{t('editor.preview.createdNewest')}</option>
+                  <option value="created-asc">{t('editor.preview.createdOldest')}</option>
+                </select>
+                <button className="btn btn-secondary btn-small" onClick={() => callApi('resetFilterAndSort')}>
+                  {t('editor.filter.resetAll')}
+                </button>
+                <input
+                  type="text"
+                  id="previewSearch"
+                  className="preview-search-input"
+                  placeholder={t('editor.preview.searchFilename')}
+                  onInput={() => callApi('handlePreviewSearch')}
+                />
+              </div>
+            </div>
+            <div className="preview-progress">
+              <div className="preview-progress-fill" id="previewProgressFill" />
+            </div>
+            <div className="image-preview" id="imagePreview" />
+          </div>
         </div>
 
         <div className="sidebar">
@@ -235,49 +280,6 @@ export default function LabelEditorPage() {
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="preview-bar" id="previewBar">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <div style={{ color: '#aaa', fontSize: '12px' }} id="imagePreviewCount">
-              {t('editor.preview.images')}
-            </div>
-            <div className="select-mode-actions" id="selectModeActions" style={{ display: 'none' }}>
-              <button className="btn btn-secondary btn-small" onClick={() => callApi('selectAllImages')}>
-                {t('editor.selectMode.selectAll')}
-              </button>
-              <button className="btn btn-secondary btn-small" onClick={() => callApi('deselectAllImages')}>
-                {t('editor.selectMode.deselectAll')}
-              </button>
-              <button className="btn-delete-selected" id="deleteSelectedBtn" onClick={() => callApi('deleteSelectedImages')}>
-                {t('editor.selectMode.deleteSelected', { count: '0' })}
-              </button>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select id="previewSort" className="preview-sort-select" onChange={() => callApi('handlePreviewSortChange')}>
-              <option value="name-asc">{t('editor.preview.nameAsc')}</option>
-              <option value="name-desc">{t('editor.preview.nameDesc')}</option>
-              <option value="created-desc">{t('editor.preview.createdNewest')}</option>
-              <option value="created-asc">{t('editor.preview.createdOldest')}</option>
-            </select>
-            <button className="btn btn-secondary btn-small" onClick={() => callApi('resetFilterAndSort')}>
-              {t('editor.filter.resetAll')}
-            </button>
-            <input
-              type="text"
-              id="previewSearch"
-              className="preview-search-input"
-              placeholder={t('editor.preview.searchFilename')}
-              onInput={() => callApi('handlePreviewSearch')}
-            />
-          </div>
-        </div>
-        <div className="preview-progress">
-          <div className="preview-progress-fill" id="previewProgressFill" />
-        </div>
-        <div className="image-preview" id="imagePreview" />
       </div>
 
       <div className="status-bar" id="statusBar">
