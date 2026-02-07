@@ -1226,6 +1226,61 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
         }
 
+        function drawPreviewAnnotations(canvas, img, imagePath) {
+            const pCtx = canvas.getContext('2d');
+            const cw = canvas.width;
+            const ch = canvas.height;
+            pCtx.clearRect(0, 0, cw, ch);
+            if (!img.naturalWidth || !img.naturalHeight) return;
+            if (img.dataset.loaded !== 'true') return;
+            const cached = preloadedLabels.get(imagePath);
+            if (!cached || cached.loading || !cached.labelContent) return;
+            const anns = parseLabelData(cached.labelContent);
+            if (!anns || anns.length === 0) return;
+
+            const imgW = img.naturalWidth;
+            const imgH = img.naturalHeight;
+            const scale = Math.max(cw / imgW, ch / imgH);
+            const ox = (imgW * scale - cw) / 2;
+            const oy = (imgH * scale - ch) / 2;
+
+            pCtx.lineWidth = 1.5;
+            anns.forEach(ann => {
+                pCtx.strokeStyle = getClassColor(ann.class);
+                if (ann.type === 'obb') {
+                    pCtx.beginPath();
+                    ann.points.forEach((p, i) => {
+                        const px = p.x * imgW * scale - ox;
+                        const py = p.y * imgH * scale - oy;
+                        if (i === 0) pCtx.moveTo(px, py);
+                        else pCtx.lineTo(px, py);
+                    });
+                    pCtx.closePath();
+                    pCtx.stroke();
+                } else {
+                    const bx = (ann.x - ann.w / 2) * imgW * scale - ox;
+                    const by = (ann.y - ann.h / 2) * imgH * scale - oy;
+                    const bw = ann.w * imgW * scale;
+                    const bh = ann.h * imgH * scale;
+                    pCtx.strokeRect(bx, by, bw, bh);
+                }
+            });
+        }
+
+        function updatePreviewAnnotations() {
+            const previewContainer = document.getElementById('imagePreview');
+            if (!previewContainer) return;
+            previewContainer.querySelectorAll('.preview-item').forEach(item => {
+                const img = item.querySelector('img');
+                const annCanvas = item.querySelector('canvas.preview-annotations');
+                if (!img || !annCanvas) return;
+                const imagePath = img.dataset.imagePath;
+                if (imagePath) {
+                    drawPreviewAnnotations(annCanvas, img, imagePath);
+                }
+            });
+        }
+
         function createPreviewItem(index) {
             const imagePath = imageList[index]; // Get the actual image path from filtered list
 
@@ -1241,9 +1296,20 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             img.draggable = false;
             img.dataset.imagePath = imagePath;
 
+            // Canvas overlay for annotation previews
+            const annCanvas = document.createElement('canvas');
+            annCanvas.className = 'preview-annotations';
+            annCanvas.width = 100;
+            annCanvas.height = 100;
+
+            img.onload = () => {
+                drawPreviewAnnotations(annCanvas, img, imagePath);
+            };
+
             // Use image path as cache key instead of index
             if (imageThumbnails[imagePath]) {
                 img.src = imageThumbnails[imagePath];
+                img.dataset.loaded = 'true';
             } else {
                 const loadingText = encodeURIComponent(t('common.loading'));
                 img.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" fill="%23aaa" font-size="12">${loadingText}</text></svg>`;
@@ -1276,6 +1342,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
 
             previewItem.appendChild(img);
+            previewItem.appendChild(annCanvas);
             previewItem.appendChild(label);
 
             previewItem.onclick = async () => {
@@ -1563,6 +1630,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
             }
             const selector = getPreviewImageSelector(imagePath);
             previewContainer.querySelectorAll(selector).forEach((img) => {
+                img.dataset.loaded = 'true';
                 img.src = dataUrl;
             });
         }
@@ -2177,6 +2245,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                             labelContent: labelContent || ''
                         });
                     }
+                    updatePreviewAnnotations();
                 } catch (err) {
                     // On error, remove loading markers
                     toLoad.forEach(imgPath => preloadedLabels.delete(imgPath));
@@ -4676,6 +4745,7 @@ import { initI18n, onLanguageChange, t } from '@/lib/i18n';
                     loading: false,
                     labelContent: yoloContent
                 });
+                updatePreviewAnnotations();
 
                 setUnsavedChanges(false);
 
