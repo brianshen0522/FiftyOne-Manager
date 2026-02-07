@@ -4,7 +4,7 @@
  */
 
 const STORAGE_KEY = 'app_language';
-const DEFAULT_LANG = 'zh-TW';
+const DEFAULT_LANG = 'en';
 const SUPPORTED_LANGS = ['zh-TW', 'en'];
 
 let currentLang = DEFAULT_LANG;
@@ -16,11 +16,13 @@ let listeners = [];
  * @returns {Promise<void>}
  */
 export async function initI18n() {
-  // 從 localStorage 讀取語言設定
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && SUPPORTED_LANGS.includes(saved)) {
       currentLang = saved;
+    } else {
+      const browserLang = navigator.language || navigator.userLanguage || '';
+      currentLang = browserLang.startsWith('zh') ? 'zh-TW' : 'en';
     }
   }
 
