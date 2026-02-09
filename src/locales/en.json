@@ -95,7 +95,6 @@
       "duplicateMode": "Duplicate Mode",
       "duplicateModeLabel": "Duplicate Mode",
       "duplicateModeHint": "How duplicates will be handled when starting this instance",
-      "duplicateModeEnv": ".env (Default)",
       "duplicateModeNone": "None",
       "duplicateModeSkip": "skip",
       "duplicateModeMove": "move",

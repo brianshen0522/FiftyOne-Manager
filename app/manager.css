@@ -386,6 +386,13 @@
             color: var(--text);
         }
 
+        .form-group input:disabled {
+            background: var(--card-muted);
+            color: var(--subtle);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
         .form-group input:focus,
         .form-group select:focus {
             outline: none;

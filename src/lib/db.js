@@ -46,7 +46,7 @@ export async function initDatabase() {
         selected_images JSONB DEFAULT '[]',
         filter JSONB,
         preview_sort_mode VARCHAR(50),
-        duplicate_mode VARCHAR(50) DEFAULT 'env'
+        duplicate_mode VARCHAR(50) DEFAULT 'move'
       );
 
       CREATE UNIQUE INDEX IF NOT EXISTS idx_instances_port ON instances(port);
@@ -55,7 +55,7 @@ export async function initDatabase() {
     // Add duplicate_mode column if missing (migration for existing databases)
     if (tableExists) {
       await client.query(`
-        ALTER TABLE instances ADD COLUMN IF NOT EXISTS duplicate_mode VARCHAR(50) DEFAULT 'env';
+        ALTER TABLE instances ADD COLUMN IF NOT EXISTS duplicate_mode VARCHAR(50) DEFAULT 'move';
       `);
     }
 
@@ -124,7 +124,7 @@ export async function initDatabase() {
               JSON.stringify(instance.selectedImages || []),
               instance.filter ? JSON.stringify(instance.filter) : null,
               instance.previewSortMode || null,
-              instance.duplicateMode || 'env'
+              instance.duplicateMode || 'move'
             ]
           );
         }
@@ -174,7 +174,7 @@ function rowToInstance(row) {
     selectedImages: row.selected_images || [],
     filter: row.filter,
     previewSortMode: row.preview_sort_mode,
-    duplicateMode: row.duplicate_mode || 'env'
+    duplicateMode: row.duplicate_mode || 'move'
   };
 }
 
@@ -239,7 +239,7 @@ export async function createInstance(data) {
         data.autoSync !== undefined ? data.autoSync : true,
         data.status || 'stopped',
         data.createdAt || new Date().toISOString(),
-        data.duplicateMode || 'env'
+        data.duplicateMode || 'move'
       ]
     );
     return rowToInstance(result.rows[0]);
@@ -290,7 +290,7 @@ export async function updateInstance(name, data) {
     }
     if (data.duplicateMode !== undefined) {
       setClauses.push(`duplicate_mode = $${paramIndex++}`);
-      values.push(data.duplicateMode || 'env');
+      values.push(data.duplicateMode || 'move');
     }
 
     setClauses.push(`updated_at = $${paramIndex++}`);

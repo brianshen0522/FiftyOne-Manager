@@ -189,8 +189,7 @@ export default function Page() {
             </div>
             <div className="form-group">
               <label htmlFor="duplicateMode">{t('manager.modal.duplicateModeLabel')}</label>
-              <select id="duplicateMode" onChange={() => callApi('onDuplicateModeChange')}>
-                <option value="env">{t('manager.modal.duplicateModeEnv')}</option>
+              <select id="duplicateMode" onChange={() => callApi('updateDuplicateModeDisplay')}>
                 <option value="none">{t('manager.modal.duplicateModeNone')}</option>
                 <option value="move">{t('manager.modal.duplicateModeMove')}</option>
                 <option value="delete">{t('manager.modal.duplicateModeDelete')}</option>

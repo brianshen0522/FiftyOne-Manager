@@ -129,7 +129,7 @@ export const POST = withApiLogging(async (req) => {
       obbMode: obbMode || 'rectangle',
       classFile: classFile || null,
       autoSync: autoSync !== undefined ? autoSync : true,
-      duplicateMode: duplicateMode || 'env',
+      duplicateMode: duplicateMode || 'move',
       status: 'stopped',
       createdAt: new Date().toISOString()
     });

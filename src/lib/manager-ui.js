@@ -13,6 +13,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         const SCROLL_THRESHOLD = 40;
         let selectedInstances = new Set();
         const lastHealthByInstance = new Map();
+        let lastEnvRule = null;
+        let suppressDuplicateDefault = false;
 
         function showProcessing(text = t('common.processing')) {
             const overlay = document.getElementById('processingOverlay');
@@ -155,7 +157,39 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             navigateToPath('');
         }
 
-        async function fetchDuplicateRule(datasetPath) {
+        function getMatchingDuplicateRule(datasetPath) {
+            const rules = config.duplicateRules || [];
+            const defaultAction = config.duplicateDefaultAction || 'move';
+
+            if (!datasetPath) {
+                return { action: defaultAction, labels: 0, matchedPattern: null };
+            }
+
+            const matchingRules = [];
+            const pathLower = datasetPath.toLowerCase();
+
+            for (const rule of rules) {
+                const pattern = rule.pattern || '';
+                if (pattern && pathLower.includes(pattern.toLowerCase())) {
+                    matchingRules.push(rule);
+                }
+            }
+
+            if (matchingRules.length === 0) {
+                return { action: defaultAction, labels: 0, matchedPattern: null };
+            }
+
+            matchingRules.sort((a, b) => (a.priority || 999) - (b.priority || 999));
+            const winner = matchingRules[0];
+
+            return {
+                action: winner.action || defaultAction,
+                labels: winner.labels || 0,
+                matchedPattern: winner.pattern
+            };
+        }
+
+        function fetchDuplicateRule(datasetPath, setDefault = false) {
             const infoEl = document.getElementById('duplicateModeEnvInfo');
             const actionEl = document.getElementById('duplicateModeAction');
             const labelsEl = document.getElementById('duplicateModeLabels');
@@ -163,59 +197,103 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
             if (!infoEl || !actionEl || !labelsEl || !patternEl) return;
 
-            // Only show env info when duplicate mode is set to 'env'
-            const modeSelect = document.getElementById('duplicateMode');
-            if (!modeSelect || modeSelect.value !== 'env') {
-                infoEl.style.display = 'none';
-                return;
-            }
-
             if (!datasetPath) {
                 infoEl.style.display = 'none';
                 return;
             }
 
-            try {
-                const response = await fetch(`${API_BASE}/api/duplicate-rule?path=${encodeURIComponent(datasetPath)}`);
-                const rule = await response.json();
+            const rule = getMatchingDuplicateRule(datasetPath);
+            lastEnvRule = rule;
 
-                // Show the info box
-                infoEl.style.display = 'flex';
+            // Show the info box
+            infoEl.style.display = 'flex';
 
-                // Set action with appropriate styling
-                const actionKey = `manager.modal.duplicateMode${rule.action.charAt(0).toUpperCase() + rule.action.slice(1)}`;
-                actionEl.textContent = t(actionKey) || rule.action;
-                actionEl.className = `duplicate-mode-action action-${rule.action}`;
+            // Set action with appropriate styling
+            const actionKey = `manager.modal.duplicateMode${rule.action.charAt(0).toUpperCase() + rule.action.slice(1)}`;
+            actionEl.textContent = t(actionKey) || rule.action;
+            actionEl.className = `duplicate-mode-action action-${rule.action}`;
 
-                // Set labels info
-                if (rule.labels === 0) {
-                    labelsEl.textContent = `(${t('manager.modal.duplicateLabels')}: ${t('manager.modal.duplicateLabelsAll')})`;
-                } else {
-                    labelsEl.textContent = `(${t('manager.modal.duplicateLabels')}: ${rule.labels})`;
+            // Set labels info
+            if (rule.labels === 0) {
+                labelsEl.textContent = `(${t('manager.modal.duplicateLabels')}: ${t('manager.modal.duplicateLabelsAll')})`;
+            } else {
+                labelsEl.textContent = `(${t('manager.modal.duplicateLabels')}: ${rule.labels})`;
+            }
+
+            // Set matched pattern if any
+            if (rule.matchedPattern) {
+                patternEl.textContent = t('manager.modal.duplicateMatchedPattern', { pattern: rule.matchedPattern });
+                patternEl.style.display = 'inline';
+            } else {
+                patternEl.textContent = `(${t('manager.modal.duplicateModeDefault')})`;
+                patternEl.style.display = 'inline';
+            }
+
+            // Mark the .env default option in the dropdown
+            const modeSelect = document.getElementById('duplicateMode');
+            if (modeSelect) {
+                const envValue = rule.action === 'skip' ? 'none' : rule.action;
+                for (const opt of modeSelect.options) {
+                    const baseKey = `manager.modal.duplicateMode${opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}`;
+                    opt.textContent = opt.value === envValue
+                        ? `${t(baseKey)} (.env)`
+                        : t(baseKey);
                 }
-
-                // Set matched pattern if any
-                if (rule.matchedPattern) {
-                    patternEl.textContent = t('manager.modal.duplicateMatchedPattern', { pattern: rule.matchedPattern });
-                    patternEl.style.display = 'inline';
-                } else {
-                    patternEl.textContent = `(${t('manager.modal.duplicateModeDefault')})`;
-                    patternEl.style.display = 'inline';
+                if (setDefault && !suppressDuplicateDefault) {
+                    modeSelect.value = envValue;
+                    updateDuplicateModeDisplay();
                 }
-            } catch (err) {
-                console.error('Failed to fetch duplicate rule:', err);
-                infoEl.style.display = 'none';
             }
         }
 
-        function onDuplicateModeChange() {
+        function updateDuplicateModeDisplay() {
+            const infoEl = document.getElementById('duplicateModeEnvInfo');
+            const actionEl = document.getElementById('duplicateModeAction');
+            const labelsEl = document.getElementById('duplicateModeLabels');
+            const patternEl = document.getElementById('duplicateModePattern');
             const modeSelect = document.getElementById('duplicateMode');
-            const datasetPath = document.getElementById('datasetPath').value;
-            if (modeSelect && modeSelect.value === 'env' && datasetPath) {
-                fetchDuplicateRule(datasetPath);
+
+            if (!infoEl || !actionEl || !modeSelect) return;
+
+            const mode = modeSelect.value;
+            const thresholdInput = document.getElementById('threshold');
+            if (thresholdInput) {
+                thresholdInput.disabled = mode === 'none';
+            }
+
+            if (!mode) {
+                infoEl.style.display = 'none';
+                return;
+            }
+
+            infoEl.style.display = 'flex';
+
+            // Map dropdown value to display action ('none' displays as 'skip')
+            const displayAction = mode === 'none' ? 'skip' : mode;
+            const actionKey = `manager.modal.duplicateMode${displayAction.charAt(0).toUpperCase() + displayAction.slice(1)}`;
+            actionEl.textContent = t(actionKey) || displayAction;
+            actionEl.className = `duplicate-mode-action action-${displayAction}`;
+
+            // If selection matches the .env rule, restore full .env details
+            const envAction = lastEnvRule ? (lastEnvRule.action === 'skip' ? 'none' : lastEnvRule.action) : null;
+            if (lastEnvRule && mode === envAction) {
+                if (labelsEl) {
+                    labelsEl.textContent = lastEnvRule.labels === 0
+                        ? `(${t('manager.modal.duplicateLabels')}: ${t('manager.modal.duplicateLabelsAll')})`
+                        : `(${t('manager.modal.duplicateLabels')}: ${lastEnvRule.labels})`;
+                }
+                if (patternEl) {
+                    patternEl.textContent = lastEnvRule.matchedPattern
+                        ? t('manager.modal.duplicateMatchedPattern', { pattern: lastEnvRule.matchedPattern })
+                        : `(${t('manager.modal.duplicateModeDefault')})`;
+                    patternEl.style.display = 'inline';
+                }
             } else {
-                const infoEl = document.getElementById('duplicateModeEnvInfo');
-                if (infoEl) infoEl.style.display = 'none';
+                if (labelsEl) labelsEl.textContent = '';
+                if (patternEl) {
+                    patternEl.textContent = '';
+                    patternEl.style.display = 'none';
+                }
             }
         }
 
@@ -251,7 +329,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             if (path && await isDatasetFolder(fullPath)) {
                 // Select this folder as dataset path without entering it
                 document.getElementById('datasetPath').value = fullPath;
-                fetchDuplicateRule(fullPath);
+                fetchDuplicateRule(fullPath, true);
 
                 // Auto-populate instance name
                 const instanceNameField = document.getElementById('instanceName');
@@ -284,7 +362,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 document.getElementById('datasetPath').value = fullPath;
 
                 // Fetch and display duplicate rule for this path
-                fetchDuplicateRule(fullPath);
+                fetchDuplicateRule(fullPath, true);
 
                 // Auto-populate instance name from last folder name (only when adding new instance)
                 const instanceNameField = document.getElementById('instanceName');
@@ -688,7 +766,6 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 const health = healthMeta(instance);
                 const hasError = instance.status && instance.status.toLowerCase() === 'error';
                 const serviceDown = (instance.serviceHealth || '').toLowerCase() === 'unhealthy';
-
                 return `
                 <div class="instance-card">
                     <div class="instance-header">
@@ -1071,7 +1148,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             editingInstance = null;
             document.getElementById('modalTitle').textContent = t('manager.modal.addTitle');
             document.getElementById('instanceForm').reset();
-            document.getElementById('threshold').value = config.defaultThreshold;
+            document.getElementById('threshold').value = config.defaultIouThreshold;
+            document.getElementById('threshold').disabled = false;
             document.getElementById('autoSync').checked = true;
             document.getElementById('pentagonFormat').checked = false;
             document.getElementById('obbMode').value = 'rectangle';
@@ -1081,8 +1159,8 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             document.getElementById('modalError').style.display = 'none';
             document.getElementById('instanceModal').classList.add('active');
             hideClassPreview();
-            // Reset duplicate mode dropdown to default
-            document.getElementById('duplicateMode').value = 'env';
+            // Reset duplicate mode dropdown (will be set from .env when path is selected)
+            document.getElementById('duplicateMode').value = 'move';
             const duplicateModeEnvInfo = document.getElementById('duplicateModeEnvInfo');
             if (duplicateModeEnvInfo) duplicateModeEnvInfo.style.display = 'none';
             populateDatasetOptions();
@@ -1124,7 +1202,6 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 document.getElementById('autoSync').checked = instance.autoSync || false;
                 document.getElementById('pentagonFormat').checked = instance.pentagonFormat || false;
                 document.getElementById('obbMode').value = instance.obbMode || 'rectangle';
-                document.getElementById('duplicateMode').value = instance.duplicateMode || 'env';
                 document.getElementById('classFile').value = instance.classFile || '';
 
                 // Show/hide OBB mode dropdown based on pentagonFormat
@@ -1141,6 +1218,9 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 } else {
                     hideClassPreview();
                 }
+
+                // Suppress async fetchDuplicateRule from overriding stored mode during edit setup
+                suppressDuplicateDefault = true;
 
                 // Populate dataset options first (this will reset the path)
                 populateDatasetOptions();
@@ -1194,10 +1274,15 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 document.getElementById('instancePort').value = instance.port;
                 updateSelectedPortDisplay();
 
-                // Fetch and display duplicate rule for this instance's path
+                // Fetch .env rule for this path (to cache it and mark .env option), then set stored mode
+                suppressDuplicateDefault = false;
                 if (instance.datasetPath) {
-                    fetchDuplicateRule(instance.datasetPath);
+                    fetchDuplicateRule(instance.datasetPath, false);
                 }
+                document.getElementById('duplicateMode').value = instance.duplicateMode || 'move';
+                document.getElementById('threshold').disabled = (instance.duplicateMode || 'move') === 'none';
+                // Show the instance's stored duplicate mode in the info block
+                updateDuplicateModeDisplay();
             } catch (err) {
                 alert(`Failed to load instance: ${err.message}`);
             }
@@ -1254,12 +1339,12 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const name = document.getElementById('instanceName').value;
             const port = parseInt(document.getElementById('instancePort').value, 10);
             const datasetPath = document.getElementById('datasetPath').value;
-            const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultThreshold;
+            const threshold = parseFloat(document.getElementById('threshold').value) || config.defaultIouThreshold;
             const autoSync = document.getElementById('autoSync').checked;
             const pentagonFormat = document.getElementById('pentagonFormat').checked;
             const obbMode = document.getElementById('obbMode').value || 'rectangle';
             const classFile = document.getElementById('classFile').value || null;
-            const duplicateMode = document.getElementById('duplicateMode').value || 'env';
+            const duplicateMode = document.getElementById('duplicateMode').value || 'move';
 
             if (!validateInstanceName()) {
                 return;
@@ -1511,10 +1596,10 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const datasetPathInput = document.getElementById('datasetPath');
             if (datasetPathInput) {
                 datasetPathInput.addEventListener('change', () => {
-                    fetchDuplicateRule(datasetPathInput.value);
+                    fetchDuplicateRule(datasetPathInput.value, true);
                 });
                 datasetPathInput.addEventListener('blur', () => {
-                    fetchDuplicateRule(datasetPathInput.value);
+                    fetchDuplicateRule(datasetPathInput.value, true);
                 });
             }
         }
@@ -1549,7 +1634,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             window.clearFolderSearch = clearFolderSearch;
             window.filterClassFolderList = filterClassFolderList;
             window.clearClassFolderSearch = clearClassFolderSearch;
-            window.onDuplicateModeChange = onDuplicateModeChange;
+            window.updateDuplicateModeDisplay = updateDuplicateModeDisplay;
             window.currentClassPath = currentClassPath;
         }
 
@@ -1631,5 +1716,5 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             clearFolderSearch,
             filterClassFolderList,
             clearClassFolderSearch,
-            onDuplicateModeChange
+            updateDuplicateModeDisplay
         };
