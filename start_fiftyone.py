@@ -36,6 +36,41 @@ def unique_target_path(img_dir: str, label_dir: str, filename: str) -> Tuple[str
         idx += 1
 
 
+def remove_orphaned_labels(dataset_base: str) -> int:
+    """
+    Remove label .txt files that have no corresponding image file.
+    Returns the number of removed files.
+    """
+    img_dir = os.path.join(dataset_base, "images")
+    label_dir = os.path.join(dataset_base, "labels")
+
+    if not os.path.isdir(label_dir):
+        return 0
+
+    image_extensions = (".jpg", ".jpeg", ".png")
+    removed = 0
+
+    for txt_file in os.listdir(label_dir):
+        if not txt_file.lower().endswith(".txt"):
+            continue
+
+        stem = os.path.splitext(txt_file)[0]
+        has_image = any(
+            os.path.exists(os.path.join(img_dir, stem + ext))
+            for ext in image_extensions
+        )
+
+        if not has_image:
+            txt_path = os.path.join(label_dir, txt_file)
+            os.remove(txt_path)
+            print(f"Removed orphaned label: {txt_path}")
+            removed += 1
+
+    if removed:
+        print(f"Removed {removed} orphaned label file(s)")
+    return removed
+
+
 def get_label_path(image_path: str) -> str:
     """Convert image path to corresponding label path."""
     label_path = image_path.replace("images", "labels")
@@ -576,6 +611,9 @@ def main() -> None:
         except json.JSONDecodeError as e:
             print(f"Warning: Failed to parse duplicate_rules JSON: {e}")
             duplicate_rules = []
+
+    # Remove label files whose corresponding image no longer exists
+    remove_orphaned_labels(dataset_base)
 
     # Run duplicate detection using label comparison only (no image hashing)
     handle_duplicates(
