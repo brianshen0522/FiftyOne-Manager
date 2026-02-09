@@ -624,6 +624,9 @@ def main() -> None:
         default_action=args.duplicate_default_action,
     )
 
+    # Remove any labels orphaned by duplicate handling
+    remove_orphaned_labels(dataset_base)
+
     # ------------------------------------------------------------------
     # 1. Build your custom dataset from images + YOLO labels
     # ------------------------------------------------------------------
