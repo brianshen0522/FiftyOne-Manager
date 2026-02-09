@@ -50,7 +50,9 @@ export const POST = withApiLogging(async (req, { params }) => {
       PUBLIC_ADDRESS: CONFIG.publicAddress
     };
     // Duplicate mode per instance: none → skip, move, delete
+    // Clear DUPLICATE_RULES so .env rules don't override the user's choice
     const dupMode = instance.duplicateMode || 'move';
+    envVars.DUPLICATE_RULES = '';
     if (dupMode === 'none') {
       envVars.DUPLICATE_DEFAULT_ACTION = 'skip';
     } else {

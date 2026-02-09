@@ -236,7 +236,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 for (const opt of modeSelect.options) {
                     const baseKey = `manager.modal.duplicateMode${opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}`;
                     opt.textContent = opt.value === envValue
-                        ? `${t(baseKey)} (.env)`
+                        ? `${t(baseKey)} (${t('manager.modal.duplicateModeDefault')})`
                         : t(baseKey);
                 }
                 if (setDefault && !suppressDuplicateDefault) {
