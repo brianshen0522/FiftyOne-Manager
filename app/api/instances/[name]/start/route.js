@@ -49,11 +49,20 @@ export const POST = withApiLogging(async (req, { params }) => {
       MANAGER_PORT: CONFIG.managerPort,
       PUBLIC_ADDRESS: CONFIG.publicAddress
     };
-    if (process.env.DUPLICATE_RULES) {
-      envVars.DUPLICATE_RULES = process.env.DUPLICATE_RULES;
-    }
-    if (process.env.DUPLICATE_DEFAULT_ACTION) {
-      envVars.DUPLICATE_DEFAULT_ACTION = process.env.DUPLICATE_DEFAULT_ACTION;
+    // Duplicate mode: 'env' uses .env config, others override directly
+    const dupMode = instance.duplicateMode || 'env';
+    if (dupMode === 'env') {
+      if (process.env.DUPLICATE_RULES) {
+        envVars.DUPLICATE_RULES = process.env.DUPLICATE_RULES;
+      }
+      if (process.env.DUPLICATE_DEFAULT_ACTION) {
+        envVars.DUPLICATE_DEFAULT_ACTION = process.env.DUPLICATE_DEFAULT_ACTION;
+      }
+    } else if (dupMode === 'none') {
+      envVars.DUPLICATE_DEFAULT_ACTION = 'skip';
+    } else {
+      // 'move' or 'delete'
+      envVars.DUPLICATE_DEFAULT_ACTION = dupMode;
     }
 
     const escapeShellValue = (value) => `'${String(value).replace(/'/g, `'\\''`)}'`;

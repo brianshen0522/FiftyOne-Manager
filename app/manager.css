@@ -425,6 +425,11 @@
             font-size: 11px;
         }
 
+        .duplicate-mode-action.action-none {
+            background: var(--subtle);
+            color: #fff;
+        }
+
         .duplicate-mode-action.action-skip {
             background: var(--yellow);
             color: #0a111f;

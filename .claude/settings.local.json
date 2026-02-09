@@ -34,7 +34,8 @@
       "Bash(wc:*)",
       "Bash(node:*)",
       "Bash(grep:*)",
-      "Bash(git -C /home/brian/projects/test/FiftyOne-Manager log --oneline -20)"
+      "Bash(git -C /home/brian/projects/test/FiftyOne-Manager log --oneline -20)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

@@ -156,12 +156,19 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
         }
 
         async function fetchDuplicateRule(datasetPath) {
-            const infoEl = document.getElementById('duplicateModeInfo');
+            const infoEl = document.getElementById('duplicateModeEnvInfo');
             const actionEl = document.getElementById('duplicateModeAction');
             const labelsEl = document.getElementById('duplicateModeLabels');
             const patternEl = document.getElementById('duplicateModePattern');
 
             if (!infoEl || !actionEl || !labelsEl || !patternEl) return;
+
+            // Only show env info when duplicate mode is set to 'env'
+            const modeSelect = document.getElementById('duplicateMode');
+            if (!modeSelect || modeSelect.value !== 'env') {
+                infoEl.style.display = 'none';
+                return;
+            }
 
             if (!datasetPath) {
                 infoEl.style.display = 'none';
@@ -198,6 +205,17 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             } catch (err) {
                 console.error('Failed to fetch duplicate rule:', err);
                 infoEl.style.display = 'none';
+            }
+        }
+
+        function onDuplicateModeChange() {
+            const modeSelect = document.getElementById('duplicateMode');
+            const datasetPath = document.getElementById('datasetPath').value;
+            if (modeSelect && modeSelect.value === 'env' && datasetPath) {
+                fetchDuplicateRule(datasetPath);
+            } else {
+                const infoEl = document.getElementById('duplicateModeEnvInfo');
+                if (infoEl) infoEl.style.display = 'none';
             }
         }
 
@@ -1063,9 +1081,10 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             document.getElementById('modalError').style.display = 'none';
             document.getElementById('instanceModal').classList.add('active');
             hideClassPreview();
-            // Hide duplicate mode info initially
-            const duplicateModeInfo = document.getElementById('duplicateModeInfo');
-            if (duplicateModeInfo) duplicateModeInfo.style.display = 'none';
+            // Reset duplicate mode dropdown to default
+            document.getElementById('duplicateMode').value = 'env';
+            const duplicateModeEnvInfo = document.getElementById('duplicateModeEnvInfo');
+            if (duplicateModeEnvInfo) duplicateModeEnvInfo.style.display = 'none';
             populateDatasetOptions();
 
             // Initialize class file browser
@@ -1105,6 +1124,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
                 document.getElementById('autoSync').checked = instance.autoSync || false;
                 document.getElementById('pentagonFormat').checked = instance.pentagonFormat || false;
                 document.getElementById('obbMode').value = instance.obbMode || 'rectangle';
+                document.getElementById('duplicateMode').value = instance.duplicateMode || 'env';
                 document.getElementById('classFile').value = instance.classFile || '';
 
                 // Show/hide OBB mode dropdown based on pentagonFormat
@@ -1239,12 +1259,13 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             const pentagonFormat = document.getElementById('pentagonFormat').checked;
             const obbMode = document.getElementById('obbMode').value || 'rectangle';
             const classFile = document.getElementById('classFile').value || null;
+            const duplicateMode = document.getElementById('duplicateMode').value || 'env';
 
             if (!validateInstanceName()) {
                 return;
             }
 
-            const data = { name, port, datasetPath, threshold, autoSync, pentagonFormat, obbMode, classFile };
+            const data = { name, port, datasetPath, threshold, autoSync, pentagonFormat, obbMode, classFile, duplicateMode };
 
             try {
                 if (!config.portRange) {
@@ -1528,6 +1549,7 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             window.clearFolderSearch = clearFolderSearch;
             window.filterClassFolderList = filterClassFolderList;
             window.clearClassFolderSearch = clearClassFolderSearch;
+            window.onDuplicateModeChange = onDuplicateModeChange;
             window.currentClassPath = currentClassPath;
         }
 
@@ -1608,5 +1630,6 @@ const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
             filterFolderList,
             clearFolderSearch,
             filterClassFolderList,
-            clearClassFolderSearch
+            clearClassFolderSearch,
+            onDuplicateModeChange
         };

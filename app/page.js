@@ -158,12 +158,6 @@ export default function Page() {
               </div>
               <input type="text" id="datasetPath" required placeholder={t('manager.modal.datasetPathHint')} />
               <small>{t('manager.modal.datasetPathHint')}</small>
-              <div id="duplicateModeInfo" className="duplicate-mode-info" style={{ display: 'none' }}>
-                <span className="duplicate-mode-label">{t('manager.modal.duplicateMode')}:</span>
-                <span id="duplicateModeAction" className="duplicate-mode-action"></span>
-                <span id="duplicateModeLabels" className="duplicate-mode-labels"></span>
-                <span id="duplicateModePattern" className="duplicate-mode-pattern"></span>
-              </div>
             </div>
             <div className="form-group" data-tour="form-classfile">
               <label htmlFor="classFile">{t('manager.modal.classFile')}</label>
@@ -191,6 +185,22 @@ export default function Page() {
                 </div>
                 <div id="classPreviewNote" className="class-preview-note" style={{ display: 'none' }} />
                 <div id="classPreviewError" className="class-preview-error" style={{ display: 'none' }} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="duplicateMode">{t('manager.modal.duplicateModeLabel')}</label>
+              <select id="duplicateMode" onChange={() => callApi('onDuplicateModeChange')}>
+                <option value="env">{t('manager.modal.duplicateModeEnv')}</option>
+                <option value="none">{t('manager.modal.duplicateModeNone')}</option>
+                <option value="move">{t('manager.modal.duplicateModeMove')}</option>
+                <option value="delete">{t('manager.modal.duplicateModeDelete')}</option>
+              </select>
+              <small>{t('manager.modal.duplicateModeHint')}</small>
+              <div id="duplicateModeEnvInfo" className="duplicate-mode-info" style={{ display: 'none' }}>
+                <span className="duplicate-mode-label">{t('manager.modal.duplicateMode')}:</span>
+                <span id="duplicateModeAction" className="duplicate-mode-action"></span>
+                <span id="duplicateModeLabels" className="duplicate-mode-labels"></span>
+                <span id="duplicateModePattern" className="duplicate-mode-pattern"></span>
               </div>
             </div>
             <div className="form-group">

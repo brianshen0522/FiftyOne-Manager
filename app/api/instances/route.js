@@ -88,7 +88,8 @@ export const POST = withApiLogging(async (req) => {
       pentagonFormat,
       obbMode,
       classFile,
-      autoSync
+      autoSync,
+      duplicateMode
     } = body;
 
     if (!name || !port || !datasetPath) {
@@ -128,6 +129,7 @@ export const POST = withApiLogging(async (req) => {
       obbMode: obbMode || 'rectangle',
       classFile: classFile || null,
       autoSync: autoSync !== undefined ? autoSync : true,
+      duplicateMode: duplicateMode || 'env',
       status: 'stopped',
       createdAt: new Date().toISOString()
     });

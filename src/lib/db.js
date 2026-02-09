@@ -45,11 +45,19 @@ export async function initDatabase() {
         last_image_path TEXT,
         selected_images JSONB DEFAULT '[]',
         filter JSONB,
-        preview_sort_mode VARCHAR(50)
+        preview_sort_mode VARCHAR(50),
+        duplicate_mode VARCHAR(50) DEFAULT 'env'
       );
 
       CREATE UNIQUE INDEX IF NOT EXISTS idx_instances_port ON instances(port);
     `);
+
+    // Add duplicate_mode column if missing (migration for existing databases)
+    if (tableExists) {
+      await client.query(`
+        ALTER TABLE instances ADD COLUMN IF NOT EXISTS duplicate_mode VARCHAR(50) DEFAULT 'env';
+      `);
+    }
 
     const instancesPath = path.join(process.cwd(), 'instances.json', 'instances.json');
     if (fs.existsSync(instancesPath)) {
@@ -89,10 +97,11 @@ export async function initDatabase() {
               last_image_path,
               selected_images,
               filter,
-              preview_sort_mode
+              preview_sort_mode,
+              duplicate_mode
             ) VALUES (
               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-              $11, $12, $13, $14, $15, $16, $17, $18, $19
+              $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
             )
             ON CONFLICT (name) DO NOTHING`,
             [
@@ -114,7 +123,8 @@ export async function initDatabase() {
               instance.lastImagePath || null,
               JSON.stringify(instance.selectedImages || []),
               instance.filter ? JSON.stringify(instance.filter) : null,
-              instance.previewSortMode || null
+              instance.previewSortMode || null,
+              instance.duplicateMode || 'env'
             ]
           );
         }
@@ -163,7 +173,8 @@ function rowToInstance(row) {
     lastImagePath: row.last_image_path,
     selectedImages: row.selected_images || [],
     filter: row.filter,
-    previewSortMode: row.preview_sort_mode
+    previewSortMode: row.preview_sort_mode,
+    duplicateMode: row.duplicate_mode || 'env'
   };
 }
 
@@ -213,8 +224,8 @@ export async function createInstance(data) {
     const result = await client.query(
       `INSERT INTO instances (
         name, port, dataset_path, threshold, debug, pentagon_format,
-        obb_mode, class_file, auto_sync, status, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        obb_mode, class_file, auto_sync, status, created_at, duplicate_mode
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *`,
       [
         data.name,
@@ -227,7 +238,8 @@ export async function createInstance(data) {
         data.classFile || null,
         data.autoSync !== undefined ? data.autoSync : true,
         data.status || 'stopped',
-        data.createdAt || new Date().toISOString()
+        data.createdAt || new Date().toISOString(),
+        data.duplicateMode || 'env'
       ]
     );
     return rowToInstance(result.rows[0]);
@@ -275,6 +287,10 @@ export async function updateInstance(name, data) {
     if (data.autoSync !== undefined) {
       setClauses.push(`auto_sync = $${paramIndex++}`);
       values.push(data.autoSync);
+    }
+    if (data.duplicateMode !== undefined) {
+      setClauses.push(`duplicate_mode = $${paramIndex++}`);
+      values.push(data.duplicateMode || 'env');
     }
 
     setClauses.push(`updated_at = $${paramIndex++}`);

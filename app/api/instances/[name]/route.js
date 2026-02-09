@@ -18,7 +18,7 @@ export const PUT = withApiLogging(async (req, { params }) => {
   try {
     const { name } = params;
     const body = await req.json();
-    const { port, datasetPath, threshold, debug, pentagonFormat, obbMode, classFile, autoSync } = body;
+    const { port, datasetPath, threshold, debug, pentagonFormat, obbMode, classFile, autoSync, duplicateMode } = body;
 
     const instance = await getInstanceByName(name);
 
@@ -51,7 +51,8 @@ export const PUT = withApiLogging(async (req, { params }) => {
       pentagonFormat,
       obbMode,
       classFile,
-      autoSync
+      autoSync,
+      duplicateMode
     });
 
     return NextResponse.json(updatedInstance);
